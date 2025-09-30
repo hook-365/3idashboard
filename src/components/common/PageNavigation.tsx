@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, TrendingUp, Telescope, Users, Camera } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Telescope, Users, Camera, Info } from 'lucide-react';
 
 const navigationItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
   { href: '/details', label: 'Details', icon: TrendingUp },
   { href: '/observations', label: 'Observations', icon: Telescope },
   { href: '/observers', label: 'Observers', icon: Users },
-  { href: '/gallery', label: 'Gallery', icon: Camera }
+  { href: '/gallery', label: 'Gallery', icon: Camera },
+  { href: '/about', label: 'About', icon: Info }
 ];
 
 export default function PageNavigation() {
