@@ -21,14 +21,15 @@ export async function GET(request: NextRequest) {
   const includeBinned = searchParams.get('binned') === 'true';
   const sortBy = searchParams.get('sort') || 'date'; // 'date', 'magnitude', 'observer'
   const sortOrder = searchParams.get('order') || 'desc'; // 'asc', 'desc'
+  const forceRefresh = searchParams.get('refresh') === 'true'; // Force cache bypass
 
   try {
-    console.log('Fetching observations with filters:', { observer, minMagnitude, maxMagnitude, days, includeStats });
+    console.log('Fetching observations with filters:', { observer, minMagnitude, maxMagnitude, days, includeStats, forceRefresh });
 
     // Fetch all observations and observers in parallel if stats requested
     const [observations, observers] = await Promise.all([
-      cobsApi.getObservations(),
-      includeStats ? cobsApi.getObservers() : Promise.resolve([])
+      cobsApi.getObservations(forceRefresh),
+      includeStats ? cobsApi.getObservers(forceRefresh) : Promise.resolve([])
     ]);
 
     // Apply filters

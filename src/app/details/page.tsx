@@ -360,26 +360,26 @@ export default function AnalyticsPage() {
           {!loading && !error && (
             <>
 
-            {/* 1. DIRECTION & ORBITAL MECHANICS SECTION */}
+            {/* 1. TRAJECTORY & POSITION SECTION */}
             <div className="space-y-8 mb-12">
               <div className="text-center">
                 <h2 className="text-3xl font-semibold bg-gradient-to-r from-green-400 to-teal-400 bg-clip-text text-transparent mb-2">
-                  🧭 Direction & Orbital Mechanics
+                  🧭 Interstellar Trajectory
                 </h2>
                 <p className="text-gray-400">
-                  Tracking changes in orbital path and direction
+                  Real-time position and hyperbolic escape path
                 </p>
               </div>
 
-              {/* 3D Solar System Visualization */}
+              {/* 3D Visualization */}
               <div className="bg-gray-700 rounded-lg p-6 mb-8">
-                <h3 className="text-xl font-semibold text-white mb-4 text-center">Solar System Flyby</h3>
+                <h3 className="text-xl font-semibold text-white mb-4 text-center">3D Position Viewer</h3>
                 <ModernSolarSystem />
               </div>
 
-              {/* Current Orbital Parameters */}
+              {/* Orbital Parameters */}
               <div className="bg-gray-700 rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-white mb-4 text-center">Technical Details</h3>
+                <h3 className="text-xl font-semibold text-white mb-4 text-center">Orbital Elements</h3>
 
                 <div className="p-4 bg-gray-800 rounded-lg max-w-4xl mx-auto">
                   <div className="text-xs text-gray-300 space-y-3 font-mono">

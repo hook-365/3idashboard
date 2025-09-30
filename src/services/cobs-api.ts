@@ -235,7 +235,8 @@ export class COBSApiClient {
       const hours = Math.floor((dayFloatValue - day) * 24);
       const minutes = Math.floor(((dayFloatValue - day) * 24 - hours) * 60);
 
-      const observationDate = new Date(yearNum, monthNum - 1, day, hours, minutes);
+      // IMPORTANT: COBS dates are in UTC, use Date.UTC()
+      const observationDate = new Date(Date.UTC(yearNum, monthNum - 1, day, hours, minutes));
 
       // Validate date is reasonable (not in future, not too far in past)
       const now = new Date();
@@ -316,13 +317,18 @@ export class COBSApiClient {
 
   /**
    * Fetch raw observations from COBS API with enhanced error handling and retries
+   * @param forceRefresh - If true, bypass cache and fetch fresh data
    */
-  private async fetchRawObservations(): Promise<COBSObservation[]> {
+  private async fetchRawObservations(forceRefresh: boolean = false): Promise<COBSObservation[]> {
     const cacheKey = 'raw_observations';
     const cached = this.cache.get<COBSObservation[]>(cacheKey);
-    if (cached) {
+    if (cached && !forceRefresh) {
       console.log(`Cache hit: returning ${cached.length} observations`);
       return cached;
+    }
+
+    if (forceRefresh) {
+      console.log('Force refresh: bypassing cache');
     }
 
     let lastError: Error | null = null;
@@ -413,9 +419,10 @@ export class COBSApiClient {
 
   /**
    * Get processed observations with enhanced data
+   * @param forceRefresh - If true, bypass cache and fetch fresh data
    */
-  async getObservations(): Promise<ProcessedObservation[]> {
-    const rawObservations = await this.fetchRawObservations();
+  async getObservations(forceRefresh: boolean = false): Promise<ProcessedObservation[]> {
+    const rawObservations = await this.fetchRawObservations(forceRefresh);
 
     // Count observations per observer
     const observerCounts = new Map<string, number>();
@@ -458,6 +465,7 @@ export class COBSApiClient {
 
   /**
    * Parse COBS date format to ISO string
+   * IMPORTANT: COBS dates are in UTC, so we must use Date.UTC()
    */
   private parseObservationDate(dateStr: string): string {
     const dateParts = dateStr.trim().split(' ');
@@ -471,7 +479,7 @@ export class COBSApiClient {
       const hours = Math.floor((dayFloat - day) * 24);
       const minutes = Math.floor(((dayFloat - day) * 24 - hours) * 60);
 
-      return new Date(year, month - 1, day, hours, minutes).toISOString();
+      return new Date(Date.UTC(year, month - 1, day, hours, minutes)).toISOString();
     } catch {
       return new Date().toISOString();
     }
@@ -479,9 +487,10 @@ export class COBSApiClient {
 
   /**
    * Calculate comprehensive statistics
+   * @param forceRefresh - If true, bypass cache and fetch fresh data
    */
-  async getStatistics(): Promise<CometStatistics> {
-    const observations = await this.getObservations();
+  async getStatistics(forceRefresh: boolean = false): Promise<CometStatistics> {
+    const observations = await this.getObservations(forceRefresh);
 
     if (observations.length === 0) {
       return {
@@ -520,9 +529,10 @@ export class COBSApiClient {
 
   /**
    * Generate light curve data with daily averages
+   * @param forceRefresh - If true, bypass cache and fetch fresh data
    */
-  async getLightCurve(): Promise<LightCurvePoint[]> {
-    const observations = await this.getObservations();
+  async getLightCurve(forceRefresh: boolean = false): Promise<LightCurvePoint[]> {
+    const observations = await this.getObservations(forceRefresh);
 
     // Group observations by date
     const dailyGroups = new Map<string, ProcessedObservation[]>();
@@ -561,9 +571,10 @@ export class COBSApiClient {
 
   /**
    * Get observer information with locations
+   * @param forceRefresh - If true, bypass cache and fetch fresh data
    */
-  async getObservers(): Promise<ObserverInfo[]> {
-    const observations = await this.getObservations();
+  async getObservers(forceRefresh: boolean = false): Promise<ObserverInfo[]> {
+    const observations = await this.getObservations(forceRefresh);
 
     const observerMap = new Map<string, ObserverInfo>();
 

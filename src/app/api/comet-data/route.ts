@@ -12,13 +12,15 @@ export async function GET(request: NextRequest) {
   const includePrediction = searchParams.get('predict') === 'true';
   const maxObservations = parseInt(searchParams.get('limit') || '100');
   const trendDays = parseInt(searchParams.get('trendDays') || '30');
+  const forceRefresh = searchParams.get('refresh') === 'true'; // Force cache bypass
 
   try {
     console.log('Starting comet-data API request with params:', {
       includeSmoothed,
       includePrediction,
       maxObservations,
-      trendDays
+      trendDays,
+      forceRefresh
     });
 
     // Try enhanced multi-source data first
@@ -133,10 +135,10 @@ export async function GET(request: NextRequest) {
 
       // Fetch all data in parallel for better performance (existing implementation)
       const [observations, statistics, observers, lightCurve] = await Promise.all([
-        cobsApi.getObservations(),
-        cobsApi.getStatistics(),
-        cobsApi.getObservers(),
-        cobsApi.getLightCurve(),
+        cobsApi.getObservations(forceRefresh),
+        cobsApi.getStatistics(forceRefresh),
+        cobsApi.getObservers(forceRefresh),
+        cobsApi.getLightCurve(forceRefresh),
       ]);
 
       console.log(`COBS fallback data fetched: ${observations.length} observations, ${observers.length} observers, ${lightCurve.length} light curve points`);
