@@ -180,12 +180,12 @@ export default function ModernSolarSystem() {
         container.appendChild(labelRenderer.domElement);
 
         // Enhanced lighting for realistic planet illumination
-        // Hemisphere light for ambient fill (sky vs ground)
-        const hemiLight = new THREE.HemisphereLight(0x888888, 0x222222, 0.8);
+        // Hemisphere light for ambient fill (sky vs ground) - reduced for better texture visibility
+        const hemiLight = new THREE.HemisphereLight(0x888888, 0x222222, 0.5);
         scene.add(hemiLight);
 
-        // Point light from the Sun - more intense for better planet illumination
-        const sunLight = new THREE.PointLight(0xffffee, 5, 20000);
+        // Point light from the Sun - balanced intensity to show textures
+        const sunLight = new THREE.PointLight(0xffffee, 3, 20000);
         sunLight.position.set(0, 0, 0);
         sunLight.castShadow = false; // Shadows are expensive, keep them off
         scene.add(sunLight);
@@ -357,7 +357,7 @@ export default function ModernSolarSystem() {
             metalness: 0.0,
             roughness: 1.0,
             emissive: parseInt(config.color.replace('#', '0x')),
-            emissiveIntensity: 0.3 // Add subtle glow to make planets more visible
+            emissiveIntensity: 0.1 // Reduced glow for better texture visibility
           });
 
           // Attempt to load texture asynchronously
@@ -376,7 +376,7 @@ export default function ModernSolarSystem() {
               // If texture fails, use the planet's color
               material.color.setHex(parseInt(config.color.replace('#', '0x')));
               material.emissive.setHex(parseInt(config.color.replace('#', '0x')));
-              material.emissiveIntensity = 0.4; // Increased for better visibility
+              material.emissiveIntensity = 0.2; // Reduced for consistency
             }
           );
 
