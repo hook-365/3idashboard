@@ -258,7 +258,7 @@ export default function Home() {
             className="mb-8"
             showTrend={true}
             realTimeUpdates={true}
-            trendAnalysis={undefined}
+            trendAnalysis={data.stats?.trendAnalysis}
           />
         )}
 
