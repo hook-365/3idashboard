@@ -104,8 +104,9 @@ export default function Home() {
               // Calculate velocity trend from acceleration data
               velocity_trend: (() => {
                 const acceleration = cometResult.data.orbital_mechanics?.velocity_changes?.acceleration || 0;
-                if (acceleration > 0.0001) return 'accelerating';
-                if (acceleration < -0.0001) return 'decelerating';
+                // Use 0.00001 km/s² threshold (0.864 km/s per day)
+                if (acceleration > 0.00001) return 'accelerating';
+                if (acceleration < -0.00001) return 'decelerating';
                 return 'constant';
               })(),
               // Calculate brightness trend from trend analysis
