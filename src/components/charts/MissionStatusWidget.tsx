@@ -183,7 +183,7 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
         {/* Current Velocity */}
         <div className="bg-gray-700 rounded-lg p-4 text-center">
           <div className="flex items-center justify-center gap-1 mb-1">
-            <div className="text-2xl">⚡</div>
+            <div className="text-2xl">🚀</div>
             <div className={`text-lg ${getTrendColor(data.velocity_trend)}`}>
               {getTrendIcon(data.velocity_trend)}
             </div>
@@ -199,7 +199,7 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
         {/* Current Brightness */}
         <div className="bg-gray-700 rounded-lg p-4 text-center">
           <div className="flex items-center justify-center gap-1 mb-1">
-            <div className="text-2xl">✨</div>
+            <div className="text-2xl">🌟</div>
             <div className={`text-lg ${getTrendColor(data.brightness_trend)}`}>
               {getTrendIcon(data.brightness_trend)}
             </div>
