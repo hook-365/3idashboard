@@ -1,0 +1,5 @@
+# Ignore all cached data files
+*.json
+
+# But keep this .gitignore
+!.gitignore

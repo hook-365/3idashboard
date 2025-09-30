@@ -1,0 +1,85 @@
+// Simple WebSocket hook to avoid syntax errors
+import { useState, useCallback } from 'react';
+
+export interface UseWebSocketOptions {
+  autoConnect?: boolean;
+  subscriptions?: ('observations' | 'stats')[];
+  pingInterval?: number;
+  onConnect?: () => void;
+  onDisconnect?: (reason: string) => void;
+  onError?: (error: any) => void;
+}
+
+export interface WebSocketState {
+  connected: boolean;
+  connecting: boolean;
+  error: string | null;
+  quality: 'excellent' | 'good' | 'poor' | 'unknown';
+  latency: number;
+  totalConnections: number;
+  connectionId: string | null;
+  serverInfo: any;
+}
+
+export const useWebSocket = (options: UseWebSocketOptions = {}) => {
+  const [state, setState] = useState<WebSocketState>({
+    connected: false,
+    connecting: false,
+    error: null,
+    quality: 'unknown',
+    latency: 0,
+    totalConnections: 0,
+    connectionId: null,
+    serverInfo: null,
+  });
+
+  const [observations, setObservations] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [health, setHealth] = useState<any>(null);
+
+  const connect = useCallback(() => {
+    setState(prev => ({ ...prev, connecting: true, error: null }));
+    // Connection logic would go here
+  }, []);
+
+  const disconnect = useCallback(() => {
+    setState(prev => ({ ...prev, connected: false, connecting: false }));
+  }, []);
+
+  const subscribe = useCallback((channel: 'observations' | 'stats') => {
+    // Subscribe logic would go here
+  }, []);
+
+  const unsubscribe = useCallback((channel: 'observations' | 'stats') => {
+    // Unsubscribe logic would go here
+  }, []);
+
+  const ping = useCallback(() => {
+    // Ping logic would go here
+  }, []);
+
+  const sendMessage = useCallback((event: string, data: any) => {
+    // Send message logic would go here
+  }, []);
+
+  return {
+    ...state,
+    observations,
+    stats,
+    health,
+    connect,
+    disconnect,
+    subscribe,
+    unsubscribe,
+    ping,
+    sendMessage,
+    clearObservations: () => setObservations([]),
+    resetStats: () => setStats(null),
+    isConnected: state.connected,
+    isConnecting: state.connecting,
+    hasError: !!state.error,
+    connectionQuality: state.quality
+  };
+};
+
+export default useWebSocket;

@@ -1,0 +1,94 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
+export default function JSOrreryVisualization() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const jsoррeryRef = useRef<any>(null);
+
+  useEffect(() => {
+    let cleanupFn: (() => void) | null = null;
+
+    const initJsOrrery = async () => {
+      try {
+        if (!containerRef.current) return;
+
+        // Dynamically import jsorrery (client-side only)
+        const JSOrrery = (await import('@/lib/jsorrery/core/JSOrrery')).default;
+
+        // Create jsOrrery instance
+        const jsorrery = new JSOrrery(containerRef.current.id);
+        jsoррeryRef.current = jsorrery;
+
+        // Load the default scenario (Solar System with 3I/ATLAS)
+        await jsorrery.loadDefaultScenario();
+
+        setLoading(false);
+
+        cleanupFn = () => {
+          if (jsorrery.activeScenario) {
+            jsorrery.activeScenario.kill();
+          }
+        };
+      } catch (err) {
+        console.error('Failed to initialize jsOrrery:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load visualization');
+        setLoading(false);
+      }
+    };
+
+    initJsOrrery();
+
+    return () => {
+      if (cleanupFn) cleanupFn();
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-gray-800 rounded-lg p-8 flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <div className="text-gray-400 text-lg mb-4">Loading 3D Solar System Visualization...</div>
+          <div className="text-gray-500 text-sm">Powered by jsOrrery + Three.js</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-gray-800 rounded-lg p-8 flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <div className="text-red-400 text-lg mb-4">Failed to Load Visualization</div>
+          <div className="text-gray-400 text-sm">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-800 rounded-lg overflow-hidden">
+      <div className="text-center p-4 border-b border-gray-700">
+        <h3 className="text-xl font-semibold text-white mb-2">
+          3D Solar System with 3I/ATLAS
+        </h3>
+        <p className="text-sm text-gray-400">
+          Interactive WebGL visualization • Use mouse to rotate and zoom • Click planets to focus
+        </p>
+      </div>
+
+      <div
+        id="jsorrery-container"
+        ref={containerRef}
+        className="w-full"
+        style={{ height: '700px' }}
+      />
+
+      <div className="text-xs text-gray-500 text-center p-3 border-t border-gray-700">
+        Visualization powered by jsOrrery • Accurate orbital mechanics from NASA/JPL • 3I/ATLAS perihelion: October 30, 2025
+      </div>
+    </div>
+  );
+}

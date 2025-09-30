@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Bar Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        body {
+            background: #111827;
+            color: white;
+            font-family: system-ui;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .chart-container {
+            width: 100%;
+            height: 500px;
+            background: #374151;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>3I/ATLAS Coma Size Chart - Error Bar Test</h1>
+        <div class="chart-container">
+            <canvas id="comaChart"></canvas>
+        </div>
+        <div id="debug"></div>
+    </div>
+
+    <script>
+        // Mock data with uncertainty values
+        const mockComaData = [
+            { date: '2025-07-03T12:00:00.000Z', comaSize: 3.13, uncertainty: 0.18, notes: 'Daily average of 10 observations (σ=0.36, MAD=0.18)' },
+            { date: '2025-07-04T12:00:00.000Z', comaSize: 3.25, uncertainty: 0.15, notes: 'Daily average of 8 observations (σ=0.30, MAD=0.15)' },
+            { date: '2025-07-05T12:00:00.000Z', comaSize: 3.41, uncertainty: 0.22, notes: 'Daily average of 12 observations (σ=0.44, MAD=0.22)' },
+            { date: '2025-07-06T12:00:00.000Z', comaSize: 3.58, uncertainty: 0.19, notes: 'Daily average of 9 observations (σ=0.38, MAD=0.19)' },
+            { date: '2025-07-07T12:00:00.000Z', comaSize: 3.82, uncertainty: 0.25, notes: 'Daily average of 15 observations (σ=0.50, MAD=0.25)' }
+        ];
+
+        // Error bar plugin for Chart.js
+        const errorBarPlugin = {
+            id: 'errorBar',
+            afterDatasetsDraw(chart, args, options) {
+                const { ctx, data, scales } = chart;
+                const xScale = scales.x;
+                const yScale = scales.y;
+
+                if (!xScale || !yScale) return;
+
+                ctx.save();
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; // Red color for error bars
+                ctx.lineWidth = 1.5;
+
+                data.datasets.forEach((dataset, datasetIndex) => {
+                    if (dataset.label === 'Coma Size' && dataset.data) {
+                        const meta = chart.getDatasetMeta(datasetIndex);
+                        if (meta.hidden) return;
+
+                        dataset.data.forEach((point, index) => {
+                            const pointData = point.pointData;
+                            if (!pointData || !pointData.uncertainty) return;
+
+                            const x = xScale.getPixelForValue(point.x);
+                            const centerY = yScale.getPixelForValue(point.y);
+                            const upperY = yScale.getPixelForValue(point.y + pointData.uncertainty);
+                            const lowerY = yScale.getPixelForValue(Math.max(0, point.y - pointData.uncertainty));
+
+                            // Draw vertical error bar line
+                            ctx.beginPath();
+                            ctx.moveTo(x, upperY);
+                            ctx.lineTo(x, lowerY);
+                            ctx.stroke();
+
+                            // Draw upper cap
+                            ctx.beginPath();
+                            ctx.moveTo(x - 4, upperY);
+                            ctx.lineTo(x + 4, upperY);
+                            ctx.stroke();
+
+                            // Draw lower cap
+                            ctx.beginPath();
+                            ctx.moveTo(x - 4, lowerY);
+                            ctx.lineTo(x + 4, lowerY);
+                            ctx.stroke();
+                        });
+                    }
+                });
+
+                ctx.restore();
+            },
+        };
+
+        // Register the plugin
+        Chart.register(errorBarPlugin);
+
+        // Main dataset
+        const mainData = mockComaData.map(point => ({
+            x: new Date(point.date).getTime(),
+            y: point.comaSize,
+            pointData: point,
+        }));
+
+        // Create uncertainty area
+        const upperBoundData = mockComaData.map(point => ({
+            x: new Date(point.date).getTime(),
+            y: point.comaSize + point.uncertainty,
+            pointData: point,
+        }));
+
+        const lowerBoundData = [...mockComaData].reverse().map(point => ({
+            x: new Date(point.date).getTime(),
+            y: Math.max(0, point.comaSize - point.uncertainty),
+            pointData: point,
+        }));
+
+        const errorBoundData = [...upperBoundData, ...lowerBoundData];
+
+        const config = {
+            type: 'line',
+            data: {
+                datasets: [
+                    {
+                        label: 'Coma Size',
+                        data: mainData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: '#3b82f6',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointStyle: 'circle',
+                        showLine: true,
+                        fill: false,
+                        tension: 0.3,
+                        yAxisID: 'y',
+                    },
+                    {
+                        label: 'Measurement Uncertainty (±1σ)',
+                        data: errorBoundData,
+                        borderColor: 'rgba(239, 68, 68, 0.3)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        pointHoverRadius: 0,
+                        showLine: true,
+                        fill: true,
+                        tension: 0.3,
+                        yAxisID: 'y',
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: '#e5e7eb',
+                            font: {
+                                size: 12,
+                            },
+                        },
+                    },
+                    title: {
+                        display: true,
+                        text: '3I/ATLAS Coma Size Evolution - Error Bar Test',
+                        color: '#e5e7eb',
+                        font: {
+                            size: 16,
+                            weight: 'bold',
+                        },
+                    },
+                    tooltip: {
+                        backgroundColor: '#374151',
+                        titleColor: '#e5e7eb',
+                        bodyColor: '#e5e7eb',
+                        borderColor: '#6b7280',
+                        borderWidth: 1,
+                        callbacks: {
+                            title: (context) => {
+                                const date = new Date(context[0].parsed.x);
+                                return date.toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                });
+                            },
+                            label: (context) => {
+                                const rawData = context.raw;
+                                const point = rawData?.pointData;
+
+                                if (context.datasetIndex === 0) {
+                                    const lines = [`Coma Size: ${context.parsed.y.toFixed(1)} arcminutes`];
+                                    if (point?.uncertainty) {
+                                        lines.push(`Uncertainty: ±${point.uncertainty.toFixed(2)} arcminutes`);
+                                    }
+                                    if (point?.notes) {
+                                        lines.push(`Notes: ${point.notes}`);
+                                    }
+                                    return lines;
+                                } else {
+                                    return [`Uncertainty bound: ${context.parsed.y.toFixed(2)} arcminutes`];
+                                }
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            displayFormats: {
+                                day: 'MMM dd',
+                                week: 'MMM dd',
+                                month: 'MMM yyyy',
+                            },
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: '#e5e7eb',
+                        },
+                        ticks: {
+                            color: '#9ca3af',
+                        },
+                        grid: {
+                            color: '#374151',
+                        },
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Coma Size (arcminutes)',
+                            color: '#e5e7eb',
+                        },
+                        ticks: {
+                            color: '#9ca3af',
+                            callback: function(value) {
+                                return `${value}'`;
+                            },
+                        },
+                        grid: {
+                            color: '#374151',
+                        },
+                        min: 0,
+                    },
+                },
+            },
+        };
+
+        // Create the chart
+        const ctx = document.getElementById('comaChart').getContext('2d');
+        const chart = new Chart(ctx, config);
+
+        // Debug info
+        document.getElementById('debug').innerHTML = `
+            <h3>Debug Info:</h3>
+            <p>Data points with uncertainty: ${mockComaData.length}</p>
+            <p>Error bar plugin registered: Yes</p>
+            <p>Sample uncertainty values: ${mockComaData.map(d => d.uncertainty).join(', ')}</p>
+        `;
+
+        console.log('Chart initialized with error bars');
+        console.log('Sample data:', mockComaData[0]);
+    </script>
+</body>
+</html>

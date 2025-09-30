@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 3I/ATLAS Comet Dashboard
 
-## Getting Started
+Real-time tracking dashboard for interstellar comet 3I/ATLAS, approaching perihelion on October 30, 2025.
 
-First, run the development server:
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Development server
+PORT=3020 npm run dev
+
+# Production build
+npm run build && npm run start
+
+# Docker development
+npm run docker:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3020](http://localhost:3020) to view the dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **3D Solar System Visualization**: Interactive Three.js orbital mechanics with infinite grid
+- **Real-time Data**: Live observations from COBS global network
+- **Scientific Analysis**: Velocity tracking, activity levels, orbital dynamics
+- **Interactive Charts**: Perihelion markers and comprehensive visualizations
+- **Observer Network**: Global contributor tracking and performance metrics
+- **Data Integrity**: Real observations only - no fabricated fallbacks
+- **Production-Ready**: Request deduplication, structured logging, security headers
 
-## Learn More
+## Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Frontend**: Next.js 14+ with TypeScript and Tailwind CSS
+- **3D Graphics**: Three.js with custom shaders and astronomy-engine
+- **Data**: Multi-source integration (COBS, NASA/JPL, TheSkyLive)
+- **Charts**: Chart.js with custom scientific visualizations
+- **Infrastructure**: Pino logging, Zod validation, request deduplication
+- **Development**: Docker containerized environment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `/src/app/` - Next.js App Router pages
+- `/src/components/charts/` - Scientific visualization components
+- `/src/lib/data-sources/` - Multi-source data integration
+- `/src/utils/` - Configuration and utilities
 
-## Deploy on Vercel
+## Documentation
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [CLAUDE.md](./CLAUDE.md) for complete development documentation including:
+- API endpoints and parameters
+- Data sources and integration
+- Chart components and configuration
+- Development guidelines and recent updates
