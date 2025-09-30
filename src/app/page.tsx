@@ -257,6 +257,7 @@ export default function Home() {
             }))}
             className="mb-8"
             showTrend={true}
+            compact={true}
             realTimeUpdates={true}
             trendAnalysis={data.stats?.trendAnalysis}
           />

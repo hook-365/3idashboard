@@ -13,6 +13,7 @@ interface BrightnessStatsProps {
   data: BrightnessData[];
   className?: string;
   showTrend?: boolean;
+  compact?: boolean; // Show only current magnitude and trend
   realTimeUpdates?: boolean;
   enableNotifications?: boolean;
   onSignificantChange?: (change: { type: 'brightening' | 'dimming'; magnitude: number }) => void;
@@ -56,6 +57,7 @@ export default function BrightnessStats({
   data,
   className = '',
   showTrend = true,
+  compact = false,
   realTimeUpdates = false,
   enableNotifications = false,
   onSignificantChange,
@@ -208,6 +210,59 @@ export default function BrightnessStats({
 
   const formatMagnitude = (mag: number) => mag.toFixed(2);
 
+  // Compact mode: single line with magnitude and trend
+  if (compact) {
+    return (
+      <div className={`bg-gray-800 rounded-lg p-4 ${className}`}>
+        <div className="flex items-center justify-between">
+          {/* Left: Current Magnitude */}
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="text-sm text-gray-400 mb-1">Brightness Analysis</div>
+              <div className="flex items-center gap-2">
+                <div className="text-3xl font-bold text-blue-300">
+                  {formatMagnitude(stats.current.magnitude)}m
+                </div>
+                <div className="text-sm text-gray-400">
+                  ({stats.current.daysAgo === 0 ? 'Today' : `${stats.current.daysAgo}d ago`})
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Trend */}
+          {showTrend && (
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <div className="text-xs text-gray-400 mb-1">Trend</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{getTrendIcon(stats.trend.direction)}</span>
+                  <span className={`text-lg font-bold ${getTrendColor(stats.trend.direction)}`}>
+                    {stats.trend.direction.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-gray-400 mb-1">Rate</div>
+                <div className="text-lg font-bold text-gray-200">
+                  {Math.abs(stats.trend.rate).toFixed(3)} mag/day
+                </div>
+              </div>
+              <div className={`px-3 py-2 rounded text-xs font-medium ${
+                stats.trend.confidence === 'high' ? 'bg-green-800 text-green-200' :
+                stats.trend.confidence === 'medium' ? 'bg-yellow-800 text-yellow-200' :
+                'bg-red-800 text-red-200'
+              }`}>
+                {stats.trend.confidence} confidence
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Full mode: all statistics
   return (
     <div className={`bg-gray-800 rounded-lg p-6 ${className}`}>
       <div className="flex items-center justify-between mb-6">
