@@ -264,9 +264,9 @@ export default function ObserverPerformanceDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Header Section */}
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
             <h3 className="text-2xl font-bold text-purple-400">
               Observer Performance Analytics
@@ -275,65 +275,68 @@ export default function ObserverPerformanceDashboard() {
               Analyzing the global network of comet 3I/ATLAS observers
             </p>
           </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="px-4 py-2 bg-blue-700 hover:bg-blue-600 disabled:bg-gray-600 rounded transition-colors flex items-center gap-2"
-                >
-                  {refreshing ? (
-                    <>
-                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                      Refreshing...
-                    </>
-                  ) : (
-                    <>
-                      🔄 Refresh
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleExportData}
-                  className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded transition-colors"
-                >
-                  📊 Export Data
-                </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="px-4 py-2 bg-blue-700 hover:bg-blue-600 disabled:bg-gray-600 rounded transition-colors flex items-center gap-2"
+            >
+              {refreshing ? (
+                <>
+                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  🔄 Refresh
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleExportData}
+              className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded transition-colors"
+            >
+              📊 Export Data
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Summary */}
+        {statistics && (
+          <div>
+            <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Network Statistics</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-blue-400">
+                  {statistics.summary.totalObservers.toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-400">Total Observers</div>
+              </div>
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-green-400">
+                  {statistics.summary.totalObservations.toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-400">Total Observations</div>
+              </div>
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-purple-400">
+                  {statistics.summary.averageObservationsPerObserver.toFixed(1)}
+                </div>
+                <div className="text-sm text-gray-400">Avg per Observer</div>
+              </div>
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-yellow-400">
+                  {new Set(observers.map(obs => obs.country)).size}
+                </div>
+                <div className="text-sm text-gray-400">Countries</div>
               </div>
             </div>
-
-            {/* Stats Summary */}
-            {statistics && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                <div className="bg-gray-800 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-blue-400">
-                    {statistics.summary.totalObservers.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-400">Total Observers</div>
-                </div>
-                <div className="bg-gray-800 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-green-400">
-                    {statistics.summary.totalObservations.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-400">Total Observations</div>
-                </div>
-                <div className="bg-gray-800 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-purple-400">
-                    {statistics.summary.averageObservationsPerObserver.toFixed(1)}
-                  </div>
-                  <div className="text-sm text-gray-400">Avg per Observer</div>
-                </div>
-                <div className="bg-gray-800 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-yellow-400">
-                    {new Set(observers.map(obs => obs.country)).size}
-                  </div>
-                  <div className="text-sm text-gray-400">Countries</div>
-                </div>
-              </div>
-            )}
           </div>
+        )}
+      </div>
 
           {/* Tab Navigation */}
-          <div className="flex space-x-1 mb-6 bg-gray-800 rounded-lg p-1">
+          <div className="flex space-x-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
             {[
               { id: 'leaderboard', label: 'Observer Leaderboard', icon: '🏆' },
               { id: 'regional', label: 'Regional Analysis', icon: '🌍' },
@@ -354,8 +357,8 @@ export default function ObserverPerformanceDashboard() {
           </div>
 
           {/* Filters */}
-          <div className="bg-gray-800 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold mb-3">Filters</h3>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">🔍 Filters</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Min Observations</label>
@@ -460,7 +463,7 @@ export default function ObserverPerformanceDashboard() {
           )}
 
         {/* Footer */}
-        <div className="mt-6 text-center text-sm text-gray-500 border-t border-gray-700 pt-4">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center text-sm text-gray-400">
           <p>Last updated: {lastUpdated.toLocaleString()}</p>
           <p className="mt-1">Data from COBS API • {observers.length} observers analyzed</p>
         </div>
