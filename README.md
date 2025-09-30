@@ -7,161 +7,131 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A comprehensive, production-ready dashboard for tracking the interstellar comet 3I/ATLAS with real-time observational data, 3D orbital visualization, and scientific analysis tools.
+Track the third confirmed interstellar object passing through our solar system with real-time observational data, 3D orbital visualization, and scientific analysis tools.
 
 ## Features
 
 ### 🌌 3D Solar System Visualization
 - Interactive Three.js orbital mechanics simulation
 - Real-time planet positions using astronomy-engine (JPL ephemeris)
-- Infinite shader-based ecliptic plane grid
 - Comet trajectory with historical trail and future projection
-- Compact perihelion crosshair markers
+- Shader-based infinite ecliptic plane grid
 
 ### 📊 Scientific Analysis
-- **Velocity Tracking**: Multi-type velocity analysis (brightness, coma, orbital, distance)
-- **Activity Levels**: Physics-based activity detection with confidence scoring
-- **Trend Analysis**: Statistical trend modeling with predictions
-- **Light Curves**: Multi-filter photometric observations
-- **Orbital Mechanics**: Heliocentric and geocentric velocity tracking
+- **Velocity Tracking** - Multi-type velocity analysis (brightness, coma, orbital)
+- **Activity Levels** - Physics-based activity detection
+- **Trend Analysis** - Statistical trend modeling with predictions
+- **Light Curves** - Multi-filter photometric observations
+- **Orbital Mechanics** - Heliocentric and geocentric velocity tracking
 
 ### 🔭 Observer Network
 - Global observation data from COBS (Comet Observation Database)
 - Real-time observer contribution metrics
-- Geographic distribution tracking
-- Quality ratings and filtering
-
-### 📱 Modern UX
-- Responsive design with mobile-optimized navigation
-- Real-time data updates with error boundaries
-- Extension-safe chart rendering
-- Dark theme optimized for astronomy
+- Geographic distribution and quality ratings
 
 ### 🛡️ Production-Ready
-- Request deduplication to prevent duplicate API calls
+- Request deduplication and caching
 - Structured logging with Pino
-- Input validation with Zod schemas
+- Input validation with Zod
 - Security headers (HSTS, CSP, CORS)
-- Persistent caching with expiration
-- Docker containerized deployment
+- Docker containerized
 
 ## Quick Start
 
 ### Prerequisites
 - Node.js 18+
 - npm or yarn
-- Docker (optional, for containerized deployment)
+- Docker (optional)
 
 ### Development
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/hook-365/3idashboard.git
 cd 3idashboard
 
 # Install dependencies
 npm install
 
-# Start development server on port 3020
+# Start development server
 PORT=3020 npm run dev
-
-# Open http://localhost:3020
 ```
 
-### Production Build
+Open http://localhost:3020
+
+### Production
 
 ```bash
-# Build for production
+# Build
 npm run build
 
-# Start production server
+# Start
 npm run start
 ```
 
-### Docker Deployment
+### Docker
 
 ```bash
-# Build and start container on port 3000
+# Build and start
 docker-compose up -d --build
 
 # View logs
 docker logs 3idashboard_web_1
 
-# Stop container
+# Stop
 docker-compose down
 ```
 
 ## Tech Stack
 
-### Frontend
-- **Next.js 15.5.4** - React framework with App Router
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first styling
-- **Three.js** - 3D orbital visualization
-- **Chart.js** - Scientific data visualization
-- **Lucide React** - Icon system
+**Frontend**
+- Next.js 15.5 with App Router
+- TypeScript
+- Tailwind CSS
+- Three.js (3D visualization)
+- Chart.js (data visualization)
 
-### Data Sources
-- **COBS API** - Primary observation data (CC BY-NC-SA 4.0)
-- **NASA/JPL Horizons** - Orbital mechanics and ephemeris
-- **TheSkyLive** - Real-time coordinates
-- **astronomy-engine** - JPL ephemeris calculations
+**Data Sources**
+- COBS API (observations)
+- NASA/JPL Horizons (orbital mechanics)
+- TheSkyLive (real-time coordinates)
 
-### Infrastructure
-- **Pino** - Structured JSON logging
-- **Zod** - Schema validation
-- **Docker** - Containerization
-- **nginx** - Reverse proxy
+**Infrastructure**
+- Pino (structured logging)
+- Zod (validation)
+- Docker
 
 ## Project Structure
 
 ```
 3idashboard/
 ├── src/
-│   ├── app/                     # Next.js App Router pages
-│   │   ├── page.tsx            # Overview dashboard
-│   │   ├── details/            # Scientific analysis page
-│   │   ├── observations/       # Observation data table
-│   │   ├── observers/          # Observer network
-│   │   ├── gallery/            # Photo gallery
-│   │   └── api/                # API routes
+│   ├── app/              # Next.js pages
+│   │   ├── api/          # API routes
+│   │   └── ...           # Dashboard pages
 │   ├── components/
-│   │   ├── charts/             # Visualization components
-│   │   ├── visualization/      # 3D solar system
-│   │   └── common/             # Shared UI components
-│   ├── lib/
-│   │   ├── data-sources/       # Multi-source integration
-│   │   ├── orbital-calculations.ts
-│   │   ├── planet-positions.ts
-│   │   └── logger.ts
-│   ├── utils/                  # Configuration and helpers
-│   └── types/                  # TypeScript definitions
-├── public/
-│   └── textures/               # Planet textures
-├── Dockerfile
-├── docker-compose.yml
-└── CLAUDE.md                   # Development documentation
+│   │   ├── charts/       # Data visualizations
+│   │   └── visualization/ # 3D solar system
+│   ├── lib/              # Core utilities
+│   └── utils/            # Configuration
+├── public/textures/      # Planet textures
+└── docker-compose.yml
 ```
 
 ## API Endpoints
 
-### Core Data
 - `GET /api/comet-data` - Aggregated comet data
-- `GET /api/observations` - Raw COBS observations
-- `GET /api/observers` - Observer network info
+- `GET /api/observations` - Raw observations
+- `GET /api/velocity` - Velocity analysis
+- `GET /api/simple-activity` - Activity levels
+- `GET /api/solar-system-position` - 3D positions
 
-### Analytics
-- `GET /api/simple-activity` - Activity level analysis
-- `GET /api/velocity` - Multi-type velocity tracking
-- `GET /api/trend-analysis` - Statistical trends
-- `GET /api/solar-system-position` - Orbital positions
-
-See [CLAUDE.md](./CLAUDE.md) for complete API documentation.
+See [CLAUDE.md](./CLAUDE.md) for detailed API documentation.
 
 ## Configuration
 
-### Analytics Date Range
-Edit `src/utils/analytics-config.ts`:
+Edit `src/utils/analytics-config.ts` to adjust date ranges:
+
 ```typescript
 ANALYTICS_DATE_CONFIG = {
   START_DATE: '2025-07-01T00:00:00.000Z',
@@ -170,65 +140,39 @@ ANALYTICS_DATE_CONFIG = {
 }
 ```
 
-### Data Sources
-The dashboard uses real observational data:
-- Latest magnitude calculated from recent COBS observations
-- No hardcoded fallbacks - shows "N/A" when data unavailable
-- Median-based daily aggregation to reduce observer bias
-
-## Development
-
-### Code Quality
-```bash
-# Run linter
-npm run lint
-
-# Type checking
-npm run build  # TypeScript compilation included
-```
-
-### Recent Optimizations
-- ✅ Reduced ESLint warnings from 97 to 47 (51% reduction)
-- ✅ Extracted 575 lines from oversized files
-- ✅ Created shared chart utilities (eliminated ~45 lines duplication)
-- ✅ Refactored orbital calculations to dedicated modules
-- ✅ Mobile-optimized navigation
-- ✅ Fixed Docker cache permissions
-
-See commit history for detailed changes.
-
 ## Data Attribution
 
-Observational data provided by the **COBS (Comet Observation Database)**.
+**COBS (Comet Observation Database)**
+- License: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+- Attribution: "Data courtesy of COBS (Comet Observation Database)"
+- Non-commercial use with proper attribution
 
-**License**: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
-**Attribution**: "Data courtesy of COBS (Comet Observation Database)"
-**Usage**: Non-commercial use with proper attribution
+**NASA/JPL Data**: Public domain
+
+## Disclaimer
+
+This is an **educational dashboard** for astronomy enthusiasts. Not for spacecraft navigation or mission-critical use. See [/about](https://3iatlas.hook.technology/about) for full disclaimer and data limitations.
 
 ## Contributing
 
 Contributions welcome! Please:
 1. Fork the repository
 2. Create a feature branch
-3. Follow existing code style
-4. Test thoroughly
-5. Submit a pull request
+3. Test thoroughly
+4. Submit a pull request
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+MIT License - see [LICENSE](LICENSE)
 
 ## Acknowledgments
 
-- COBS network for observational data
-- NASA/JPL for orbital mechanics data
-- TheSkyLive for real-time coordinates
-- Global observer community for contributions
-
-## Live Demo
-
-Visit the live dashboard: [https://3iatlas.hook.technology](https://3iatlas.hook.technology)
+- COBS network and global observer community
+- NASA/JPL for orbital mechanics
+- TheSkyLive for real-time data
 
 ---
 
-**Current Status**: Active development tracking 3I/ATLAS approach to perihelion (Oct 30, 2025)
+**Live Dashboard**: [https://3iatlas.hook.technology](https://3iatlas.hook.technology)
+
+**Status**: Active development tracking approach to perihelion (Oct 30, 2025)
