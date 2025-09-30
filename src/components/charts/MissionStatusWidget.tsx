@@ -257,28 +257,45 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
               className="absolute top-0 h-full w-1 bg-white z-20 shadow-lg"
               style={{ left: `${timelinePos.missionProgress}%` }}
             ></div>
+
+            {/* Perihelion Marker - At Actual Position */}
+            <div
+              className="absolute top-0 h-full w-1 bg-yellow-400 z-10"
+              style={{ left: `${timelinePos.perihelionProgress}%` }}
+            >
+              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-yellow-400 text-xl">
+                🎯
+              </div>
+            </div>
           </div>
 
           {/* Timeline Labels */}
-          <div className="flex justify-between text-xs mb-4">
-            <div className="text-green-300 font-semibold">
+          <div className="relative text-xs mb-4">
+            {/* Discovery - Left */}
+            <div className="absolute left-0 text-green-300 font-semibold">
               <div>DISCOVERY</div>
               <div className="text-gray-400">July 1, 2025</div>
               <div className="text-green-200">✓ Complete</div>
             </div>
 
-            <div className="text-yellow-300 font-semibold text-center">
+            {/* Perihelion - At Actual Position */}
+            <div
+              className="absolute text-yellow-300 font-semibold text-center transform -translate-x-1/2"
+              style={{ left: `${timelinePos.perihelionProgress}%` }}
+            >
               <div>PERIHELION</div>
-              <div className="text-gray-400">Oct 30, 2025</div>
-              <div className="text-yellow-200">{timelinePos.daysToPerihelion > 0 ? `${timelinePos.daysToPerihelion} days` : 'Active'}</div>
+              <div className="text-gray-400">Oct 30</div>
+              <div className="text-yellow-200">{timelinePos.daysToPerihelion > 0 ? `${timelinePos.daysToPerihelion}d` : 'Now!'}</div>
             </div>
 
-            <div className="text-gray-400 font-semibold text-right">
+            {/* Departure - Right */}
+            <div className="absolute right-0 text-gray-400 font-semibold text-right">
               <div>DEPARTURE</div>
               <div className="text-gray-400">Dec 31, 2025</div>
               <div className="text-gray-400">⏳ Future</div>
             </div>
           </div>
+          <div className="h-12"></div>{/* Spacer for absolute positioned labels */}
 
           {/* Current Position Banner */}
           <div className="flex justify-center mb-4">
