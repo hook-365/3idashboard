@@ -85,11 +85,11 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
   const getTrendIcon = (trend?: string) => {
     switch (trend) {
       case 'accelerating':
-      case 'brightening': return '📈';
+      case 'brightening': return '↗️';
       case 'decelerating':
-      case 'dimming': return '📉';
+      case 'dimming': return '↘️';
       case 'constant':
-      case 'stable': return '➡️';
+      case 'stable': return '→';
       default: return '❓';
     }
   };
