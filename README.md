@@ -56,7 +56,7 @@ A comprehensive, production-ready dashboard for tracking the interstellar comet 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/3idashboard.git
+git clone https://github.com/hook-365/3idashboard.git
 cd 3idashboard
 
 # Install dependencies
