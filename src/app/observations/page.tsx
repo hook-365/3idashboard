@@ -161,7 +161,7 @@ export default function ObservationsPage() {
               <table className="w-full">
                 <thead className="bg-gray-700">
                   <tr>
-                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Date</th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Date & Time (UTC)</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Magnitude</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Observer</th>
                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-300">Location</th>
@@ -176,10 +176,13 @@ export default function ObservationsPage() {
                   {filteredObservations.map((obs, index) => (
                     <tr key={index} className="hover:bg-gray-700/50 transition-colors">
                       <td className="px-6 py-4 text-sm text-white">
-                        {new Date(obs.date).toLocaleDateString('en-US', {
+                        {new Date(obs.date).toLocaleString('en-US', {
                           year: 'numeric',
                           month: 'short',
-                          day: 'numeric'
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          timeZone: 'UTC'
                         })}
                       </td>
                       <td className="px-6 py-4 text-sm font-mono text-white">
