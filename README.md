@@ -60,7 +60,7 @@ git clone https://github.com/hook-365/3idashboard.git
 cd 3idashboard
 
 # Install dependencies
-npm install --legacy-peer-deps
+npm install
 
 # Start development server on port 3020
 PORT=3020 npm run dev
