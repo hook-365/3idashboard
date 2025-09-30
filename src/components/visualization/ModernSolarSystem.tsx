@@ -90,6 +90,7 @@ export default function ModernSolarSystem() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
+  const [showHud, setShowHud] = useState(true);
   const [centerTarget, setCenterTarget] = useState<CenterTarget>('atlas');
   const [visibleComets, setVisibleComets] = useState<Set<string>>(new Set());
   const [cometTrails, setCometTrails] = useState<Map<string, THREE.Vector3[]>>(new Map());
@@ -1051,9 +1052,9 @@ export default function ModernSolarSystem() {
     <div className="max-w-5xl mx-auto bg-gray-800 rounded-lg overflow-hidden">
       {/* Compact Header */}
       <div className="bg-gray-900 p-3 border-b border-gray-700">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm" role="banner">
+        <div className="flex flex-col gap-3 text-sm" role="banner">
           {/* Title and Date */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center gap-3">
             <h3 className="text-base font-semibold text-white">Current Solar System Position</h3>
             <span className="text-gray-400 text-xs">
               {currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -1061,7 +1062,7 @@ export default function ModernSolarSystem() {
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-center gap-4">
             {/* Grid Toggle */}
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
@@ -1071,6 +1072,17 @@ export default function ModernSolarSystem() {
                 className="w-3.5 h-3.5 cursor-pointer"
               />
               <span className="text-gray-300 text-xs">Grid</span>
+            </label>
+
+            {/* HUD Toggle */}
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showHud}
+                onChange={(e) => setShowHud(e.target.checked)}
+                className="w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className="text-gray-300 text-xs">HUD</span>
             </label>
 
             {/* Center Target */}
@@ -1085,7 +1097,7 @@ export default function ModernSolarSystem() {
                   onChange={() => setCenterTarget('sun')}
                   className="cursor-pointer"
                 />
-                <span className="text-gray-300 text-xs">Sun</span>
+                <span className="text-gray-300 text-xs">Sol</span>
               </label>
               <label className="flex items-center gap-1 cursor-pointer">
                 <input
@@ -1194,7 +1206,7 @@ export default function ModernSolarSystem() {
         )}
 
         {/* HUD - Heads-Up Display */}
-        {hudData && !loading && !error && (
+        {hudData && !loading && !error && showHud && (
           <div className="absolute top-3 right-3 bg-black/85 backdrop-blur-sm border border-gray-700 rounded p-2 text-xs font-mono pointer-events-none z-50">
             <div className="text-white font-bold text-sm mb-1.5 border-b border-gray-700 pb-1">
               3I/ATLAS

@@ -25,7 +25,7 @@ export default function PageNavigation() {
   return (
     <div className="sticky top-0 z-50 bg-gray-900">
       <div className="container mx-auto px-2 sm:px-6">
-        <nav className="flex items-center gap-1 overflow-x-auto py-2 scrollbar-thin">
+        <nav className="flex items-center justify-center gap-1 overflow-x-auto py-2 scrollbar-thin">
           {navigationItems.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
