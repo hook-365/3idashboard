@@ -24,8 +24,8 @@ export default function PageNavigation() {
 
   return (
     <div className="sticky top-0 z-50 bg-gray-900">
-      <div className="container mx-auto px-6">
-        <nav className="flex items-center gap-1 overflow-x-auto py-2">
+      <div className="container mx-auto px-2 sm:px-6">
+        <nav className="flex items-center gap-1 overflow-x-auto py-2 scrollbar-thin">
           {navigationItems.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
@@ -35,8 +35,8 @@ export default function PageNavigation() {
                 href={item.href}
                 prefetch={true}
                 className={`
-                  flex items-center gap-2 px-6 py-2.5 rounded-lg
-                  font-medium text-sm whitespace-nowrap
+                  flex items-center gap-2 px-3 sm:px-6 py-2.5 rounded-lg
+                  font-medium text-xs sm:text-sm whitespace-nowrap
                   transition-all duration-200
                   ${active
                     ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/20'
@@ -44,8 +44,8 @@ export default function PageNavigation() {
                   }
                 `}
               >
-                <Icon size={16} />
-                <span>{item.label}</span>
+                <Icon size={16} className="flex-shrink-0" />
+                <span className="hidden sm:inline">{item.label}</span>
               </Link>
             );
           })}
