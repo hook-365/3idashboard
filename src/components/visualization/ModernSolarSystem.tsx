@@ -185,7 +185,7 @@ export default function ModernSolarSystem() {
         scene.add(hemiLight);
 
         // Point light from the Sun - balanced intensity to show textures
-        const sunLight = new THREE.PointLight(0xffffee, 3, 20000);
+        const sunLight = new THREE.PointLight(0xffffee, 3.5, 20000);
         sunLight.position.set(0, 0, 0);
         sunLight.castShadow = false; // Shadows are expensive, keep them off
         scene.add(sunLight);
@@ -366,6 +366,9 @@ export default function ModernSolarSystem() {
             texturePath,
             (texture) => {
               material.map = texture;
+              // Turn off emissive glow when texture loads - let texture show naturally
+              material.emissive.setHex(0x000000); // Black = no glow
+              material.emissiveIntensity = 0;
               material.needsUpdate = true;
               console.log(`✓ Loaded texture for ${planet.name}`, texture);
             },
