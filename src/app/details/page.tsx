@@ -8,6 +8,7 @@ import BrightnessStats from '@/components/stats/BrightnessStats';
 import type { ActivityIndexDataPoint } from '@/components/charts/ActivityLevelChart';
 import type { VelocityDataPoint } from '@/components/charts/VelocityChart';
 import type { OrbitalVelocityDataPoint } from '@/components/charts/OrbitalVelocityChart';
+import type { MorphologyDataPoint } from '@/components/charts/ComaAndTailChart';
 import DataSourcesSection from '@/components/common/DataSourcesSection';
 import PageNavigation from '@/components/common/PageNavigation';
 import AppHeader from '@/components/common/AppHeader';
@@ -55,6 +56,11 @@ const OrbitalVelocityChart = dynamic(() => import('@/components/charts/OrbitalVe
   ssr: false
 });
 
+const ComaAndTailChart = dynamic(() => import('@/components/charts/ComaAndTailChart'), {
+  loading: () => <ChartSkeleton height={400} showLegend={true} />,
+  ssr: false
+});
+
 
 // Data interfaces
 interface ObservationData {
@@ -85,6 +91,7 @@ interface AnalyticsPageState {
   brightnessVelocityData: VelocityDataPoint[];
   orbitalVelocityData: OrbitalVelocityDataPoint[];
   accelerationData: VelocityDataPoint[];
+  morphologyData: MorphologyDataPoint[];
   missionStatus: MissionStatusData | null;
   trendAnalysis: {
     trend: 'brightening' | 'dimming' | 'stable';
@@ -105,6 +112,7 @@ export default function AnalyticsPage() {
     brightnessVelocityData: [],
     orbitalVelocityData: [],
     accelerationData: [],
+    morphologyData: [],
     missionStatus: null,
     trendAnalysis: null,
     mpcOrbitalElements: undefined,
@@ -179,8 +187,17 @@ export default function AnalyticsPage() {
         const activity = activityData.data?.activityData || [];
         const brightnessVelocity = brightnessVelocityData.data?.velocityData || [];
 
+        // Transform observations to morphology data (coma/tail)
+        const transformedMorphologyData: MorphologyDataPoint[] = observations
+          .filter((obs: { coma?: number; tail?: number }) => obs.coma !== undefined || obs.tail !== undefined)
+          .map((obs: { date: string; coma?: number; tail?: number }) => ({
+            date: obs.date,
+            comaSize: obs.coma,
+            tailLength: obs.tail,
+          }));
+
         if (process.env.NODE_ENV === 'development') {
-          console.log(`✅ Fetched ${observations.length} observations, ${lightCurve.length} light curve points, ${observers.length} observers, ${activity.length} activity index points, ${brightnessVelocity.length} brightness velocity points`);
+          console.log(`✅ Fetched ${observations.length} observations, ${lightCurve.length} light curve points, ${observers.length} observers, ${activity.length} activity index points, ${brightnessVelocity.length} brightness velocity points, ${transformedMorphologyData.length} morphology data points (coma/tail)`);
         }
 
         // Transform API response data to component format
@@ -350,6 +367,7 @@ export default function AnalyticsPage() {
           brightnessVelocityData: transformedBrightnessVelocityData,
           orbitalVelocityData: orbitalVelocityTransformed,
           accelerationData: accelerationData,
+          morphologyData: transformedMorphologyData,
           missionStatus: missionStatusData,
           trendAnalysis: cometData?.data?.stats?.trendAnalysis || null,
           mpcOrbitalElements: cometData?.data?.mpc_orbital_elements,
@@ -614,7 +632,7 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Orbital Elements Comparison - MPC vs JPL */}
-              {(state.mpcOrbitalElements || state.jplHorizonsData) && (
+              {state.mpcOrbitalElements && (
                 <div className="mt-8">
                   <OrbitalElementsComparison
                     mpcElements={state.mpcOrbitalElements}
@@ -781,6 +799,65 @@ export default function AnalyticsPage() {
                     showComponents={true}
                   />
                 </ChartErrorBoundary>
+              )}
+            </div>
+
+            {/* 5. MORPHOLOGY ANALYSIS SECTION */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-teal-400 mb-2">
+                  💫 Coma & Tail Development
+                </h2>
+                <p className="text-gray-400 text-sm">
+                  Tracking the size of the comet&apos;s coma (surrounding atmosphere) and tail as it approaches the Sun
+                </p>
+              </div>
+
+              {/* Morphology Summary Stats */}
+              {state.morphologyData.length > 0 && (
+                <div className="bg-gray-700 rounded-lg p-6 mb-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Current Morphology</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-green-400">
+                        {state.morphologyData.filter(d => d.comaSize).length > 0
+                          ? state.morphologyData.filter(d => d.comaSize).slice(-1)[0].comaSize?.toFixed(2)
+                          : 'N/A'} arcmin
+                      </div>
+                      <div className="text-sm text-gray-300">Latest Coma Size</div>
+                      <div className="text-xs text-gray-400">
+                        {state.morphologyData.filter(d => d.comaSize).length} measurements
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-blue-400">
+                        {state.morphologyData.filter(d => d.tailLength).length > 0
+                          ? state.morphologyData.filter(d => d.tailLength).slice(-1)[0].tailLength?.toFixed(2)
+                          : 'N/A'} degrees
+                      </div>
+                      <div className="text-sm text-gray-300">Latest Tail Length</div>
+                      <div className="text-xs text-gray-400">
+                        {state.morphologyData.filter(d => d.tailLength).length} measurements
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Coma & Tail Chart */}
+              {state.morphologyData.length > 0 ? (
+                <ChartErrorBoundary>
+                  <ComaAndTailChart
+                    data={state.morphologyData}
+                    title="Coma & Tail Evolution Over Time"
+                  />
+                </ChartErrorBoundary>
+              ) : (
+                <div className="bg-gray-700 rounded-lg p-6 text-center">
+                  <div className="text-gray-400">
+                    No coma or tail measurements available yet. Check back as more observations are reported.
+                  </div>
+                </div>
               )}
             </div>
 

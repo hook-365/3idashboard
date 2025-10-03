@@ -25,6 +25,7 @@ export interface COBSObservation {
   notes: string;
   source: string;
   coma?: number; // arcminutes
+  tail?: number; // degrees
 }
 
 export interface ProcessedObservation {
@@ -46,6 +47,7 @@ export interface ProcessedObservation {
   filter: string;
   aperture: number;
   coma?: number;
+  tail?: number;
   notes: string;
   source: string;
   quality?: 'excellent' | 'good' | 'fair' | 'poor';
@@ -245,6 +247,7 @@ export class COBSApiClient {
       // Extract additional data from line
       const aperture = this.extractAperture(line);
       const coma = this.extractComa(line);
+      const tail = this.extractTail(line);
       const uncertainty = this.extractUncertainty(line);
 
       const observerName = nameMatch[1].trim();
@@ -267,6 +270,7 @@ export class COBSApiClient {
         notes: line.includes('Comment:') ? line.split('Comment:')[1].split(';')[0].trim() : '',
         source: 'COBS',
         coma,
+        tail,
       };
     } catch (error) {
       console.error('Error parsing observation line:', error);
@@ -291,6 +295,19 @@ export class COBSApiClient {
     const comaMatch = line.match(/\s+(\d+\.\d+)\s+/);
     if (comaMatch && parseFloat(comaMatch[1]) > 0 && parseFloat(comaMatch[1]) < 10) {
       return parseFloat(comaMatch[1]);
+    }
+    return undefined;
+  }
+
+  /**
+   * Extract tail length from COBS line
+   */
+  private extractTail(line: string): number | undefined {
+    // Look for tail length patterns in COBS format
+    // Tail is typically reported as degrees, e.g., "DC=5/T=2.5" or "T:2.5"
+    const tailMatch = line.match(/T[=:]?\s*(\d+\.?\d*)/i);
+    if (tailMatch && parseFloat(tailMatch[1]) > 0 && parseFloat(tailMatch[1]) < 50) {
+      return parseFloat(tailMatch[1]);
     }
     return undefined;
   }
@@ -454,6 +471,7 @@ export class COBSApiClient {
         filter: obs.filter,
         aperture: obs.aperture,
         coma: obs.coma,
+        tail: obs.tail,
         notes: obs.notes,
         source: obs.source,
       };
