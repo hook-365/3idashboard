@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Cookie } from "next/font/google";
 import "./globals.css";
 import ExtensionSafeWrapper from '@/components/ExtensionSafeWrapper';
+import Footer from '@/components/common/Footer';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,10 +38,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${cookie.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${cookie.variable} antialiased flex flex-col min-h-screen`}
       >
         <ExtensionSafeWrapper suppressWarnings={process.env.NODE_ENV === 'production'}>
-          {children}
+          <div className="flex flex-col min-h-screen">
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </div>
         </ExtensionSafeWrapper>
 
       </body>

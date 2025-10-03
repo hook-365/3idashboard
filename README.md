@@ -28,12 +28,16 @@ Track the third confirmed interstellar object passing through our solar system w
 - Global observation data from COBS (Comet Observation Database)
 - Real-time observer contribution metrics
 - Geographic distribution and quality ratings
+- Virtual scrolling for high-performance display
+- Detailed observer profiles with latest observations
 
 ### 🛡️ Production-Ready
 - Request deduplication and caching
 - Structured logging with Pino
 - Input validation with Zod
 - Security headers (HSTS, CSP, CORS)
+- Error boundaries for graceful degradation
+- Comprehensive test coverage with Vitest
 - Docker containerized
 
 ## Quick Start
@@ -95,10 +99,12 @@ docker-compose down
 - COBS API (observations)
 - NASA/JPL Horizons (orbital mechanics)
 - TheSkyLive (real-time coordinates)
+- Minor Planet Center (orbital elements)
 
 **Infrastructure**
 - Pino (structured logging)
 - Zod (validation)
+- Vitest (testing framework)
 - Docker
 
 ## Project Structure
@@ -122,9 +128,12 @@ docker-compose down
 
 - `GET /api/comet-data` - Aggregated comet data
 - `GET /api/observations` - Raw observations
+- `GET /api/observers` - Observer network data
 - `GET /api/velocity` - Velocity analysis
 - `GET /api/simple-activity` - Activity levels
+- `GET /api/trend-analysis` - Statistical trend modeling
 - `GET /api/solar-system-position` - 3D positions
+- `GET /api/analytics-bundle` - Consolidated analytics data
 
 See [CLAUDE.md](./CLAUDE.md) for detailed API documentation.
 
@@ -147,19 +156,37 @@ ANALYTICS_DATE_CONFIG = {
 - Attribution: "Data courtesy of COBS (Comet Observation Database)"
 - Non-commercial use with proper attribution
 
-**NASA/JPL Data**: Public domain
+**NASA/JPL Horizons**: Public domain
+
+**Minor Planet Center**: Public domain (orbital elements)
+
+**TheSkyLive**: Real-time coordinate data
 
 ## Disclaimer
 
 This is an **educational dashboard** for astronomy enthusiasts. Not for spacecraft navigation or mission-critical use. See [/about](https://3iatlas.hook.technology/about) for full disclaimer and data limitations.
+
+## Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+```
 
 ## Contributing
 
 Contributions welcome! Please:
 1. Fork the repository
 2. Create a feature branch
-3. Test thoroughly
-4. Submit a pull request
+3. Add tests for new features
+4. Ensure all tests pass (`npm test`)
+5. Submit a pull request
 
 ## License
 
@@ -168,11 +195,15 @@ MIT License - see [LICENSE](LICENSE)
 ## Acknowledgments
 
 - COBS network and global observer community
-- NASA/JPL for orbital mechanics
+- NASA/JPL for orbital mechanics and ephemeris
+- Minor Planet Center for orbital elements
 - TheSkyLive for real-time data
+- ESO for high-resolution planet textures
 
----
+## Connect
 
-**Live Dashboard**: [https://3iatlas.hook.technology](https://3iatlas.hook.technology)
+- **Live Dashboard**: [https://3iatlas.hook.technology](https://3iatlas.hook.technology)
+- **Bluesky**: [@hook.technology](https://bsky.app/profile/hook.technology)
+- **GitHub**: [hook-365/3idashboard](https://github.com/hook-365/3idashboard)
 
 **Status**: Active development tracking approach to perihelion (Oct 30, 2025)
