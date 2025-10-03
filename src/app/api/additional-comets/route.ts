@@ -160,6 +160,11 @@ export async function GET(request: NextRequest) {
           return cached && (now - cached.timestamp) < CACHE_TTL;
         }).length
       }
+    }, {
+      headers: {
+        // Tier 3: Orbital mechanics - 1 hour (comet orbital trails change very slowly)
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+      }
     });
 
   } catch (error) {

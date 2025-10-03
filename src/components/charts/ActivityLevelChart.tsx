@@ -20,17 +20,8 @@ import { ExtensionSafeChartContainer } from '../ExtensionSafeComponents';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
 import { createPerihelionLineDataset, calculateYAxisRange } from '@/utils/chart-helpers';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale,
-  Filler
-);
+// Flag to track Chart.js registration
+let chartJsRegistered = false;
 
 export interface ActivityDataPoint {
   date: string | Date;
@@ -118,6 +109,24 @@ export default function ActivityLevelChart({
 }: ActivityLevelChartProps) {
   const chartRef = useRef<ChartJS<'line'>>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+
+  // Register Chart.js components only when this chart loads
+  useEffect(() => {
+    if (!chartJsRegistered) {
+      ChartJS.register(
+        CategoryScale,
+        LinearScale,
+        PointElement,
+        LineElement,
+        Title,
+        Tooltip,
+        Legend,
+        TimeScale,
+        Filler
+      );
+      chartJsRegistered = true;
+    }
+  }, []);
 
   // Get activity level for a given index value
   const getActivityLevel = (activityIndex: number): ActivityLevel => {
@@ -252,6 +261,13 @@ export default function ActivityLevelChart({
       duration: isAnimating ? 0 : 750,
       easing: 'easeInOutQuart',
     },
+    elements: {
+      point: {
+        radius: typeof window !== 'undefined' && window.innerWidth < 768 ? 5 : 4,
+        hitRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 10 : 8,
+        hoverRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 9 : 8,
+      },
+    },
     plugins: {
       title: {
         display: true,
@@ -366,7 +382,7 @@ export default function ActivityLevelChart({
     },
     interaction: {
       intersect: false,
-      mode: 'index',
+      mode: 'nearest',
     },
     onClick: (event, elements) => {
       if (elements.length > 0 && onDataPointClick) {
@@ -441,7 +457,7 @@ export default function ActivityLevelChart({
       </div>
 
       {/* Current status */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4">
         <div className="bg-gray-700 rounded-lg p-3 text-center">
           <div className="text-sm text-gray-400">Current Activity</div>
           <div className="text-xl font-bold" style={{ color: currentLevel.color }}>

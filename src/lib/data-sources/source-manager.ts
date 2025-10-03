@@ -8,6 +8,7 @@
  * - COBS API: Primary brightness observations and community data
  * - TheSkyLive: Real-time orbital parameters and position data
  * - JPL Horizons: Precise orbital mechanics and state vectors
+ * - MPC: Minor Planet Center orbital elements for cross-validation
  *
  * Features:
  * - Multi-source parallel fetching with Promise.allSettled
@@ -18,9 +19,10 @@
  * - Derived parameter calculations from multi-source data
  */
 
-import { cobsApi, type LightCurvePoint } from '../../services/cobs-api';
+import { cobsApi, type LightCurvePoint, type ProcessedObservation } from '../../services/cobs-api';
 import { getTheSkyLiveOrbitalData, type TheSkyLiveData } from './theskylive';
 import { getJPLHorizonsOrbitalData, type JPLHorizonsData, calculateOrbitalParameters } from './jpl-horizons';
+import { getMPCOrbitalData, type MPCSourceData } from './mpc';
 import type {
   EnhancedCometData,
   CacheEntry,
@@ -31,16 +33,39 @@ import type {
 export type { EnhancedCometData, CacheStatus } from '../../types/enhanced-comet-data';
 
 /**
+ * Internal type for COBS data structure with derived stats and light curve
+ */
+type COBSDataStructure = {
+  observations: ProcessedObservation[];
+  stats: {
+    totalObservations: number;
+    activeObservers: number;
+    currentMagnitude: number;
+    brightestMagnitude: number;
+    averageMagnitude: number;
+    lastUpdated: string;
+    observationDateRange: {
+      earliest: string;
+      latest: string;
+    };
+  };
+  lightCurve: LightCurvePoint[];
+  fetch_timestamp?: string; // When this data was fetched
+};
+
+/**
  * DataSourceManager - Orchestrates multiple data sources for comprehensive comet tracking
  */
 export class DataSourceManager {
   private cache: Map<string, CacheEntry<unknown>> = new Map();
+  private instanceId: string = Math.random().toString(36).substring(7);
 
   // Cache TTL values (in milliseconds)
   private readonly CACHE_TTL = {
-    COBS: 5 * 60 * 1000,      // 5 minutes
+    COBS: 15 * 60 * 1000,      // 15 minutes
     THESKYLIVE: 15 * 60 * 1000, // 15 minutes
     JPL_HORIZONS: 30 * 60 * 1000, // 30 minutes
+    MPC: 24 * 60 * 60 * 1000,  // 24 hours (MPC updates few times per month)
     FAILED_REQUEST: 10 * 60 * 1000, // 10 minutes for failed requests
   };
 
@@ -48,29 +73,32 @@ export class DataSourceManager {
    * Main orchestration method - fetches and merges data from all sources
    */
   async getCometData(): Promise<EnhancedCometData> {
-    console.log('DataSourceManager: Starting multi-source data fetch...');
+    console.log(`[DataSourceManager ${this.instanceId}] Starting multi-source data fetch...`);
 
     // Fetch from all sources in parallel using Promise.allSettled
-    const [cobsResult, theSkyResult, jplResult] = await Promise.allSettled([
+    const [cobsResult, theSkyResult, jplResult, mpcResult] = await Promise.allSettled([
       this.fetchWithCache('cobs', () => this.fetchCOBSData(), this.CACHE_TTL.COBS),
       this.fetchWithCache('theskylive', () => getTheSkyLiveOrbitalData(), this.CACHE_TTL.THESKYLIVE),
       this.fetchWithCache('jpl_horizons', () => getJPLHorizonsOrbitalData(), this.CACHE_TTL.JPL_HORIZONS),
+      this.fetchWithCache('mpc', () => getMPCOrbitalData(), this.CACHE_TTL.MPC),
     ]);
 
     // Extract data from settled promises
     const cobsData = cobsResult.status === 'fulfilled' ? cobsResult.value : null;
     const theSkyData = theSkyResult.status === 'fulfilled' ? theSkyResult.value : null;
     const jplData = jplResult.status === 'fulfilled' ? jplResult.value : null;
+    const mpcData = mpcResult.status === 'fulfilled' ? mpcResult.value : null;
 
     // Log source status
     console.log('Source fetch results:', {
       cobs: cobsResult.status,
       theskylive: theSkyResult.status,
       jpl: jplResult.status,
+      mpc: mpcResult.status,
     });
 
     // Merge data sources with intelligent fallbacks
-    return this.mergeDataSources(cobsData, jplData, theSkyData);
+    return this.mergeDataSources(cobsData, jplData, theSkyData, mpcData);
   }
 
   /**
@@ -116,33 +144,142 @@ export class DataSourceManager {
 
   /**
    * Fetch COBS data with enhanced structure
+   *
+   * OPTIMIZATION: Fetches raw observations once and derives stats/light curve locally
+   * to avoid duplicate API calls. Previous implementation made 3 parallel calls
+   * (getObservations, getStatistics, getLightCurve) that all internally fetched
+   * the same observation data. This reduces COBS API calls by 66% (3→1).
    */
   private async fetchCOBSData() {
-    const [observations, stats, lightCurve] = await Promise.all([
-      cobsApi.getObservations(),
-      cobsApi.getStatistics(),
-      cobsApi.getLightCurve(),
-    ]);
+    // Fetch observations once - this is the single source of truth
+    const observations = await cobsApi.getObservations();
+
+    // Derive statistics from observations locally
+    const stats = this.calculateStatsFromObservations(observations);
+
+    // Derive light curve from observations locally
+    const lightCurve = this.calculateLightCurveFromObservations(observations);
+
+    // Add fetch timestamp - this will be preserved in cache
+    const fetchTimestamp = new Date().toISOString();
 
     return {
       observations,
       stats,
       lightCurve,
+      fetch_timestamp: fetchTimestamp,
     };
+  }
+
+  /**
+   * Calculate statistics from observation data
+   * Mirrors the logic in cobsApi.getStatistics() but operates on already-fetched data
+   */
+  private calculateStatsFromObservations(observations: ProcessedObservation[]): COBSDataStructure['stats'] {
+    if (observations.length === 0) {
+      return {
+        totalObservations: 0,
+        activeObservers: 0,
+        currentMagnitude: 0,
+        brightestMagnitude: 0,
+        averageMagnitude: 0,
+        lastUpdated: new Date().toISOString(),
+        observationDateRange: {
+          earliest: '',
+          latest: '',
+        },
+      };
+    }
+
+    const magnitudes = observations.map(obs => obs.magnitude);
+    const uniqueObservers = new Set(observations.map(obs => obs.observer.id));
+    const dates = observations.map(obs => new Date(obs.date));
+
+    return {
+      totalObservations: observations.length,
+      activeObservers: uniqueObservers.size,
+      currentMagnitude: observations[0]?.magnitude || 0,
+      brightestMagnitude: Math.min(...magnitudes),
+      averageMagnitude: magnitudes.reduce((sum, mag) => sum + mag, 0) / magnitudes.length,
+      lastUpdated: new Date().toISOString(),
+      observationDateRange: {
+        earliest: new Date(Math.min(...dates.map(d => d.getTime()))).toISOString(),
+        latest: new Date(Math.max(...dates.map(d => d.getTime()))).toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Calculate light curve from observation data
+   * Mirrors the logic in cobsApi.getLightCurve() but operates on already-fetched data
+   */
+  private calculateLightCurveFromObservations(observations: ProcessedObservation[]): LightCurvePoint[] {
+    if (observations.length === 0) {
+      return [];
+    }
+
+    // Group observations by date
+    const dailyGroups = new Map<string, ProcessedObservation[]>();
+
+    observations.forEach(obs => {
+      const date = new Date(obs.date);
+      // Format as YYYY-MM-DD for grouping
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
+
+      if (!dailyGroups.has(dateKey)) {
+        dailyGroups.set(dateKey, []);
+      }
+      dailyGroups.get(dateKey)!.push(obs);
+    });
+
+    // Calculate daily medians (more robust to outliers than mean)
+    const lightCurve: LightCurvePoint[] = [];
+
+    Array.from(dailyGroups.entries()).forEach(([dateKey, dayObservations]) => {
+      const magnitudes = dayObservations.map(obs => obs.magnitude).sort((a, b) => a - b);
+
+      // Use median instead of mean (more robust to outliers)
+      const median = magnitudes.length % 2 === 0
+        ? (magnitudes[magnitudes.length / 2 - 1] + magnitudes[magnitudes.length / 2]) / 2
+        : magnitudes[Math.floor(magnitudes.length / 2)];
+
+      // Calculate uncertainty as Median Absolute Deviation (MAD)
+      // MAD is more robust to outliers than standard deviation
+      const absoluteDeviations = magnitudes.map(mag => Math.abs(mag - median)).sort((a, b) => a - b);
+      const mad = absoluteDeviations.length % 2 === 0
+        ? (absoluteDeviations[absoluteDeviations.length / 2 - 1] + absoluteDeviations[absoluteDeviations.length / 2]) / 2
+        : absoluteDeviations[Math.floor(absoluteDeviations.length / 2)];
+
+      // Scale MAD to be comparable to standard deviation (for normal distributions)
+      const uncertainty = mad * 1.4826;
+
+      lightCurve.push({
+        date: `${dateKey}T00:00:00.000Z`,
+        magnitude: parseFloat(median.toFixed(2)),
+        uncertainty: parseFloat(uncertainty.toFixed(2)),
+        observationCount: dayObservations.length,
+      });
+    });
+
+    return lightCurve.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
   /**
    * Merge data from all sources with intelligent conflict resolution
    */
   private mergeDataSources(
-    cobsData: { observations?: CometObservation[] },
+    cobsData: COBSDataStructure | null,
     jplData: JPLHorizonsData | null,
-    theSkyData: TheSkyLiveData | null
+    theSkyData: TheSkyLiveData | null,
+    mpcData: MPCSourceData | null
   ): EnhancedCometData {
     console.log('Merging data from available sources...');
 
     // Use COBS as primary source for observations and basic stats
-    const baseData = cobsData || this.getMockData('cobs');
+    const baseData: COBSDataStructure = cobsData || (this.getMockData('cobs') as COBSDataStructure);
 
     // Calculate orbital mechanics from available sources
     const orbitalMechanics = this.calculateOrbitalMechanics(jplData, theSkyData);
@@ -151,7 +288,7 @@ export class DataSourceManager {
     const brightnessEnhanced = this.calculateBrightnessEnhanced(baseData, jplData, theSkyData);
 
     // Source status reporting
-    const sourceStatus = this.getSourceStatus(cobsData, jplData, theSkyData);
+    const sourceStatus = this.getSourceStatus(cobsData, jplData, theSkyData, mpcData);
 
     return {
       // Existing COBS structure
@@ -176,6 +313,9 @@ export class DataSourceManager {
       orbital_mechanics: orbitalMechanics,
       brightness_enhanced: brightnessEnhanced,
       source_status: sourceStatus,
+
+      // MPC orbital elements (if available)
+      mpc_orbital_elements: mpcData?.orbital_elements,
     };
   }
 
@@ -313,7 +453,7 @@ export class DataSourceManager {
    * Calculate enhanced brightness analysis
    */
   private calculateBrightnessEnhanced(
-    cobsData: { observations?: CometObservation[] },
+    cobsData: COBSDataStructure,
     jplData: JPLHorizonsData | null,
     theSkyData: TheSkyLiveData | null
   ) {
@@ -361,7 +501,10 @@ export class DataSourceManager {
   /**
    * Calculate activity correlation with distance
    */
-  private calculateActivityCorrelation(cobsData: { observations?: CometObservation[] }, jplData: JPLHorizonsData | null): number {
+  private calculateActivityCorrelation(
+    cobsData: COBSDataStructure,
+    jplData: JPLHorizonsData | null
+  ): number {
     // Simplified correlation - in reality would need extensive analysis
     if (!jplData) return 0.5; // Default moderate correlation
 
@@ -377,14 +520,15 @@ export class DataSourceManager {
    * Generate source status information
    */
   private getSourceStatus(
-    cobsData: { observations?: CometObservation[] },
+    cobsData: COBSDataStructure | null,
     jplData: JPLHorizonsData | null,
-    theSkyData: TheSkyLiveData | null
+    theSkyData: TheSkyLiveData | null,
+    mpcData: MPCSourceData | null
   ) {
     return {
       cobs: {
         active: !!cobsData,
-        last_updated: cobsData ? new Date().toISOString() : '',
+        last_updated: cobsData?.fetch_timestamp || '',
         error: cobsData ? undefined : 'Failed to fetch COBS data',
       },
       theskylive: {
@@ -397,19 +541,18 @@ export class DataSourceManager {
         last_updated: jplData?.last_updated || '',
         error: jplData ? undefined : 'Failed to fetch JPL Horizons data',
       },
+      mpc: {
+        active: !!mpcData,
+        last_updated: mpcData?.last_updated || '',
+        error: mpcData ? undefined : 'Failed to fetch MPC data',
+      },
     };
   }
 
   /**
    * Calculate the latest magnitude from real observations
    */
-  private calculateLatestMagnitude(baseData: {
-    stats?: { currentMagnitude?: number };
-    observations?: Array<{
-      magnitude?: number;
-      date: string;
-    }>;
-  }): number {
+  private calculateLatestMagnitude(baseData: COBSDataStructure): number {
     // Try to get from COBS stats first
     if (baseData.stats?.currentMagnitude && baseData.stats.currentMagnitude > 0) {
       return baseData.stats.currentMagnitude;
@@ -434,11 +577,8 @@ export class DataSourceManager {
   /**
    * Provide mock data for failed sources
    */
-  private getMockData(source: string): unknown {
+  private getMockData(source: string): COBSDataStructure | unknown {
     const now = new Date();
-    const daysUntilPerihelion = Math.floor(
-      (new Date('2025-10-30').getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-    );
 
     switch (source) {
       case 'cobs':
@@ -448,7 +588,13 @@ export class DataSourceManager {
             totalObservations: 0,
             activeObservers: 0,
             currentMagnitude: 0, // No fabricated data - will show as "N/A"
-            daysUntilPerihelion,
+            brightestMagnitude: 0,
+            averageMagnitude: 0,
+            lastUpdated: now.toISOString(),
+            observationDateRange: {
+              earliest: '',
+              latest: '',
+            },
           },
           lightCurve: [],
         };
@@ -514,24 +660,35 @@ export class DataSourceManager {
   getCacheStatus(): CacheStatus {
     const now = Date.now();
 
-    const getStatus = (key: string) => {
+    console.log(`[DataSourceManager ${this.instanceId}] getCacheStatus called. Cache keys:`, Array.from(this.cache.keys()));
+
+    const getStatus = (key: string, ttl: number) => {
       const entry = this.cache.get(key);
-      if (!entry) return { cached: false };
+      if (!entry) {
+        console.log(`[DataSourceManager ${this.instanceId}] No cache entry for ${key}`);
+        return { cached: false, status: 'none' as const };
+      }
 
       const age = now - entry.timestamp;
       const nextRefresh = Math.max(0, entry.ttl - age);
+      const isFresh = age < ttl;
+
+      console.log(`[DataSourceManager ${this.instanceId}] ${key}: age=${age}ms, isFresh=${isFresh}`);
 
       return {
         cached: true,
         age,
         nextRefresh,
+        lastUpdate: new Date(entry.timestamp).toISOString(),
+        status: isFresh ? ('fresh' as const) : ('stale' as const),
       };
     };
 
     return {
-      cobs: getStatus('cobs'),
-      theskylive: getStatus('theskylive'),
-      jpl_horizons: getStatus('jpl_horizons'),
+      cobs: getStatus('cobs', this.CACHE_TTL.COBS),
+      theskylive: getStatus('theskylive', this.CACHE_TTL.THESKYLIVE),
+      jpl_horizons: getStatus('jpl_horizons', this.CACHE_TTL.JPL_HORIZONS),
+      mpc: getStatus('mpc', this.CACHE_TTL.MPC),
     };
   }
 
@@ -561,7 +718,9 @@ export class DataSourceManager {
     }
 
     // Check source availability
-    const activeSources = Object.values(data.source_status).filter(s => s.active).length;
+    const activeSources = data.source_status
+      ? Object.values(data.source_status).filter(s => s.active).length
+      : 0;
     if (activeSources < 2) {
       warnings.push(`Only ${activeSources} data source(s) active - reduced reliability`);
       confidence -= 0.2 * (3 - activeSources);
@@ -581,8 +740,18 @@ export class DataSourceManager {
   }
 }
 
-// Singleton instance
-const dataSourceManager = new DataSourceManager();
+// Singleton instance with HMR (Hot Module Replacement) support
+// In dev mode, Next.js reloads modules on changes, which creates new instances and loses cache
+// We use globalThis to persist the singleton across HMR
+const globalForDataSource = globalThis as unknown as {
+  dataSourceManager: DataSourceManager | undefined;
+};
+
+const dataSourceManager = globalForDataSource.dataSourceManager ?? new DataSourceManager();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForDataSource.dataSourceManager = dataSourceManager;
+}
 
 /**
  * Main export function for dashboard components

@@ -36,7 +36,7 @@ export default function PageNavigation() {
                 href={item.href}
                 prefetch={true}
                 className={`
-                  flex items-center gap-2 px-3 sm:px-6 py-2.5 rounded-lg
+                  flex items-center gap-2 px-3 sm:px-6 py-3 md:py-2 rounded-lg
                   font-medium text-xs sm:text-sm whitespace-nowrap
                   transition-all duration-200
                   ${active

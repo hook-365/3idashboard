@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ObserverLeaderboard from './ObserverLeaderboard';
 import RegionalAnalysis from './RegionalAnalysis';
 
@@ -71,10 +71,16 @@ export default function ObserverPerformanceDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'regional' | 'insights'>('leaderboard');
   const [filters, setFilters] = useState({
-    minObservations: 5,
+    minObservations: 1,
     region: '',
     limit: 100
   });
+
+  // Extract country from location string - memoized to avoid recreation
+  const extractCountry = useCallback((location: string): string => {
+    const parts = location.split(',');
+    return parts[parts.length - 1]?.trim() || 'Unknown';
+  }, []);
 
   const fetchObserverData = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
@@ -138,23 +144,17 @@ export default function ObserverPerformanceDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filters]);
-
-  // Extract country from location string
-  const extractCountry = (location: string): string => {
-    const parts = location.split(',');
-    return parts[parts.length - 1]?.trim() || 'Unknown';
-  };
+  }, [filters, extractCountry]);
 
   useEffect(() => {
     fetchObserverData();
   }, [fetchObserverData]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     fetchObserverData(true);
-  };
+  }, [fetchObserverData]);
 
-  const handleExportData = () => {
+  const handleExportData = useCallback(() => {
     const exportData = {
       observers: observers.map(obs => ({
         name: obs.name,
@@ -179,9 +179,9 @@ export default function ObserverPerformanceDashboard() {
     a.download = `observer-performance-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
+  }, [observers, statistics]);
 
-  const getInsights = () => {
+  const getInsights = useMemo(() => {
     if (!observers.length || !statistics) return [];
 
     const insights = [];
@@ -226,22 +226,40 @@ export default function ObserverPerformanceDashboard() {
     });
 
     return insights;
-  };
+  }, [observers, statistics]);
 
   if (loading) {
     return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-8 bg-gray-700 rounded w-1/3 mb-6"></div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="bg-gray-800 rounded-lg p-6">
-              <div className="h-4 bg-gray-700 rounded w-1/2 mb-4"></div>
-              <div className="space-y-2">
-                <div className="h-3 bg-gray-700 rounded"></div>
-                <div className="h-3 bg-gray-700 rounded w-3/4"></div>
-              </div>
+      <div className="space-y-6">
+        {/* Summary Widget Skeleton */}
+        <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6 border border-gray-600 animate-pulse">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <div className="h-6 w-64 bg-gray-700 rounded mb-2"></div>
+              <div className="h-4 w-96 bg-gray-700 rounded"></div>
             </div>
-          ))}
+            <div className="flex gap-3">
+              <div className="h-10 w-24 bg-gray-700 rounded"></div>
+              <div className="h-10 w-24 bg-gray-700 rounded"></div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-gray-700 rounded-lg p-4">
+                <div className="h-8 w-8 bg-gray-600 rounded mx-auto mb-2"></div>
+                <div className="h-6 w-16 bg-gray-600 rounded mx-auto mb-2"></div>
+                <div className="h-3 w-24 bg-gray-600 rounded mx-auto mb-1"></div>
+                <div className="h-3 w-20 bg-gray-600 rounded mx-auto"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tab Navigation Skeleton */}
+        <div className="bg-gray-800 rounded-lg p-6 animate-pulse">
+          <div className="h-6 w-48 bg-gray-700 rounded mb-4"></div>
+          <div className="h-12 bg-gray-700 rounded"></div>
         </div>
       </div>
     );
@@ -249,14 +267,14 @@ export default function ObserverPerformanceDashboard() {
 
   if (error) {
     return (
-      <div className="bg-red-900 border border-red-600 rounded-lg p-6">
-        <h3 className="text-xl font-semibold text-red-300 mb-2">Error Loading Observer Data</h3>
+      <div className="bg-red-900/30 border border-red-600 rounded-lg p-6">
+        <h3 className="text-xl font-semibold text-red-300 mb-2">⚠️ Unable to Load Observer Data</h3>
         <p className="text-red-200 mb-4">{error}</p>
         <button
           onClick={() => fetchObserverData()}
-          className="px-4 py-2 bg-red-700 hover:bg-red-600 rounded transition-colors"
+          className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
         >
-          Retry
+          Try Again
         </button>
       </div>
     );
@@ -264,22 +282,22 @@ export default function ObserverPerformanceDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header Section */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+      {/* Summary Widget */}
+      <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6 border border-gray-600">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
-            <h3 className="text-2xl font-bold text-purple-400">
-              Observer Performance Analytics
-            </h3>
-            <p className="text-gray-400 mt-1">
-              Analyzing the global network of comet 3I/ATLAS observers
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+              👥 Worldwide Observer Network
+            </h2>
+            <p className="text-gray-400 text-sm">
+              Amateur and professional astronomers tracking the comet from around the globe
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="px-4 py-2 bg-blue-700 hover:bg-blue-600 disabled:bg-gray-600 rounded transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded-lg transition-colors flex items-center gap-2 text-sm"
             >
               {refreshing ? (
                 <>
@@ -294,106 +312,117 @@ export default function ObserverPerformanceDashboard() {
             </button>
             <button
               onClick={handleExportData}
-              className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded transition-colors"
+              className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg transition-colors text-sm"
             >
-              📊 Export Data
+              📊 Export
             </button>
           </div>
         </div>
 
-        {/* Stats Summary */}
+        {/* Key Metrics */}
         {statistics && (
-          <div>
-            <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Network Statistics</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                <div className="text-2xl font-bold text-blue-400">
-                  {statistics.summary.totalObservers.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-400">Total Observers</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+            <div className="bg-gray-700 rounded-lg p-4 text-center">
+              <div className="text-2xl mb-1">👨‍🔬</div>
+              <div className="text-xl font-bold text-blue-400">
+                {statistics.summary.totalObservers.toLocaleString()}
               </div>
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                <div className="text-2xl font-bold text-green-400">
-                  {statistics.summary.totalObservations.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-400">Total Observations</div>
+              <div className="text-xs text-gray-400">Contributing Astronomers</div>
+              <div className="text-xs text-gray-500">Worldwide network</div>
+            </div>
+            <div className="bg-gray-700 rounded-lg p-4 text-center">
+              <div className="text-2xl mb-1">📊</div>
+              <div className="text-xl font-bold text-green-400">
+                {statistics.summary.totalObservations.toLocaleString()}
               </div>
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                <div className="text-2xl font-bold text-purple-400">
-                  {statistics.summary.averageObservationsPerObserver.toFixed(1)}
-                </div>
-                <div className="text-sm text-gray-400">Avg per Observer</div>
+              <div className="text-xs text-gray-400">Total Measurements</div>
+              <div className="text-xs text-gray-500">Since discovery</div>
+            </div>
+            <div className="bg-gray-700 rounded-lg p-4 text-center">
+              <div className="text-2xl mb-1">📈</div>
+              <div className="text-xl font-bold text-purple-400">
+                {statistics.summary.averageObservationsPerObserver.toFixed(1)}
               </div>
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                <div className="text-2xl font-bold text-yellow-400">
-                  {new Set(observers.map(obs => obs.country)).size}
-                </div>
-                <div className="text-sm text-gray-400">Countries</div>
+              <div className="text-xs text-gray-400">Average per Person</div>
+              <div className="text-xs text-gray-500">Measurements</div>
+            </div>
+            <div className="bg-gray-700 rounded-lg p-4 text-center">
+              <div className="text-2xl mb-1">🌍</div>
+              <div className="text-xl font-bold text-yellow-400">
+                {new Set(observers.map(obs => obs.country)).size}
               </div>
+              <div className="text-xs text-gray-400">Countries Participating</div>
+              <div className="text-xs text-gray-500">Global coverage</div>
             </div>
           </div>
         )}
       </div>
 
           {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
-            {[
-              { id: 'leaderboard', label: 'Observer Leaderboard', icon: '🏆' },
-              { id: 'regional', label: 'Regional Analysis', icon: '🌍' },
-              { id: 'insights', label: 'Network Insights', icon: '💡' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'leaderboard' | 'regional' | 'insights')}
-                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </div>
+          <div className="bg-gray-800 rounded-lg p-6">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-white mb-2">🔍 Explore the Network</h3>
+              <p className="text-sm text-gray-400">View rankings, regional breakdowns, and collaboration insights</p>
+            </div>
+            <div className="flex space-x-1 bg-gray-700 rounded-lg p-1">
+              {[
+                { id: 'leaderboard', label: 'Top Contributors', icon: '🏆' },
+                { id: 'regional', label: 'By Country', icon: '🌍' },
+                { id: 'insights', label: 'Network Stats', icon: '💡' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as 'leaderboard' | 'regional' | 'insights')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-600'
+                  }`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Filters */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-3">🔍 Filters</h3>
+            {/* Filters */}
+            <div className="mt-6 p-4 bg-gray-700 rounded-lg">
+              <h4 className="text-sm font-semibold mb-3 text-gray-300">Filter Results</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Min Observations</label>
+                <label className="block text-sm text-gray-400 mb-1">Minimum Measurements</label>
                 <input
                   type="number"
                   value={filters.minObservations}
                   onChange={(e) => setFilters(prev => ({ ...prev, minObservations: parseInt(e.target.value) || 1 }))}
-                  className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-gray-600 rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-white"
                   min="1"
                   max="100"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Region Filter</label>
+                <label className="block text-sm text-gray-400 mb-1">Filter by Country</label>
                 <input
                   type="text"
                   value={filters.region}
                   onChange={(e) => setFilters(prev => ({ ...prev, region: e.target.value }))}
-                  placeholder="Country or region..."
-                  className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  placeholder="e.g., USA, France, Japan..."
+                  className="w-full px-3 py-2 bg-gray-600 rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-white placeholder-gray-400"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Results Limit</label>
+                <label className="block text-sm text-gray-400 mb-1">Show Top</label>
                 <select
                   value={filters.limit}
                   onChange={(e) => setFilters(prev => ({ ...prev, limit: parseInt(e.target.value) }))}
-                  className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-gray-600 rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-white"
                 >
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                  <option value={200}>200</option>
-                  <option value={500}>500</option>
+                  <option value={50}>50 people</option>
+                  <option value={100}>100 people</option>
+                  <option value={200}>200 people</option>
+                  <option value={500}>500 people</option>
                 </select>
               </div>
+            </div>
             </div>
           </div>
 
@@ -410,25 +439,28 @@ export default function ObserverPerformanceDashboard() {
           )}
 
           {activeTab === 'insights' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold">Network Insights</h2>
+            <div className="bg-gray-800 rounded-lg p-6 space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-2">📊 Network Highlights</h2>
+                <p className="text-sm text-gray-400">Key statistics about the worldwide observation network</p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {getInsights().map((insight, index) => (
+                {getInsights.map((insight, index) => (
                   <div
                     key={index}
                     className={`rounded-lg p-6 border-l-4 ${
                       insight.type === 'success'
-                        ? 'bg-green-900 border-green-500'
+                        ? 'bg-green-900/30 border-green-500'
                         : insight.type === 'info'
-                        ? 'bg-blue-900 border-blue-500'
-                        : 'bg-gray-800 border-gray-600'
+                        ? 'bg-blue-900/30 border-blue-500'
+                        : 'bg-gray-700 border-gray-600'
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">{insight.icon}</span>
                       <div>
-                        <h3 className="text-lg font-semibold mb-2">{insight.title}</h3>
-                        <p className="text-gray-300">{insight.content}</p>
+                        <h3 className="text-lg font-semibold mb-2 text-white">{insight.title}</h3>
+                        <p className="text-gray-300 text-sm">{insight.content}</p>
                       </div>
                     </div>
                   </div>
@@ -436,25 +468,25 @@ export default function ObserverPerformanceDashboard() {
               </div>
 
               {/* Educational Content */}
-              <div className="bg-gradient-to-r from-purple-900 to-blue-900 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-4">🔬 Understanding Observer Performance</h3>
+              <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-lg p-6 border border-purple-500/30">
+                <h3 className="text-xl font-semibold mb-4 text-white">💡 Why Global Collaboration Matters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <h4 className="font-medium text-purple-300 mb-2">Quality Factors</h4>
+                    <h4 className="font-medium text-purple-300 mb-2">What Makes a Good Observer</h4>
                     <ul className="space-y-1 text-gray-300">
-                      <li>• Observation frequency and consistency</li>
-                      <li>• Magnitude precision and accuracy</li>
-                      <li>• Geographic coverage contribution</li>
+                      <li>• Regular and consistent measurements</li>
+                      <li>• Careful attention to accuracy</li>
+                      <li>• Coverage from different locations</li>
                       <li>• Long-term commitment to tracking</li>
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-medium text-blue-300 mb-2">Global Advantages</h4>
+                    <h4 className="font-medium text-blue-300 mb-2">Benefits of Worldwide Network</h4>
                     <ul className="space-y-1 text-gray-300">
-                      <li>• Continuous 24/7 observation coverage</li>
-                      <li>• Weather diversity reduces data gaps</li>
-                      <li>• Multiple confirmation of brightness changes</li>
-                      <li>• Cultural and scientific collaboration</li>
+                      <li>• Someone is always watching (24/7 coverage)</li>
+                      <li>• Bad weather in one place? Others can observe</li>
+                      <li>• Multiple people confirm the same changes</li>
+                      <li>• Shared knowledge across cultures</li>
                     </ul>
                   </div>
                 </div>
@@ -463,9 +495,9 @@ export default function ObserverPerformanceDashboard() {
           )}
 
         {/* Footer */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center text-sm text-gray-400">
+        <div className="bg-gray-800 rounded-lg p-4 text-center text-sm text-gray-400">
           <p>Last updated: {lastUpdated.toLocaleString()}</p>
-          <p className="mt-1">Data from COBS API • {observers.length} observers analyzed</p>
+          <p className="mt-1">Data from COBS • {observers.length} astronomers contributing</p>
         </div>
       </div>
   );

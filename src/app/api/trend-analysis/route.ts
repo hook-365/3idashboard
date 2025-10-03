@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        // Tier 2: Derived analytics - 15 minutes (statistical trend analysis from light curve)
+        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
         'X-Processing-Time': processingTime.toString(),
         'X-Data-Source': 'COBS-Trend-Analysis',
       },

@@ -3,6 +3,96 @@ import { cobsApi } from '@/services/cobs-api';
 import { analyzeTrend, calculateRunningAverage } from '@/services/data-transforms';
 import { getEnhancedCometData } from '@/lib/data-sources/source-manager';
 
+// Helper function to build COBS-only response data
+async function buildCOBSOnlyData(params: {
+  includeSmoothed: boolean;
+  maxObservations: number;
+  trendDays: number;
+  forceRefresh: boolean;
+  startTime: number;
+}) {
+  const { includeSmoothed, maxObservations, trendDays, forceRefresh, startTime } = params;
+
+  // Optimization: Fetch observations once and reuse across all derived data
+  // This avoids duplicate fetches in getStatistics, getObservers, and getLightCurve
+  const observations = await cobsApi.getObservations(forceRefresh);
+  const [statistics, observers, lightCurve] = await Promise.all([
+    cobsApi.getStatistics(forceRefresh),
+    cobsApi.getObservers(forceRefresh, observations),
+    cobsApi.getLightCurve(forceRefresh),
+  ]);
+
+  console.log(`COBS data fetched: ${observations.length} observations, ${observers.length} observers, ${lightCurve.length} light curve points`);
+
+  // Analyze trend for the specified period
+  const trendAnalysis = analyzeTrend(lightCurve, trendDays);
+
+  // Calculate smoothed light curve if requested
+  let processedLightCurve = lightCurve;
+  if (includeSmoothed && lightCurve.length > 7) {
+    processedLightCurve = calculateRunningAverage(lightCurve, 7);
+  }
+
+  // Transform data to match expected frontend format
+  const cometData = {
+    name: '3I/ATLAS',
+    designation: 'Interstellar Comet 3I/ATLAS',
+    perihelionDate: '2025-10-30T00:00:00Z',
+    currentMagnitude: statistics.currentMagnitude,
+    observations: observations.slice(0, maxObservations).map(obs => ({
+      ...obs,
+      quality: obs.uncertainty ?
+        (obs.uncertainty < 0.1 ? 'excellent' :
+         obs.uncertainty < 0.2 ? 'good' :
+         obs.uncertainty < 0.4 ? 'fair' : 'poor') : undefined,
+    })),
+    lightCurve: processedLightCurve.map(point => ({
+      date: point.date,
+      magnitude: point.magnitude,
+      uncertainty: point.uncertainty,
+      observationCount: point.observationCount,
+    })),
+    individualObservations: observations.map(obs => ({
+      date: obs.date,
+      magnitude: obs.magnitude,
+      filter: obs.filter || 'Visual',
+      observer: obs.observer.name,
+      quality: obs.uncertainty ?
+        (obs.uncertainty < 0.1 ? 'excellent' :
+         obs.uncertainty < 0.2 ? 'good' :
+         obs.uncertainty < 0.4 ? 'fair' : 'poor') : undefined,
+    })),
+    trendAnalysis,
+  };
+
+  const processingTime = Date.now() - startTime;
+
+  return {
+    success: true,
+    data: {
+      comet: cometData,
+      stats: {
+        ...statistics,
+        trendAnalysis,
+      },
+      observers: observers.slice(0, 20), // Top 20 observers
+    },
+    metadata: {
+      totalObservations: observations.length,
+      totalObservers: observers.length,
+      lightCurvePoints: lightCurve.length,
+      smoothed: includeSmoothed,
+      trendPeriodDays: trendDays,
+      processingTimeMs: processingTime,
+      dataSource: 'COBS API',
+      apiVersion: '2.0',
+      lastUpdated: statistics.lastUpdated,
+      enhanced_features: false,
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
@@ -23,10 +113,41 @@ export async function GET(request: NextRequest) {
       forceRefresh
     });
 
-    // Try enhanced multi-source data first
-    try {
-      console.log('Attempting enhanced multi-source data fetch...');
-      const enhancedData = await getEnhancedCometData();
+    // OPTIMIZATION: Start both COBS and enhanced data fetches in parallel
+    console.log('Starting parallel data fetch: COBS + enhanced multi-source...');
+
+    // Start COBS-only fetch immediately (doesn't wait)
+    const cobsPromise = buildCOBSOnlyData({
+      includeSmoothed,
+      maxObservations,
+      trendDays,
+      forceRefresh,
+      startTime,
+    });
+
+    // Start enhanced data fetch with timeout (5 seconds)
+    const ENHANCED_DATA_TIMEOUT = 5000;
+    const enhancedPromise = getEnhancedCometData()
+      .then(data => ({ type: 'enhanced' as const, data }))
+      .catch((error: unknown) => {
+        console.warn('Enhanced data fetch failed:', error instanceof Error ? error.message : error);
+        return null;
+      });
+
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => {
+        console.log(`Enhanced data timeout after ${ENHANCED_DATA_TIMEOUT}ms`);
+        resolve(null);
+      }, ENHANCED_DATA_TIMEOUT)
+    );
+
+    // Race enhanced data against timeout
+    const enhancedResult = await Promise.race([enhancedPromise, timeoutPromise]);
+
+    // If enhanced data is available, use it; otherwise use COBS-only
+    if (enhancedResult?.type === 'enhanced') {
+      console.log('Using enhanced multi-source data');
+      const enhancedData = enhancedResult.data;
 
       // Apply frontend processing to enhanced data
       let processedLightCurve = enhancedData.comet.lightCurve;
@@ -70,9 +191,11 @@ export async function GET(request: NextRequest) {
       };
 
       const processingTime = Date.now() - startTime;
-      const activeSources = Object.entries(enhancedData.source_status)
-        .filter(([, status]) => status.active)
-        .map(([key]) => key);
+      const activeSources = enhancedData.source_status
+        ? Object.entries(enhancedData.source_status)
+            .filter(([, status]) => status.active)
+            .map(([key]) => key)
+        : [];
 
       const response = {
         success: true,
@@ -122,109 +245,45 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(response, {
         headers: {
+          // Tier 1: Live observation data - 5 minutes (primary COBS observations change frequently)
+          // Even with orbital mechanics included, the core observation data drives updates
           'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
           'X-Processing-Time': processingTime.toString(),
           'X-Data-Source': 'Multi-Source-Enhanced-v2.1',
           'X-Active-Sources': activeSources.join(','),
         },
       });
-
-    } catch (enhancedError) {
-      // Fallback to existing COBS-only implementation
-      console.warn('Enhanced data failed, falling back to COBS-only:', enhancedError);
-
-      // Fetch all data in parallel for better performance (existing implementation)
-      const [observations, statistics, observers, lightCurve] = await Promise.all([
-        cobsApi.getObservations(forceRefresh),
-        cobsApi.getStatistics(forceRefresh),
-        cobsApi.getObservers(forceRefresh),
-        cobsApi.getLightCurve(forceRefresh),
-      ]);
-
-      console.log(`COBS fallback data fetched: ${observations.length} observations, ${observers.length} observers, ${lightCurve.length} light curve points`);
-
-      // Analyze trend for the specified period
-      const trendAnalysis = analyzeTrend(lightCurve, trendDays);
-
-      // Calculate smoothed light curve if requested
-      let processedLightCurve = lightCurve;
-      if (includeSmoothed && lightCurve.length > 7) {
-        processedLightCurve = calculateRunningAverage(lightCurve, 7);
-      }
-
-      // Transform data to match expected frontend format (existing logic)
-      const cometData = {
-        name: '3I/ATLAS',
-        designation: 'Interstellar Comet 3I/ATLAS',
-        perihelionDate: '2025-10-30T00:00:00Z',
-        currentMagnitude: statistics.currentMagnitude,
-        observations: observations.slice(0, maxObservations).map(obs => ({
-          ...obs,
-          quality: obs.uncertainty ?
-            (obs.uncertainty < 0.1 ? 'excellent' :
-             obs.uncertainty < 0.2 ? 'good' :
-             obs.uncertainty < 0.4 ? 'fair' : 'poor') : undefined,
-        })), // Configurable limit
-        lightCurve: processedLightCurve.map(point => ({
-          date: point.date,
-          magnitude: point.magnitude,
-          uncertainty: point.uncertainty,
-          observationCount: point.observationCount,
-        })),
-        individualObservations: observations.map(obs => ({
-          date: obs.date,
-          magnitude: obs.magnitude,
-          filter: obs.filter || 'Visual',
-          observer: obs.observer.name,
-          quality: obs.uncertainty ?
-            (obs.uncertainty < 0.1 ? 'excellent' :
-             obs.uncertainty < 0.2 ? 'good' :
-             obs.uncertainty < 0.4 ? 'fair' : 'poor') : undefined,
-        })),
-        trendAnalysis,
-      };
+    } else {
+      // Enhanced data timed out or failed - use COBS-only data (already fetched in parallel)
+      console.log('Enhanced data unavailable (timeout or error), using COBS-only fallback');
+      const cobsData = await cobsPromise;
 
       const processingTime = Date.now() - startTime;
 
-      const response = {
-        success: true,
-        data: {
-          comet: cometData,
-          stats: {
-            ...statistics,
-            trendAnalysis,
-          },
-          observers: observers.slice(0, 20), // Top 20 observers
-        },
+      // Add fallback metadata to COBS response
+      const responseWithFallbackInfo = {
+        ...cobsData,
         metadata: {
-          totalObservations: observations.length,
-          totalObservers: observers.length,
-          lightCurvePoints: lightCurve.length,
-          smoothed: includeSmoothed,
-          trendPeriodDays: trendDays,
-          processingTimeMs: processingTime,
-          dataSource: 'COBS API (Fallback)',
-          apiVersion: '2.0',
-          lastUpdated: statistics.lastUpdated,
-          enhanced_features: false,
-          fallback_reason: enhancedError instanceof Error ? enhancedError.message : 'Enhanced data unavailable',
+          ...cobsData.metadata,
           queryParameters: {
             includeSmoothed,
             includePrediction,
             maxObservations,
             trendDays
-          }
-        },
-        timestamp: new Date().toISOString(),
+          },
+          fallback_reason: 'Enhanced data timeout or unavailable',
+          processingTimeMs: processingTime,
+        }
       };
 
       console.log(`COBS-only fallback completed in ${processingTime}ms`);
 
-      return NextResponse.json(response, {
+      return NextResponse.json(responseWithFallbackInfo, {
         headers: {
+          // Tier 1: Live observation data - 5 minutes (COBS fallback also contains live observations)
           'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
           'X-Processing-Time': processingTime.toString(),
-          'X-Data-Source': 'COBS-API-v2-Fallback',
+          'X-Data-Source': 'COBS-API-v2-Timeout-Fallback',
           'X-Fallback': 'true',
         },
       });

@@ -165,20 +165,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Group observations by date for daily activity calculations
-    const dailyObsMap = new Map<string, CometObservation[]>();
-    filteredObservations.forEach(obs => {
+    // Optimized linear-time daily grouping algorithm:
+    // 1. Sort observations once by date (O(n log n))
+    // 2. Use reduce() for single-pass aggregation (O(n))
+    // 3. Group consecutive dates linearly without Map lookups
+    // Total complexity: O(n log n) - optimal for grouping sorted data
+
+    // Sort observations by date once
+    const sortedObservations = [...filteredObservations].sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    // Single-pass reduce to group by date and calculate activity
+    interface DailyGroup {
+      dateKey: string;
+      observations: CometObservation[];
+    }
+
+    const activityData: SimpleActivityDataPoint[] = sortedObservations.reduce<{
+      groups: DailyGroup[];
+      currentDateKey: string | null;
+    }>((acc, obs) => {
       const dateKey = new Date(obs.date).toISOString().split('T')[0];
-      if (!dailyObsMap.has(dateKey)) {
-        dailyObsMap.set(dateKey, []);
+
+      // Linear grouping: only compare with current date key
+      if (dateKey === acc.currentDateKey) {
+        // Same day - append to current group
+        acc.groups[acc.groups.length - 1].observations.push(obs);
+      } else {
+        // New day - create new group
+        acc.groups.push({ dateKey, observations: [obs] });
+        acc.currentDateKey = dateKey;
       }
-      dailyObsMap.get(dateKey)!.push(obs);
-    });
 
-    // Calculate activity level for each day
-    const activityData: SimpleActivityDataPoint[] = [];
-
-    for (const [dateKey, dayObs] of dailyObsMap.entries()) {
+      return acc;
+    }, { groups: [], currentDateKey: null })
+    .groups
+    .map(({ dateKey, observations: dayObs }) => {
       // Use median magnitude for the day to reduce noise
       const magnitudes = dayObs.map(obs => obs.magnitude).sort((a, b) => a - b);
       const medianMagnitude = magnitudes[Math.floor(magnitudes.length / 2)];
@@ -211,7 +234,7 @@ export async function GET(request: NextRequest) {
       const dataQuality = activity.level !== 'INSUFFICIENT_DATA' ? 1.0 : 0.0;
       const confidence = (obsConfidence * 0.7) + (dataQuality * 0.3);
 
-      activityData.push({
+      return {
         date: `${dateKey}T12:00:00.000Z`, // Use noon UTC for daily data points
         activityLevel: activity.level,
         activityIndex: activityLevelToIndex(activity.level),
@@ -220,8 +243,8 @@ export async function GET(request: NextRequest) {
         brightnessDelta: activity.brightnessDelta,
         heliocentric_distance: activity.heliocentric_distance,
         confidence: parseFloat(confidence.toFixed(3))
-      });
-    }
+      };
+    });
 
     if (activityData.length === 0) {
       return NextResponse.json({
@@ -282,7 +305,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        // Tier 2: Derived analytics - 15 minutes (physics-based activity calculations from observations)
+        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
         'X-Processing-Time': processingTime.toString(),
         'X-Activity-Points': activityData.length.toString(),
         'X-Current-Activity': currentActivity.level,

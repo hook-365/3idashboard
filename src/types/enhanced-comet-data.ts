@@ -68,7 +68,11 @@ export interface EnhancedCometData {
     cobs: { active: boolean; last_updated: string; error?: string };
     theskylive: { active: boolean; last_updated: string; error?: string };
     jpl_horizons: { active: boolean; last_updated: string; error?: string };
+    mpc: { active: boolean; last_updated: string; error?: string };
   };
+
+  // NEW: MPC orbital elements (for cross-validation with JPL)
+  mpc_orbital_elements?: MPCOrbitalElements;
 }
 
 /**
@@ -81,12 +85,47 @@ export interface CacheEntry<T> {
 }
 
 /**
+ * MPC (Minor Planet Center) orbital elements interface
+ */
+export interface MPCOrbitalElements {
+  perihelion_distance: number;        // q (AU)
+  eccentricity: number;               // e
+  inclination: number;                // i (degrees)
+  argument_of_perihelion: number;     // ω (degrees)
+  longitude_ascending_node: number;   // Ω (degrees)
+  perihelion_passage_time: string;    // T (ISO date)
+  epoch: string;                      // Epoch (ISO date)
+  number_of_observations?: number;    // Total observations
+  observation_arc?: {
+    first: string;                    // First observation date
+    last: string;                     // Last observation date
+  };
+  orbital_period?: number;            // Period (years, if available)
+  discovery_info?: {
+    discoverer?: string;
+    discovery_date?: string;
+  };
+}
+
+/**
+ * MPC source data interface
+ */
+export interface MPCSourceData {
+  designation: string;                // Comet designation
+  name: string;                       // Comet name
+  orbital_elements: MPCOrbitalElements;
+  last_updated: string;               // ISO timestamp
+  data_source: string;                // "Minor Planet Center"
+}
+
+/**
  * Cache status interface for monitoring data freshness
  */
 export interface CacheStatus {
-  cobs: { cached: boolean; age?: number; nextRefresh?: number };
-  theskylive: { cached: boolean; age?: number; nextRefresh?: number };
-  jpl_horizons: { cached: boolean; age?: number; nextRefresh?: number };
+  cobs: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
+  theskylive: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
+  jpl_horizons: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
+  mpc: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
 }
 
 /**

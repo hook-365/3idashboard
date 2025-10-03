@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 
 export interface BrightnessData {
   date: string | Date;
@@ -53,7 +53,7 @@ interface Stats {
   };
 }
 
-export default function BrightnessStats({
+const BrightnessStats = React.memo(function BrightnessStats({
   data,
   className = '',
   showTrend = true,
@@ -277,7 +277,7 @@ export default function BrightnessStats({
         </div>
         <div className="text-right">
           <div className="text-sm text-gray-400">
-            Last updated: {stats.current.date.toLocaleDateString()}
+            Last updated: {stats.current.date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })} UTC
           </div>
           {realTimeUpdates && (
             <div className="text-xs text-gray-500">
@@ -320,7 +320,7 @@ export default function BrightnessStats({
           </div>
           <div className="text-green-200 text-sm">Brightest Recorded</div>
           <div className="text-green-400 text-xs mt-1">
-            {stats.extremes.brightest.date.toLocaleDateString()}
+            {stats.extremes.brightest.date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })} UTC
           </div>
         </div>
 
@@ -411,7 +411,7 @@ export default function BrightnessStats({
       </div>
     </div>
   );
-}
+});
 
 function calculateTrend(sortedData: BrightnessData[]): {
   direction: 'brightening' | 'dimming' | 'stable';
@@ -475,3 +475,5 @@ function calculateTrend(sortedData: BrightnessData[]): {
     confidence
   };
 }
+
+export default BrightnessStats;

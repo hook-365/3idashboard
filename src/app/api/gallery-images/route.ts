@@ -32,7 +32,7 @@ interface GalleryImage {
   title: string;
   description: string;
   date: string;
-  source: 'NASA' | 'ESA/Hubble' | 'JWST' | 'Virtual Telescope' | 'Community';
+  source: 'NASA' | 'ESA/Hubble' | 'JWST' | 'Virtual Telescope' | 'Community' | 'NOIRLab/Gemini' | 'ESO';
   imageUrl: string;
   thumbnailUrl: string;
   attribution: string;
@@ -189,6 +189,36 @@ const official3IAtlasImages: GalleryImage[] = [
     }
   },
   {
+    id: 'eso-vlt-sequence',
+    title: 'Sequence of VLT Images of 3I/ATLAS',
+    description: 'A sequence of images from ESO\'s Very Large Telescope showing interstellar comet 3I/ATLAS moving across the starry background. This multi-frame observation captures the comet\'s motion and demonstrates its hyperbolic orbit indicating origin outside our solar system.',
+    date: '2025-07-08T00:00:00Z',
+    source: 'ESO',
+    imageUrl: 'https://cdn.eso.org/images/screen/potw2527b.jpg',
+    thumbnailUrl: 'https://cdn.eso.org/images/screen/potw2527b.jpg',
+    attribution: 'ESO/O. Hainaut',
+    metadata: {
+      telescope: 'Very Large Telescope (VLT)',
+      instrument: 'FORS2',
+      filters: 'Optical'
+    }
+  },
+  {
+    id: 'gemini-north-observation',
+    title: 'Gemini North Observes Comet 3I/ATLAS',
+    description: 'Gemini North telescope in Hawaiʻi captured this detailed observation of interstellar comet 3I/ATLAS on July 15, 2025. The International Gemini Observatory provided critical early characterization of this interstellar wanderer, revealing insights into objects from beyond our solar system.',
+    date: '2025-07-15T00:00:00Z',
+    source: 'NOIRLab/Gemini',
+    imageUrl: 'https://storage.noirlab.edu/media/archives/images/newsfeature/noirlab2522a.jpg',
+    thumbnailUrl: 'https://storage.noirlab.edu/media/archives/images/newsfeature/noirlab2522a.jpg',
+    attribution: 'International Gemini Observatory/NOIRLab/NSF/AURA',
+    metadata: {
+      telescope: 'Gemini North',
+      instrument: 'GMOS-N (Gemini Multi-Object Spectrograph)',
+      filters: 'Optical'
+    }
+  },
+  {
     id: 'vtp-coma-detection',
     title: '3I/ATLAS - Virtual Telescope Coma Detection',
     description: 'Virtual Telescope Project observation from July 31, 2025, clearly showing the developing coma of 3I/ATLAS. This image was created by combining 13 exposures of 120 seconds each using the Celestron C14 robotic telescope in Manciano, Italy. The inverted image highlights the faint coma structure.',
@@ -202,6 +232,21 @@ const official3IAtlasImages: GalleryImage[] = [
       instrument: 'SBIG ST10-XME',
       filters: 'Optical',
       exposureTime: '13 x 120s'
+    }
+  },
+  {
+    id: 'gemini-south-tail',
+    title: 'Growing Tail of Interstellar Comet 3I/ATLAS',
+    description: 'Comet 3I/ATLAS streaks across a dense star field in this stunning image captured by the Gemini Multi-Object Spectrograph (GMOS) on Gemini South telescope in Chile on September 4, 2025. The image clearly shows the comet\'s developing tail as it approaches perihelion.',
+    date: '2025-09-04T00:00:00Z',
+    source: 'NOIRLab/Gemini',
+    imageUrl: 'https://storage.noirlab.edu/media/archives/images/screen/noirlab2525a.jpg',
+    thumbnailUrl: 'https://storage.noirlab.edu/media/archives/images/screen/noirlab2525a.jpg',
+    attribution: 'International Gemini Observatory/NOIRLab/NSF/AURA/Shadow the Scientist. Image Processing: J. Miller & M. Rodriguez (International Gemini Observatory/NSF NOIRLab), T.A. Rector (University of Alaska Anchorage/NSF NOIRLab), M. Zamani (NSF NOIRLab)',
+    metadata: {
+      telescope: 'Gemini South',
+      instrument: 'GMOS (Gemini Multi-Object Spectrograph)',
+      filters: 'Optical'
     }
   }
 ];
@@ -329,9 +374,16 @@ export async function GET() {
           nasa_total: sortedImages.filter(img => img.source === 'NASA').length,
           hubble: sortedImages.filter(img => img.source === 'ESA/Hubble').length,
           jwst: sortedImages.filter(img => img.source === 'JWST').length,
+          noirlab_gemini: sortedImages.filter(img => img.source === 'NOIRLab/Gemini').length,
+          eso: sortedImages.filter(img => img.source === 'ESO').length,
           virtual_telescope: sortedImages.filter(img => img.source === 'Virtual Telescope').length
         },
         lastUpdated: new Date().toISOString()
+      }
+    }, {
+      headers: {
+        // Tier 4: Static content - 24 hours (gallery images change very infrequently)
+        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=172800',
       }
     });
 
@@ -350,10 +402,17 @@ export async function GET() {
           nasa_total: official3IAtlasImages.filter(img => img.source === 'NASA').length,
           hubble: official3IAtlasImages.filter(img => img.source === 'ESA/Hubble').length,
           jwst: official3IAtlasImages.filter(img => img.source === 'JWST').length,
+          noirlab_gemini: official3IAtlasImages.filter(img => img.source === 'NOIRLab/Gemini').length,
+          eso: official3IAtlasImages.filter(img => img.source === 'ESO').length,
           virtual_telescope: official3IAtlasImages.filter(img => img.source === 'Virtual Telescope').length
         },
         lastUpdated: new Date().toISOString(),
         error: 'Failed to fetch additional images from NASA API'
+      }
+    }, {
+      headers: {
+        // Tier 4: Static content - 24 hours (gallery images change very infrequently)
+        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=172800',
       }
     });
   }
@@ -361,4 +420,4 @@ export async function GET() {
 
 // Add cache headers for better performance
 export const dynamic = 'force-dynamic';
-export const revalidate = 300; // 5 minutes
+export const revalidate = 86400; // 24 hours - static content changes very infrequently

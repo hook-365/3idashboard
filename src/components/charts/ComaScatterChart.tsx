@@ -16,15 +16,8 @@ import {
 import { Scatter } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale
-);
+// Flag to track Chart.js registration
+let chartJsRegistered = false;
 
 export interface ComaDataPoint {
   date: string;
@@ -46,6 +39,22 @@ export default function ComaScatterChart({
   title = "Coma Diameter Observations"
 }: ComaScatterChartProps) {
   const [isClient, setIsClient] = useState(false);
+
+  // Register Chart.js components only when this chart loads
+  useEffect(() => {
+    if (!chartJsRegistered) {
+      ChartJS.register(
+        CategoryScale,
+        LinearScale,
+        PointElement,
+        Title,
+        Tooltip,
+        Legend,
+        TimeScale
+      );
+      chartJsRegistered = true;
+    }
+  }, []);
 
   useEffect(() => {
     setIsClient(true);
@@ -167,6 +176,13 @@ export default function ComaScatterChart({
   const options: ChartOptions<'scatter'> = {
     responsive: true,
     maintainAspectRatio: false,
+    elements: {
+      point: {
+        radius: typeof window !== 'undefined' && window.innerWidth < 768 ? 7 : 6,
+        hitRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 12 : 6,
+        hoverRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 9 : 6,
+      },
+    },
     plugins: {
       legend: {
         display: true,
@@ -247,8 +263,8 @@ export default function ComaScatterChart({
       }
     },
     interaction: {
-      mode: 'point',
-      intersect: true
+      mode: 'nearest',
+      intersect: false
     }
   };
 

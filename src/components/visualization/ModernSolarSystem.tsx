@@ -100,6 +100,8 @@ export default function ModernSolarSystem() {
     cachedAt: string;
   } | null>(null);
   const sceneRef = useRef<SceneRef | null>(null);
+  const logTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [containerHeight, setContainerHeight] = useState(600);
 
   // HUD state
   const [hudData, setHudData] = useState<{
@@ -116,6 +118,24 @@ export default function ModernSolarSystem() {
   } | null>(null);
 
   const currentDate = new Date();
+
+  // Handle responsive height based on viewport
+  useEffect(() => {
+    const calculateHeight = () => {
+      // On mobile (width < 768px), use responsive height based on viewport
+      // On desktop, maintain fixed 600px height
+      const isMobile = window.innerWidth < 768;
+      const newHeight = isMobile ? Math.min(600, window.innerHeight * 0.6) : 600;
+      setContainerHeight(newHeight);
+    };
+
+    // Calculate on mount
+    calculateHeight();
+
+    // Recalculate on window resize
+    window.addEventListener('resize', calculateHeight);
+    return () => window.removeEventListener('resize', calculateHeight);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -164,7 +184,7 @@ export default function ModernSolarSystem() {
         scene.background = new THREE.Color(0x000510);
 
         const width = container.clientWidth || 800;
-        const height = 600;
+        const height = containerHeight;
         const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100000);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -180,12 +200,12 @@ export default function ModernSolarSystem() {
         container.appendChild(labelRenderer.domElement);
 
         // Enhanced lighting for realistic planet illumination
-        // Hemisphere light for ambient fill (sky vs ground) - reduced for better texture visibility
-        const hemiLight = new THREE.HemisphereLight(0x888888, 0x222222, 0.5);
+        // Hemisphere light for ambient fill (sky vs ground) - increased for better planet visibility
+        const hemiLight = new THREE.HemisphereLight(0xaaaaaa, 0x444444, 1.2);
         scene.add(hemiLight);
 
         // Point light from the Sun - balanced intensity to show textures
-        const sunLight = new THREE.PointLight(0xffffee, 3.5, 20000);
+        const sunLight = new THREE.PointLight(0xffffee, 4.5, 20000);
         sunLight.position.set(0, 0, 0);
         sunLight.castShadow = false; // Shadows are expensive, keep them off
         scene.add(sunLight);
@@ -357,7 +377,7 @@ export default function ModernSolarSystem() {
             metalness: 0.0,
             roughness: 1.0,
             emissive: parseInt(config.color.replace('#', '0x')),
-            emissiveIntensity: 0.1 // Reduced glow for better texture visibility
+            emissiveIntensity: 0.3 // Increased glow for better planet visibility
           });
 
           // Attempt to load texture asynchronously
@@ -366,9 +386,9 @@ export default function ModernSolarSystem() {
             texturePath,
             (texture) => {
               material.map = texture;
-              // Turn off emissive glow when texture loads - let texture show naturally
-              material.emissive.setHex(0x000000); // Black = no glow
-              material.emissiveIntensity = 0;
+              // Keep subtle emissive glow when texture loads for better visibility
+              material.emissive.setHex(parseInt(config.color.replace('#', '0x')));
+              material.emissiveIntensity = 0.15; // Subtle glow to enhance visibility
               material.needsUpdate = true;
               console.log(`✓ Loaded texture for ${planet.name}`, texture);
             },
@@ -379,7 +399,7 @@ export default function ModernSolarSystem() {
               // If texture fails, use the planet's color
               material.color.setHex(parseInt(config.color.replace('#', '0x')));
               material.emissive.setHex(parseInt(config.color.replace('#', '0x')));
-              material.emissiveIntensity = 0.2; // Reduced for consistency
+              material.emissiveIntensity = 0.3; // Increased for better visibility
             }
           );
 
@@ -856,10 +876,9 @@ export default function ModernSolarSystem() {
         camera.lookAt(viewCenter);
 
         // Log camera position when user moves it (throttled to avoid spam)
-        let logTimeout: NodeJS.Timeout;
         controls.addEventListener('change', () => {
-          clearTimeout(logTimeout);
-          logTimeout = setTimeout(() => {
+          if (logTimeoutRef.current) clearTimeout(logTimeoutRef.current);
+          logTimeoutRef.current = setTimeout(() => {
             const pos = camera.position;
             const target = controls.target;
             const distance = pos.distanceTo(target);
@@ -899,13 +918,69 @@ export default function ModernSolarSystem() {
 
     // Cleanup function
     return () => {
+      // Clear any pending timeouts
+      if (logTimeoutRef.current) clearTimeout(logTimeoutRef.current);
+
       if (sceneRef.current) {
+        // Cancel animation loop
         if (sceneRef.current.animationId) {
           cancelAnimationFrame(sceneRef.current.animationId);
         }
+
+        // Dispose scene objects (geometries, materials, textures)
+        if (sceneRef.current.scene) {
+          sceneRef.current.scene.traverse((object) => {
+            if (object instanceof THREE.Mesh) {
+              // Dispose geometry
+              if (object.geometry) {
+                object.geometry.dispose();
+              }
+              // Dispose material(s)
+              if (object.material) {
+                if (Array.isArray(object.material)) {
+                  object.material.forEach(material => {
+                    // Dispose textures
+                    if (material.map) material.map.dispose();
+                    if (material.lightMap) material.lightMap.dispose();
+                    if (material.bumpMap) material.bumpMap.dispose();
+                    if (material.normalMap) material.normalMap.dispose();
+                    if (material.specularMap) material.specularMap.dispose();
+                    if (material.envMap) material.envMap.dispose();
+                    material.dispose();
+                  });
+                } else {
+                  // Dispose textures
+                  if (object.material.map) object.material.map.dispose();
+                  if (object.material.lightMap) object.material.lightMap.dispose();
+                  if (object.material.bumpMap) object.material.bumpMap.dispose();
+                  if (object.material.normalMap) object.material.normalMap.dispose();
+                  if (object.material.specularMap) object.material.specularMap.dispose();
+                  if (object.material.envMap) object.material.envMap.dispose();
+                  object.material.dispose();
+                }
+              }
+            } else if (object instanceof THREE.Line || object instanceof THREE.Points) {
+              // Dispose geometry for lines and point clouds (star field)
+              if (object.geometry) {
+                object.geometry.dispose();
+              }
+              if (object.material) {
+                if (Array.isArray(object.material)) {
+                  object.material.forEach(material => material.dispose());
+                } else {
+                  object.material.dispose();
+                }
+              }
+            }
+          });
+        }
+
+        // Dispose controls
         if (sceneRef.current.controls) {
           sceneRef.current.controls.dispose();
         }
+
+        // Remove DOM elements and dispose renderers
         if (container) {
           if (sceneRef.current.renderer && sceneRef.current.renderer.domElement.parentNode === container) {
             container.removeChild(sceneRef.current.renderer.domElement);
@@ -919,6 +994,26 @@ export default function ModernSolarSystem() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle window resize - update camera and renderer
+  useEffect(() => {
+    if (!sceneRef.current) return;
+
+    const { camera, renderer, labelRenderer } = sceneRef.current;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const width = container.clientWidth || 800;
+    const height = containerHeight;
+
+    // Update camera aspect ratio
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    // Update renderer size
+    renderer.setSize(width, height);
+    labelRenderer.setSize(width, height);
+  }, [containerHeight]);
 
   // Handle grid visibility toggle
   useEffect(() => {
@@ -1189,7 +1284,7 @@ export default function ModernSolarSystem() {
       <div
         ref={containerRef}
         className="bg-gray-900 relative"
-        style={{ height: '500px' }}
+        style={{ height: `${containerHeight}px` }}
       >
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center">

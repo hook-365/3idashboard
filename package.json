@@ -9,6 +9,10 @@
     "start": "NODE_ENV=production node server.js",
     "start:next": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
     "docker:build": "docker build -t 3i-dashboard .",
     "docker:run": "docker run -p 3000:3000 3i-dashboard",
     "docker:dev": "docker-compose --profile dev up",
@@ -17,10 +21,12 @@
   },
   "dependencies": {
     "@types/leaflet": "^1.9.20",
+    "@types/react-window": "^1.8.8",
     "astronomy-engine": "^2.1.19",
     "bluebird": "^3.7.2",
     "chart.js": "^4.5.0",
     "chartjs-adapter-date-fns": "^3.0.0",
+    "chartjs-plugin-zoom": "^2.2.0",
     "date-fns": "^4.1.0",
     "gsap": "^3.13.0",
     "jquery": "^3.7.1",
@@ -34,18 +40,27 @@
     "react-chartjs-2": "^5.3.0",
     "react-dom": "19.1.0",
     "react-leaflet": "^5.0.0",
+    "react-window": "^2.2.0",
     "three": "^0.180.0",
     "zod": "^4.1.11"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^3.2.4",
+    "@vitest/ui": "^3.2.4",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
+    "happy-dom": "^19.0.2",
+    "jsdom": "^27.0.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

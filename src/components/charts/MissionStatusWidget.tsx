@@ -45,7 +45,7 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
             <div className="h-6 w-48 bg-gray-600 rounded"></div>
             <div className="h-4 w-24 bg-gray-600 rounded"></div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-16 bg-gray-600 rounded"></div>
             ))}
@@ -106,14 +106,18 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
     }
   };
 
-  const activeSources = Object.entries(data.source_health).filter(([, active]) => active).length;
-  const totalSources = Object.keys(data.source_health).length;
-
   // Calculate current position on timeline based on orbital progress
   const calculateTimelinePosition = () => {
     // Key orbital parameters for 3I/ATLAS
     const discoveryDate = new Date('2025-07-01T00:00:00Z');
+    const marsEncounterStart = new Date('2025-10-03T00:00:00Z');
+    const marsEncounterEnd = new Date('2025-10-07T00:00:00Z');
+    const earthBlackoutStart = new Date('2025-10-01T00:00:00Z');
     const perihelionDate = new Date('2025-10-30T00:00:00Z');
+    const earthBlackoutEnd = new Date('2025-11-09T00:00:00Z');
+    const earthVisibilityReturn = new Date('2025-11-15T00:00:00Z');
+    const juiceStart = new Date('2025-11-02T00:00:00Z');
+    const juiceEnd = new Date('2025-11-25T00:00:00Z');
     const departureDate = new Date('2025-12-31T00:00:00Z');
 
     const now = new Date();
@@ -124,13 +128,19 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
     // Calculate mission progress as percentage (0-100%)
     const missionProgress = Math.min(Math.max((daysSinceDiscovery / totalMissionDays) * 100, 0), 100);
 
-    // Calculate perihelion position for validation
-    const perihelionDays = (perihelionDate.getTime() - discoveryDate.getTime()) / (1000 * 60 * 60 * 24);
-    const perihelionProgress = (perihelionDays / totalMissionDays) * 100;
+    // Calculate positions for all milestones
+    const calcProgress = (date: Date) => ((date.getTime() - discoveryDate.getTime()) / (1000 * 60 * 60 * 24) / totalMissionDays) * 100;
 
     return {
       missionProgress, // 0-100%
-      perihelionProgress, // Should be ~63.5%
+      perihelionProgress: calcProgress(perihelionDate),
+      marsEncounterStartProgress: calcProgress(marsEncounterStart),
+      marsEncounterEndProgress: calcProgress(marsEncounterEnd),
+      earthBlackoutStartProgress: calcProgress(earthBlackoutStart),
+      earthBlackoutEndProgress: calcProgress(earthBlackoutEnd),
+      earthVisibilityReturnProgress: calcProgress(earthVisibilityReturn),
+      juiceStartProgress: calcProgress(juiceStart),
+      juiceEndProgress: calcProgress(juiceEnd),
       daysSinceDiscovery: Math.floor(daysSinceDiscovery),
       daysToPerihelion: Math.floor(daysToPerihelion),
       phase: missionProgress < 33 ? 'discovery' :
@@ -161,14 +171,15 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
       </div>
 
       {/* Status Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 md:gap-4 mb-6">
         {/* Distance from Sun */}
         <div className="bg-gray-700 rounded-lg p-4 text-center">
           <div className="text-2xl mb-1">☀️</div>
           <div className="text-xl font-bold text-orange-400">
             {data.current_distance_au.toFixed(2)} AU
           </div>
-          <div className="text-xs text-gray-400">Solar Distance</div>
+          <div className="text-xs text-gray-400">Distance from Sun</div>
+          <div className="text-xs text-gray-500">1 AU = 93 million mi (150 million km)</div>
         </div>
 
         {/* Distance from Earth */}
@@ -177,7 +188,8 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
           <div className="text-xl font-bold text-blue-400">
             {data.geocentric_distance_au.toFixed(2)} AU
           </div>
-          <div className="text-xs text-gray-400">Earth Distance</div>
+          <div className="text-xs text-gray-400">Distance from Earth</div>
+          <div className="text-xs text-gray-500">1 AU = 93 million mi (150 million km)</div>
         </div>
 
         {/* Current Velocity */}
@@ -192,7 +204,10 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
             {data.current_velocity_km_s.toFixed(1)} km/s
           </div>
           <div className="text-xs text-gray-400">
-            Orbital Velocity {data.velocity_trend ? `(${data.velocity_trend})` : ''}
+            Current Speed {data.velocity_trend ? `(${data.velocity_trend})` : ''}
+          </div>
+          <div className="text-xs text-gray-500">
+            {(data.current_velocity_km_s * 2237).toLocaleString('en-US', {maximumFractionDigits: 0})} mph • {(data.current_velocity_km_s * 3600).toLocaleString('en-US', {maximumFractionDigits: 0})} km/h
           </div>
         </div>
 
@@ -208,8 +223,19 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
             {data.brightness_magnitude.toFixed(1)} mag
           </div>
           <div className="text-xs text-gray-400">
-            Visual Magnitude {data.brightness_trend ? `(${data.brightness_trend})` : ''}
+            Brightness {data.brightness_trend ? `(${data.brightness_trend})` : ''}
           </div>
+          <div className="text-xs text-gray-500">Apparent brightness (lower = brighter)</div>
+        </div>
+
+        {/* Activity Level */}
+        <div className="bg-gray-700 rounded-lg p-4 text-center">
+          <div className="text-2xl mb-1">{getActivityIcon(data.activity_level)}</div>
+          <div className={`text-xl font-bold ${getActivityColor(data.activity_level)}`}>
+            {data.activity_level === 'INSUFFICIENT_DATA' ? 'N/A' : data.activity_level}
+          </div>
+          <div className="text-xs text-gray-400">Activity Level</div>
+          <div className="text-xs text-gray-500">Based on brightness analysis</div>
         </div>
       </div>
 
@@ -231,135 +257,135 @@ export default function MissionStatusWidget({ data, loading }: MissionStatusWidg
         <div className="text-xs text-blue-200 mt-2">
           Closest approach: October 30, 2025
         </div>
+        <div className="mt-3 text-sm text-gray-300 max-w-2xl mx-auto">
+          <strong>Perihelion</strong> is when the comet reaches its closest point to the Sun. This is critical because intense solar heat triggers peak outgassing and brightness, revealing the comet&apos;s composition and allowing scientists to study material from another star system.
+        </div>
       </div>
 
-      {/* Orbital Journey - Visual Timeline */}
+      {/* Key Events Timeline */}
       <div className="bg-gradient-to-r from-purple-900 to-indigo-900 rounded-lg p-6 mb-6">
-        <h3 className="text-lg font-bold mb-4 text-purple-300 flex items-center gap-2">
-          🚀 Orbital Journey
+        <h3 className="text-lg font-bold mb-4 text-purple-300">
+          📅 Key Events
         </h3>
 
-        {/* Simplified Timeline Container */}
-        <div className="relative">
-          {/* Timeline Progress Bar - Clean Design */}
-          <div className="w-full h-4 bg-gray-600 rounded-full mb-6 relative overflow-hidden">
-            {/* Progress Fill - Flat Front Edge */}
+        {/* Timeline Progress Bar */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-2 text-xs text-gray-300">
+            <span>Day {timelinePos.daysSinceDiscovery}</span>
+            <span className="text-blue-300 font-bold"><span className="animate-pulse">☄️</span> Current Position</span>
+            <span>{Math.floor((new Date('2025-12-31').getTime() - new Date('2025-07-01').getTime()) / (1000 * 60 * 60 * 24))} Days</span>
+          </div>
+
+          {/* Progress Bar Container */}
+          <div className="relative w-full h-3 bg-gray-700 rounded-full overflow-hidden">
+            {/* Progress Fill */}
             <div
-              className="absolute left-0 top-0 h-full bg-blue-500 bg-opacity-70 rounded-l-full transition-all duration-1000"
+              className="absolute left-0 top-0 h-full bg-blue-500 transition-all duration-1000"
               style={{ width: `${timelinePos.missionProgress}%` }}
-            >
-              <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-l-full animate-pulse"></div>
-            </div>
-
-
-            {/* Current Position Indicator */}
-            <div
-              className="absolute top-0 h-full w-1 bg-white z-20 shadow-lg"
-              style={{ left: `${timelinePos.missionProgress}%` }}
             ></div>
 
-            {/* Perihelion Marker - At Actual Position */}
+            {/* Current Position Marker - White pulsing */}
             <div
-              className="absolute top-0 h-full w-1 bg-yellow-400 z-10"
-              style={{ left: `${timelinePos.perihelionProgress}%` }}
-            >
-              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-yellow-400 text-xl">
-                🎯
-              </div>
-            </div>
-          </div>
+              className="absolute top-0 h-full w-1 bg-white z-20 animate-pulse"
+              style={{ left: `${timelinePos.missionProgress}%` }}
+              title="Current Position"
+            ></div>
 
-          {/* Timeline Labels */}
-          <div className="relative text-xs mb-4">
-            {/* Discovery - Left */}
-            <div className="absolute left-0 text-green-300 font-semibold">
-              <div>DISCOVERY</div>
-              <div className="text-gray-400">July 1, 2025</div>
-              <div className="text-green-200">✓ Complete</div>
-            </div>
-
-            {/* Perihelion - At Actual Position */}
+            {/* Event Markers */}
+            {/* Discovery Marker */}
             <div
-              className="absolute text-yellow-300 font-semibold text-center transform -translate-x-1/2"
+              className="absolute top-0 h-full w-1 bg-green-400 z-10"
+              style={{ left: '0%' }}
+              title="Discovery - July 1"
+            ></div>
+
+            {/* Mars Encounter Marker */}
+            <div
+              className="absolute top-0 h-full w-1 bg-cyan-400 z-10"
+              style={{ left: `${timelinePos.marsEncounterStartProgress}%` }}
+              title="Mars Encounter - Oct 3-7"
+            ></div>
+
+            {/* Perihelion Marker */}
+            <div
+              className={`absolute top-0 h-full w-2 z-10 ${timelinePos.daysToPerihelion > 0 ? 'bg-yellow-400 animate-pulse' : 'bg-yellow-400'}`}
               style={{ left: `${timelinePos.perihelionProgress}%` }}
-            >
-              <div>PERIHELION</div>
-              <div className="text-gray-400">Oct 30</div>
-              <div className="text-yellow-200">{timelinePos.daysToPerihelion > 0 ? `${timelinePos.daysToPerihelion}d` : 'Now!'}</div>
-            </div>
+              title="Perihelion - Oct 30"
+            ></div>
 
-            {/* Departure - Right */}
-            <div className="absolute right-0 text-gray-400 font-semibold text-right">
-              <div>DEPARTURE</div>
-              <div className="text-gray-400">Dec 31, 2025</div>
-              <div className="text-gray-400">⏳ Future</div>
-            </div>
-          </div>
-          <div className="h-12"></div>{/* Spacer for absolute positioned labels */}
+            {/* Juice Marker */}
+            <div
+              className="absolute top-0 h-full w-1 bg-purple-400 z-10"
+              style={{ left: `${timelinePos.juiceStartProgress}%` }}
+              title="Juice Mission - Nov 2-25"
+            ></div>
 
-          {/* Current Position Banner */}
-          <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg animate-pulse">
-              <div className="text-xs font-bold">📍 YOU ARE HERE</div>
-              <div className="text-sm">Day {timelinePos.daysSinceDiscovery} • {timelinePos.missionProgress.toFixed(1)}% Complete</div>
-            </div>
-          </div>
-
-
-          {/* Mission Details */}
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="bg-green-900 bg-opacity-30 rounded p-2">
-              <div className="text-green-300 font-semibold">Initial Tracking</div>
-              <div className="text-gray-300">Trajectory confirmed</div>
-            </div>
-            <div className="bg-yellow-900 bg-opacity-30 rounded p-2 border border-yellow-600">
-              <div className="text-yellow-300 font-semibold">Approaching Sun</div>
-              <div className="text-gray-300">{data.current_distance_au.toFixed(2)} AU distance</div>
-            </div>
-            <div className="bg-gray-700 bg-opacity-30 rounded p-2">
-              <div className="text-gray-400 font-semibold">Final Observations</div>
-              <div className="text-gray-400">Beyond Neptune</div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Status Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Activity Level */}
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-400">Activity Level</span>
-            <span className="text-lg">{getActivityIcon(data.activity_level)}</span>
-          </div>
-          <div className={`text-lg font-bold ${getActivityColor(data.activity_level)}`}>
-            {data.activity_level === 'INSUFFICIENT_DATA' ? 'N/A' : data.activity_level}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Physics-based brightness analysis
+            {/* Earth Visibility Return Marker */}
+            <div
+              className="absolute top-0 h-full w-1 bg-emerald-400 z-10"
+              style={{ left: `${timelinePos.earthVisibilityReturnProgress}%` }}
+              title="Earth Visibility Returns - Nov 15"
+            ></div>
           </div>
         </div>
 
-        {/* Data Sources Health */}
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-400">Data Sources</span>
-            <span className="text-sm font-bold text-green-400">
-              {activeSources}/{totalSources} Active
-            </span>
+        {/* Event Details Grid - Acts as Legend */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Discovery */}
+          <div className="bg-gray-800 bg-opacity-40 rounded p-3 border-l-4 border-green-400">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🔭</span>
+              <span className="font-semibold text-green-300 text-sm">Discovery</span>
+            </div>
+            <div className="text-xs text-gray-300">July 1, 2025</div>
           </div>
-          <div className="grid grid-cols-4 gap-1">
-            {Object.entries(data.source_health).map(([source, active]) => (
-              <div key={source} className="text-center">
-                <div className={`text-xs ${active ? 'text-green-400' : 'text-red-400'}`}>
-                  {active ? '●' : '●'}
-                </div>
-                <div className="text-xs text-gray-400 uppercase">
-                  {source === 'theskylive' ? 'TSL' : source}
-                </div>
-              </div>
-            ))}
+
+          {/* Mars Encounter */}
+          <div className="bg-gray-800 bg-opacity-40 rounded p-3 border-l-4 border-cyan-400">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🔴</span>
+              <span className="font-semibold text-cyan-300 text-sm">Mars Encounter</span>
+            </div>
+            <div className="text-xs text-gray-300">Oct 3-7, 2025</div>
+          </div>
+
+          {/* Perihelion */}
+          <div className={`rounded p-3 border-l-4 border-yellow-400 ${timelinePos.daysToPerihelion > 0 ? 'bg-yellow-900 bg-opacity-40' : 'bg-gray-800 bg-opacity-40'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🎯</span>
+              <span className="font-semibold text-yellow-300 text-sm">Perihelion</span>
+              {timelinePos.daysToPerihelion > 0 && (
+                <span className="text-xs bg-yellow-600 text-yellow-100 px-1.5 py-0.5 rounded ml-auto">{timelinePos.daysToPerihelion}d</span>
+              )}
+            </div>
+            <div className="text-xs text-gray-300">Oct 30, 2025</div>
+          </div>
+
+          {/* Juice Mission */}
+          <div className="bg-gray-800 bg-opacity-40 rounded p-3 border-l-4 border-purple-400">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🛰️</span>
+              <span className="font-semibold text-purple-300 text-sm">Juice Mission</span>
+            </div>
+            <div className="text-xs text-gray-300">Nov 2-25, 2025</div>
+          </div>
+
+          {/* Earth Visibility */}
+          <div className="bg-gray-800 bg-opacity-40 rounded p-3 border-l-4 border-emerald-400">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🌅</span>
+              <span className="font-semibold text-emerald-300 text-sm">Earth Visible</span>
+            </div>
+            <div className="text-xs text-gray-300">Nov 15+, 2025</div>
+          </div>
+
+          {/* Departure */}
+          <div className="bg-gray-800 bg-opacity-40 rounded p-3 border-l-4 border-gray-500">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🌌</span>
+              <span className="font-semibold text-gray-300 text-sm">Departs</span>
+            </div>
+            <div className="text-xs text-gray-400">Dec 31, 2025</div>
           </div>
         </div>
       </div>

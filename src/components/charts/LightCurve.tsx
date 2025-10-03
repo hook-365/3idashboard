@@ -16,8 +16,10 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import zoomPlugin from 'chartjs-plugin-zoom';
 import { ExtensionSafeChartContainer } from '../ExtensionSafeComponents';
 
+// Register Chart.js components immediately at module load
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -26,7 +28,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  TimeScale
+  TimeScale,
+  zoomPlugin
 );
 
 export interface LightCurveDataPoint {
@@ -45,7 +48,6 @@ interface LightCurveProps {
   realTimeUpdates?: boolean;
   onDataPointClick?: (point: LightCurveDataPoint) => void;
   enableZoom?: boolean;
-  showAstronomicalModel?: boolean;
 }
 
 export default function LightCurve({
@@ -53,82 +55,16 @@ export default function LightCurve({
   className = '',
   realTimeUpdates = false,
   onDataPointClick,
-  enableZoom = true,
-  showAstronomicalModel = false
+  enableZoom = true
 }: LightCurveProps) {
+  console.log('LightCurve component rendered with:', {
+    dataLength: data.length,
+    enableZoom
+  });
+
   const chartRef = useRef<ChartJS<'line'>>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(0);
-  const [astronomicalPrediction, setAstronomicalPrediction] = useState<{ date: string; magnitude: number }[]>([]);
-
-  // Generate astronomical comet brightness curve directly
-  // Memoize to prevent recalculation on every render
-  const generateCometBrightnessCurve = useMemo(() => {
-    if (!showAstronomicalModel || data.length <= 10) {
-      return [];
-    }
-
-    const predictions = [];
-    const perihelionDate = new Date('2025-10-29T11:36:00Z'); // Exact MCP-1 perihelion
-
-    // Determine date range based on actual observations
-    let startDate = new Date();
-    const endDate = new Date('2025-12-31T23:59:59.999Z'); // End of year to match analytics graphs
-
-    if (data.length > 0) {
-      const observationDates = data.map(obs => new Date(obs.date).getTime());
-      const earliestObs = new Date(Math.min(...observationDates));
-
-      // Start from earliest observation date
-      startDate = earliestObs;
-    }
-
-    // Updated COBS Simple Fit parameters (COBS last 30 days)
-    const H = 7.1;  // Updated absolute magnitude (COBS latest)
-    const n = 6.0;   // Updated slope parameter (COBS latest - very high activity)
-    const q = 1.356320; // Perihelion distance in AU (MPEC 2025-SI6)
-    // const e = 6.138559; // Eccentricity (MPEC 2025-SI6) - not used in simple model
-
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 2)) {
-      // Calculate heliocentric distance using simplified hyperbolic orbit
-      const daysSincePerihelion = (d.getTime() - perihelionDate.getTime()) / (1000 * 60 * 60 * 24);
-
-      let r; // heliocentric distance in AU
-      if (daysSincePerihelion < 0) {
-        // Before perihelion - incoming
-        const timeRatio = Math.abs(daysSincePerihelion) / 365;
-        r = q * (1 + timeRatio * 0.5);
-      } else {
-        // After perihelion - outgoing
-        const timeRatio = daysSincePerihelion / 365;
-        r = q * (1 + timeRatio * 0.8);
-      }
-
-      // Approximate geocentric distance (simplified)
-      const earthSunDistance = 1.0;
-      const approximateAngle = Math.PI / 3; // 60 degrees
-      const delta = Math.sqrt(
-        r * r + earthSunDistance * earthSunDistance -
-        2 * r * earthSunDistance * Math.cos(approximateAngle)
-      );
-
-      // COBS Simple Fit formula: m = H + 5×log₁₀(Δ) + n×log₁₀(r)
-      const magnitude = H + 5 * Math.log10(Math.max(0.1, delta)) + n * Math.log10(Math.max(0.1, r));
-
-      predictions.push({
-        date: d.toISOString(),
-        magnitude: Math.round(magnitude * 100) / 100
-      });
-    }
-
-    return predictions;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAstronomicalModel, data.length]);
-
-  // Update state when memoized value changes
-  useEffect(() => {
-    setAstronomicalPrediction(generateCometBrightnessCurve);
-  }, [generateCometBrightnessCurve, data.length]);
 
   // Group data by filter type (Visual, CCD, etc.) to match COBS plot style
   // Memoize to prevent recalculation on every render
@@ -163,23 +99,6 @@ export default function LightCurve({
           easing: 'easeInOutQuart' as const
         } : undefined,
       })),
-      // Add astronomical prediction dataset (spans entire observation period)
-      ...(showAstronomicalModel && astronomicalPrediction.length > 0 ? [{
-        label: 'Theoretical Comet Brightness',
-        data: astronomicalPrediction.map((pred: { date: string; magnitude: number }) => ({
-          x: new Date(pred.date).getTime(),
-          y: pred.magnitude, // Use raw magnitude values
-        })),
-        borderColor: '#8b5cf6',
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-        borderWidth: 3,
-        borderDash: [],
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        tension: 0.4,
-        fill: false,
-      }] : []),
-
       // Add perihelion vertical line (COBS-style)
       {
         label: '🎯 Perihelion (Oct 30, 2025)',
@@ -193,14 +112,21 @@ export default function LightCurve({
         fill: false,
       },
     ],
-  }), [processedData, astronomicalPrediction, perihelionMarkerData, realTimeUpdates, showAstronomicalModel]);
+  }), [processedData, perihelionMarkerData, realTimeUpdates]);
 
   const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: {
       intersect: false,
-      mode: 'index',
+      mode: 'nearest',
+    },
+    elements: {
+      point: {
+        radius: typeof window !== 'undefined' && window.innerWidth < 768 ? 6 : 5,
+        hitRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 10 : 7,
+        hoverRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 8 : 7,
+      },
     },
     plugins: {
       legend: {
@@ -253,6 +179,33 @@ export default function LightCurve({
           },
         },
       },
+      zoom: enableZoom ? {
+        pan: {
+          enabled: true,
+          mode: 'xy',
+          modifierKey: 'shift',
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            speed: 0.1,
+          },
+          pinch: {
+            enabled: true,
+          },
+          mode: 'xy',
+        },
+        limits: {
+          x: {
+            min: new Date('2025-06-15').getTime(),
+            max: new Date('2025-12-31').getTime(),
+          },
+          y: {
+            min: 11,
+            max: 19,
+          },
+        },
+      } : undefined,
     },
     scales: {
       x: {
@@ -318,56 +271,12 @@ export default function LightCurve({
     },
   };
 
-  // Enable zoom functionality
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart || !enableZoom) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const rect = chart.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      // Simple zoom implementation
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-
-      // Get current scales
-      const xScale = chart.scales.x;
-      const yScale = chart.scales.y;
-
-      if (xScale && yScale) {
-        const xValue = xScale.getValueForPixel(x);
-        const yValue = yScale.getValueForPixel(y);
-
-        if (xValue !== null && yValue !== null && xValue !== undefined && yValue !== undefined && xScale.max !== undefined && xScale.min !== undefined && yScale.max !== undefined && yScale.min !== undefined) {
-          const xRange = xScale.max - xScale.min;
-          const yRange = yScale.max - yScale.min;
-
-          const newXRange = xRange * zoomFactor;
-          const newYRange = yRange * zoomFactor;
-
-          const xCenter = xValue;
-          const yCenter = yValue;
-
-          if (xScale.options && yScale.options) {
-            xScale.options.min = xCenter - newXRange / 2;
-            xScale.options.max = xCenter + newXRange / 2;
-            yScale.options.min = yCenter - newYRange / 2;
-            yScale.options.max = yCenter + newYRange / 2;
-          }
-
-          chart.update('none');
-        }
-      }
-    };
-
-    chart.canvas.addEventListener('wheel', handleWheel);
-
-    return () => {
-      chart.canvas.removeEventListener('wheel', handleWheel);
-    };
-  }, [enableZoom]);
+  // Reset zoom handler
+  const handleResetZoom = () => {
+    if (chartRef.current) {
+      chartRef.current.resetZoom();
+    }
+  };
 
   // Real-time update effect
   useEffect(() => {
@@ -390,18 +299,31 @@ export default function LightCurve({
       <ExtensionSafeChartContainer className="h-96 relative">
         <Line ref={chartRef} data={chartData} options={options} />
       </ExtensionSafeChartContainer>
-      <div className="mt-4 text-sm text-gray-400 space-y-1">
-        {enableZoom && <p>• Scroll to zoom in/out on the chart</p>}
-        <p>• Higher values on chart indicate brighter appearance</p>
-        <p>• Data points: {data.length} observations</p>
-        {realTimeUpdates && (
-          <p className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isAnimating ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`}></span>
-            Real-time updates {isAnimating ? 'active' : 'enabled'}
-          </p>
+      <div className="mt-4 flex flex-col md:flex-row md:items-center gap-4">
+        <div className="flex-1 text-sm text-gray-400 space-y-1">
+          {enableZoom && (
+            <>
+              <p>• Scroll to zoom in/out • Shift+drag to pan • Double-click to reset</p>
+            </>
+          )}
+          <p>• Higher values on chart indicate brighter appearance</p>
+          <p>• Data points: {data.length} observations</p>
+          {realTimeUpdates && (
+            <p className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${isAnimating ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`}></span>
+              Real-time updates {isAnimating ? 'active' : 'enabled'}
+            </p>
+          )}
+          <p>• Red dashed vertical line marks perihelion (October 30, 2025)</p>
+        </div>
+        {enableZoom && (
+          <button
+            onClick={handleResetZoom}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
+          >
+            Reset Zoom
+          </button>
         )}
-{/* Disabled: {showTrendLine && <p>• Orange dashed line shows brightness trend prediction</p>} */}
-        <p>• Red dashed vertical line marks perihelion (October 30, 2025)</p>
       </div>
     </div>
   );

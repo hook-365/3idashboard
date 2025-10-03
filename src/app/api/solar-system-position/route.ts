@@ -284,7 +284,8 @@ export async function GET(request: NextRequest) {
         }
       }, {
         headers: {
-          'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800', // 15min cache
+          // Tier 3: Orbital mechanics - 1 hour (positions change very slowly)
+          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
           'X-Data-Source': 'Solar-System-Position-Cached',
         }
       });
@@ -490,7 +491,8 @@ export async function GET(request: NextRequest) {
       }
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
+        // Tier 3: Orbital mechanics - 1 hour (3D positions and orbital trails change very slowly)
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
         'X-Processing-Time': processingTime.toString(),
         'X-Data-Source': cometDataSource,
         'X-Trail-Points': orbitalTrail.length.toString()

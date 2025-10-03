@@ -1,14 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import LightCurve from '../components/charts/LightCurve';
-import BrightnessStats from '../components/stats/BrightnessStats';
+import { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import MissionStatusWidget, { MissionStatusData } from '../components/charts/MissionStatusWidget';
 import ExtensionSafeWrapper from '../components/ExtensionSafeWrapper';
 import DataSourcesSection from '../components/common/DataSourcesSection';
 import PageNavigation from '../components/common/PageNavigation';
 import AppHeader from '../components/common/AppHeader';
 import { calculateActivityFromAPIData } from '../utils/activity-calculator';
+import { APIErrorBoundary, ChartErrorBoundary } from '../components/common/ErrorBoundary';
+import { MissionStatusSkeleton } from '../components/common/CardSkeleton';
+import { CollaborationStatsSkeleton } from '../components/common/StatsSkeleton';
+import TableSkeleton, { TableSkeletonMobile } from '../components/common/TableSkeleton';
+import ChartSkeleton from '../components/common/ChartSkeleton';
+
+// Dynamically import Chart.js components to reduce initial bundle size (~150KB saved)
+const LightCurve = dynamic(() => import('../components/charts/LightCurve'), {
+  loading: () => <ChartSkeleton height={384} showLegend={true} />,
+  ssr: false
+});
 
 
 interface ObserverInfo {
@@ -67,6 +77,12 @@ interface CometData {
   comet: CometInfo;
   stats: CometStats;
   observers: ObserverInfo[];
+  source_status?: {
+    cobs?: { active: boolean; last_updated: string; error?: string };
+    jpl_horizons?: { active: boolean; last_updated: string; error?: string };
+    theskylive?: { active: boolean; last_updated: string; error?: string };
+    mpc?: { active: boolean; last_updated: string; error?: string };
+  };
 }
 
 export default function Home() {
@@ -74,17 +90,36 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [missionStatus, setMissionStatus] = useState<MissionStatusData | null>(null);
 
+  // Memoize recent observations calculation to avoid recalculating on every render
+  const recentObservations = useMemo(() => {
+    if (!data?.comet?.observations) return 0;
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    return data.comet.observations.filter(obs =>
+      new Date(obs.date) >= oneWeekAgo
+    ).length;
+  }, [data?.comet?.observations]);
+
+  // Memoize light curve data transformation to avoid recreating on every render
+  const lightCurveData = useMemo(() => {
+    if (!data?.comet?.observations) return [];
+    return data.comet.observations.map(obs => ({
+      date: obs.date,
+      magnitude: obs.magnitude,
+      filter: 'Community',
+      observer: 'Observer Network',
+      quality: 'good' as const
+    }));
+  }, [data?.comet?.observations]);
+
   // Removed real-time hooks for Chart.js demo
 
   // Fetch comet data
   useEffect(() => {
-    // Fetch basic data
-    Promise.all([
-      fetch('/api/comet-data?smooth=true&predict=true&limit=200&trendDays=30'),
-      fetch('/api/observations?limit=50')
-    ])
-      .then(([cometRes, observationsRes]) => Promise.all([cometRes.json(), observationsRes.json()]))
-      .then(([cometResult]) => {
+    // Fetch basic data - use limit=200 for full light curve history
+    fetch('/api/comet-data?smooth=true&predict=true&limit=200&trendDays=30')
+      .then(res => res.json())
+      .then((cometResult) => {
         if (cometResult.success) {
           setData(cometResult.data);
 
@@ -159,16 +194,33 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-pulse text-6xl mb-6">☄️</div>
-          <div className="text-2xl font-semibold mb-2">Tracking Interstellar Visitor</div>
-          <div className="text-gray-400">Synchronizing data from COBS, JPL Horizons & TheSkyLive...</div>
-          <div className="mt-4">
-            <div className="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent text-blue-400 rounded-full"></div>
+      <ExtensionSafeWrapper>
+        <div className="min-h-screen bg-gray-900 text-white">
+          {/* Header */}
+          <AppHeader sourceStatus={undefined} />
+
+          {/* Navigation */}
+          <PageNavigation />
+
+          <div className="container mx-auto px-6 py-8">
+            {/* Mission Status Widget Skeleton */}
+            <MissionStatusSkeleton className="mb-8" />
+
+            {/* Global Collaboration Stats Skeleton */}
+            <CollaborationStatsSkeleton className="mb-8" showDescription={true} />
+
+            {/* Recent Observations Table - Desktop */}
+            <div className="hidden md:block">
+              <TableSkeleton rows={8} columns={8} className="mb-8" />
+            </div>
+
+            {/* Recent Observations Cards - Mobile */}
+            <div className="md:hidden">
+              <TableSkeletonMobile rows={8} className="mb-8" />
+            </div>
           </div>
         </div>
-      </div>
+      </ExtensionSafeWrapper>
     );
   }
 
@@ -176,7 +228,7 @@ export default function Home() {
     <ExtensionSafeWrapper>
       <div className="min-h-screen bg-gray-900 text-white">
       {/* Header */}
-      <AppHeader />
+      <AppHeader sourceStatus={data?.source_status} />
 
       {/* Navigation */}
       <PageNavigation />
@@ -184,42 +236,44 @@ export default function Home() {
       <div className="container mx-auto px-6 py-8">
 
         {/* Mission Control Dashboard */}
-        <div className="mb-8">
-          <MissionStatusWidget
-            data={missionStatus || undefined}
-            loading={loading}
-          />
-        </div>
+        <APIErrorBoundary>
+          <div className="mb-8">
+            <MissionStatusWidget
+              data={missionStatus || undefined}
+              loading={loading}
+            />
+          </div>
+        </APIErrorBoundary>
 
         {/* Global Collaboration Stats */}
         {data?.stats && (
           <div className="bg-gray-800 rounded-lg p-6 mb-8">
-            <h3 className="text-xl font-bold mb-4 text-cyan-400">🌍 Global Collaboration</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <h3 className="text-xl font-bold mb-2 text-cyan-400">🌍 Global Collaboration</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Amateur and professional astronomers worldwide contributing observations to track this interstellar visitor
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-400">{data.stats.totalObservations}</div>
-                <div className="text-sm text-gray-300">Total Observations</div>
+                <div className="text-sm text-gray-300">Brightness Measurements</div>
+                <div className="text-xs text-gray-500">Total recorded</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-400">{data.stats.activeObservers}</div>
-                <div className="text-sm text-gray-300">Active Observers</div>
+                <div className="text-sm text-gray-300">Contributing Astronomers</div>
+                <div className="text-xs text-gray-500">Worldwide network</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-400">
-                  {(() => {
-                    const oneWeekAgo = new Date();
-                    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-                    const recentObs = data?.comet?.observations?.filter(obs =>
-                      new Date(obs.date) >= oneWeekAgo
-                    )?.length || 0;
-                    return recentObs;
-                  })()}
+                  {recentObservations}
                 </div>
-                <div className="text-sm text-gray-300">This Week</div>
+                <div className="text-sm text-gray-300">New Reports</div>
+                <div className="text-xs text-gray-500">Last 7 days</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-cyan-400">COBS</div>
-                <div className="text-sm text-gray-300">Data Source</div>
+                <div className="text-sm text-gray-300">Data Network</div>
+                <div className="text-xs text-gray-500">Global database</div>
               </div>
             </div>
 
@@ -228,44 +282,19 @@ export default function Home() {
               className="mt-6"
               suppressWarnings={process.env.NODE_ENV === 'production'}
             >
-              {data?.comet.observations && (
-                <LightCurve
-                  data={data.comet.observations.map(obs => ({
-                    date: obs.date,
-                    magnitude: obs.magnitude,
-                    filter: 'Community',
-                    observer: 'Observer Network',
-                    quality: 'good' as const
-                  }))}
-                  showSources={false}
-                  showTrendLine={true}
-                  showAstronomicalModel={false}
-                />
-              )}
+              <ChartErrorBoundary>
+                {data?.comet.observations && (
+                  <LightCurve
+                    data={lightCurveData}
+                  />
+                )}
+              </ChartErrorBoundary>
             </ExtensionSafeWrapper>
           </div>
         )}
 
-        {/* Brightness Statistics */}
-        {data?.comet.observations && (
-          <BrightnessStats
-            data={data.comet.observations.map(obs => ({
-              date: obs.date,
-              magnitude: obs.magnitude,
-              observer: obs.observer?.name || 'Unknown',
-              quality: obs.quality || 'good' as const
-            }))}
-            className="mb-8"
-            showTrend={true}
-            compact={true}
-            realTimeUpdates={true}
-            trendAnalysis={data.stats?.trendAnalysis}
-          />
-        )}
-
-
-        {/* Recent Observations Table - Extension Safe */}
-        <ExtensionSafeWrapper className="bg-gray-800 rounded-lg p-6 mb-8">
+        {/* Recent Observations Table - Desktop */}
+        <ExtensionSafeWrapper className="hidden md:block bg-gray-800 rounded-lg p-6 mb-8">
           <h3 className="text-xl font-bold mb-4">Recent Community Observations</h3>
           {data?.comet?.observations && (
             <div className="overflow-x-auto">
@@ -274,11 +303,11 @@ export default function Home() {
                   <tr className="border-b border-gray-600">
                     <th className="text-left py-3 px-2">Date</th>
                     <th className="text-left py-3 px-2">Observer</th>
-                    <th className="text-left py-3 px-2">Location</th>
+                    <th className="text-left py-3 px-2 hidden lg:table-cell">Location</th>
                     <th className="text-left py-3 px-2">Filter</th>
                     <th className="text-right py-3 px-2">Magnitude</th>
-                    <th className="text-center py-3 px-2">Aperture</th>
-                    <th className="text-center py-3 px-2">Coma</th>
+                    <th className="text-center py-3 px-2 hidden xl:table-cell">Aperture</th>
+                    <th className="text-center py-3 px-2 hidden xl:table-cell">Coma</th>
                     <th className="text-center py-3 px-2">Quality</th>
                   </tr>
                 </thead>
@@ -286,18 +315,18 @@ export default function Home() {
                   {data.comet.observations.slice(0, 8).map((obs) => (
                     <tr key={obs.id} className="border-b border-gray-700 hover:bg-gray-700 transition-colors">
                       <td className="py-3 px-2 text-gray-300">
-                        {new Date(obs.date).toLocaleDateString()}
+                        {new Date(obs.date).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}
                       </td>
                       <td className="py-3 px-2 font-medium">{obs.observer.name}</td>
-                      <td className="py-3 px-2 text-gray-400">{obs.observer.location.name}</td>
+                      <td className="py-3 px-2 text-gray-400 hidden lg:table-cell">{obs.observer.location.name}</td>
                       <td className="py-3 px-2 text-gray-400 text-xs">{obs.filter || 'V'}</td>
                       <td className="py-3 px-2 text-right font-mono text-lg text-green-400">
                         {obs.magnitude.toFixed(2)}
                       </td>
-                      <td className="py-3 px-2 text-center text-xs text-gray-400">
+                      <td className="py-3 px-2 text-center text-xs text-gray-400 hidden xl:table-cell">
                         {obs.aperture ? `${obs.aperture}"` : '-'}
                       </td>
-                      <td className="py-3 px-2 text-center text-xs text-gray-400">
+                      <td className="py-3 px-2 text-center text-xs text-gray-400 hidden xl:table-cell">
                         {obs.coma ? `${obs.coma}'` : '-'}
                       </td>
                       <td className="py-3 px-2 text-center">
@@ -312,11 +341,11 @@ export default function Home() {
             </div>
           )}
 
-          {/* Filter Key Explanation - Always show if we have data */}
+          {/* Filter Key Explanation - Desktop */}
           {data?.comet?.observations && (
             <div className="mt-4 text-xs text-gray-400">
               <h4 className="font-semibold text-gray-300 mb-2">Filter Types:</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                 <div><strong>Visual:</strong> Visual observation</div>
                 <div><strong>V:</strong> Johnson V-band filter</div>
                 <div><strong>CCD:</strong> Unfiltered CCD</div>
@@ -340,6 +369,84 @@ export default function Home() {
                   <span className="text-blue-400">Good</span> (&lt;0.2 mag) •{' '}
                   <span className="text-yellow-400">Fair</span> (&lt;0.4 mag) •{' '}
                   <span className="text-red-400">Poor</span> (≥0.4 mag)
+                </div>
+              </div>
+            </div>
+          )}
+        </ExtensionSafeWrapper>
+
+        {/* Recent Observations Cards - Mobile */}
+        <ExtensionSafeWrapper className="md:hidden bg-gray-800 rounded-lg p-6 mb-8">
+          <h3 className="text-xl font-bold mb-4">Recent Community Observations</h3>
+          {data?.comet?.observations && (
+            <div className="space-y-3">
+              {data.comet.observations.slice(0, 8).map((obs) => (
+                <div key={obs.id} className="bg-gray-700 rounded-lg p-4 space-y-2">
+                  {/* Header */}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="text-2xl font-mono text-green-400 font-bold">
+                        {obs.magnitude.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {new Date(obs.date).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-800 text-blue-200">
+                        {obs.filter || 'V'}
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${obs.quality === 'excellent' ? 'bg-green-800 text-green-200' : obs.quality === 'good' ? 'bg-blue-800 text-blue-200' : obs.quality === 'fair' ? 'bg-yellow-800 text-yellow-200' : obs.quality === 'poor' ? 'bg-red-800 text-red-200' : 'bg-gray-800 text-gray-200'}`}>
+                        {obs.quality || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Observer Info */}
+                  <div className="border-t border-gray-600 pt-2">
+                    <div className="text-sm font-medium text-white">{obs.observer.name}</div>
+                    <div className="text-xs text-gray-400">{obs.observer.location.name}</div>
+                  </div>
+
+                  {/* Additional Details */}
+                  {(obs.aperture || obs.coma) && (
+                    <div className="flex gap-4 text-xs border-t border-gray-600 pt-2">
+                      {obs.aperture && (
+                        <div>
+                          <span className="text-gray-400">Aperture:</span>
+                          <span className="ml-1 text-white">{obs.aperture}&quot;</span>
+                        </div>
+                      )}
+                      {obs.coma && (
+                        <div>
+                          <span className="text-gray-400">Coma:</span>
+                          <span className="ml-1 text-white">{obs.coma}&apos;</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Filter Key Explanation - Mobile */}
+          {data?.comet?.observations && (
+            <div className="mt-4 text-xs text-gray-400">
+              <h4 className="font-semibold text-gray-300 mb-2">Filter Types:</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div><strong>Visual:</strong> Visual observation</div>
+                <div><strong>V:</strong> Johnson V-band filter</div>
+                <div><strong>CCD:</strong> Unfiltered CCD</div>
+                <div><strong>R:</strong> Red filter</div>
+              </div>
+              <div className="mt-2">
+                <h4 className="font-semibold text-gray-300 mb-1">Quality Ratings:</h4>
+                <div className="space-y-1">
+                  <div><span className="text-green-400">Excellent</span> (&lt;0.1 mag)</div>
+                  <div><span className="text-blue-400">Good</span> (&lt;0.2 mag)</div>
+                  <div><span className="text-yellow-400">Fair</span> (&lt;0.4 mag)</div>
+                  <div><span className="text-red-400">Poor</span> (≥0.4 mag)</div>
                 </div>
               </div>
             </div>

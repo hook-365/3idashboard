@@ -1,0 +1,13 @@
+# Coverage reports
+coverage/
+
+# jsorrery library (third-party)
+src/lib/jsorrery/
+
+# Build output
+.next/
+out/
+dist/
+
+# Node modules
+node_modules/

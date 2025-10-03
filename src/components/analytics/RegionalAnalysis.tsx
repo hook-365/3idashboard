@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import ExtensionSafeWrapper from '@/components/ExtensionSafeWrapper';
 
 interface AnalyticsObserver {
@@ -108,7 +108,7 @@ const getContinent = (country?: string): string => {
   return continentMapping[country || ''] || 'Other';
 };
 
-export default function RegionalAnalysis({ observers }: RegionalAnalysisProps) {
+const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: RegionalAnalysisProps) {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [chartType, setChartType] = useState<'bar' | 'pie' | 'coverage'>('bar');
   const [sortBy, setSortBy] = useState<'observers' | 'observations' | 'quality' | 'coverage'>('observers');
@@ -226,21 +226,21 @@ export default function RegionalAnalysis({ observers }: RegionalAnalysisProps) {
     }).sort((a, b) => b.totalObservers - a.totalObservers);
   }, [countryData]);
 
-  const topCountries = countryData.slice(0, showTop);
+  const topCountries = useMemo(() => countryData.slice(0, showTop), [countryData, showTop]);
 
-  const getCoverageColor = (score: number): string => {
+  const getCoverageColor = useCallback((score: number): string => {
     if (score >= 80) return 'bg-green-500';
     if (score >= 60) return 'bg-yellow-500';
     if (score >= 40) return 'bg-orange-500';
     return 'bg-red-500';
-  };
+  }, []);
 
-  const getCoverageDescription = (score: number): string => {
+  const getCoverageDescription = useCallback((score: number): string => {
     if (score >= 80) return 'Excellent coverage with dense observer network';
     if (score >= 60) return 'Good coverage with active observer participation';
     if (score >= 40) return 'Moderate coverage with room for growth';
     return 'Limited coverage needing more observers';
-  };
+  }, []);
 
   return (
     <ExtensionSafeWrapper>
@@ -433,17 +433,20 @@ export default function RegionalAnalysis({ observers }: RegionalAnalysisProps) {
                   <div className="bg-gray-700 rounded p-3">
                     <div className="font-medium text-blue-300 mb-1">Northern Hemisphere Dominance</div>
                     <div className="text-gray-300">
-                      {observers.filter(obs => obs.location.lat > 0).length} of {observers.length} observers
-                      ({((observers.filter(obs => obs.location.lat > 0).length / observers.length) * 100).toFixed(1)}%)
-                      are located in the northern hemisphere
+                      {(() => {
+                        const northernHemisphere = observers.filter(obs => obs.location.lat > 0).length;
+                        return `${northernHemisphere} of ${observers.length} observers (${((northernHemisphere / observers.length) * 100).toFixed(1)}%) are located in the northern hemisphere`;
+                      })()}
                     </div>
                   </div>
 
                   <div className="bg-gray-700 rounded p-3">
                     <div className="font-medium text-green-300 mb-1">Longitudinal Coverage</div>
                     <div className="text-gray-300">
-                      Global coverage spans {Math.round(Math.max(...observers.map(obs => obs.location.lng)) -
-                      Math.min(...observers.map(obs => obs.location.lng)))}° longitude,
+                      Global coverage spans {(() => {
+                        const lngs = observers.map(obs => obs.location.lng);
+                        return Math.round(Math.max(...lngs) - Math.min(...lngs));
+                      })()}° longitude,
                       providing continuous observation potential
                     </div>
                   </div>
@@ -462,21 +465,23 @@ export default function RegionalAnalysis({ observers }: RegionalAnalysisProps) {
         )}
 
         {/* Selected Country Details */}
-        {selectedCountry && (
-          <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-2xl font-semibold">{selectedCountry} - Detailed Analysis</h3>
-              <button
-                onClick={() => setSelectedCountry(null)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
+        {selectedCountry && (() => {
+          const countryDetails = countryData.find(c => c.country === selectedCountry);
+          const countryObservers = observers.filter(obs => obs.country === selectedCountry);
 
-            {(() => {
-              const countryDetails = countryData.find(c => c.country === selectedCountry);
-              const countryObservers = observers.filter(obs => obs.country === selectedCountry);
+          return (
+            <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-2xl font-semibold">{selectedCountry} - Detailed Analysis</h3>
+                <button
+                  onClick={() => setSelectedCountry(null)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {(() => {
 
               if (!countryDetails) return null;
 
@@ -558,9 +563,10 @@ export default function RegionalAnalysis({ observers }: RegionalAnalysisProps) {
                   </div>
                 </div>
               );
-            })()}
-          </div>
-        )}
+              })()}
+            </div>
+          );
+        })()}
 
         {/* Educational Content */}
         <div className="bg-gradient-to-r from-blue-900 to-purple-900 rounded-lg p-6">
@@ -595,4 +601,6 @@ export default function RegionalAnalysis({ observers }: RegionalAnalysisProps) {
       </div>
     </ExtensionSafeWrapper>
   );
-}
+});
+
+export default RegionalAnalysis;

@@ -7,9 +7,6 @@
 
 import { format } from 'date-fns';
 
-// Real COBS API endpoint
-const COBS_API_BASE = 'https://cobs.si/api/obs_list.api';
-
 // TypeScript interfaces for COBS data structures
 export interface COBSObservation {
   id: string;
@@ -51,6 +48,7 @@ export interface ProcessedObservation {
   coma?: number;
   notes: string;
   source: string;
+  quality?: 'excellent' | 'good' | 'fair' | 'poor';
 }
 
 export interface CometStatistics {
@@ -210,7 +208,6 @@ export class COBSApiClient {
       // Extract observer info from the end of the line
       const nameMatch = line.match(/Name: ([^;]+)/);
       const locationMatch = line.match(/Location: ([^;]+)/);
-      const commentMatch = line.match(/Comment: ([^;]+)/);
 
       if (!magnitudeStr || !nameMatch) {
         return null;
@@ -271,7 +268,7 @@ export class COBSApiClient {
         source: 'COBS',
         coma,
       };
-    } catch {
+    } catch (error) {
       console.error('Error parsing observation line:', error);
       return null;
     }
@@ -402,7 +399,7 @@ export class COBSApiClient {
         console.log(`Successfully cached ${observations.length} observations`);
         return observations;
 
-      } catch {
+      } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         console.error(`COBS API attempt ${attempt} failed:`, lastError.message);
 
@@ -572,20 +569,22 @@ export class COBSApiClient {
   /**
    * Get observer information with locations
    * @param forceRefresh - If true, bypass cache and fetch fresh data
+   * @param observations - Optional pre-fetched observations to avoid duplicate fetch
    */
-  async getObservers(forceRefresh: boolean = false): Promise<ObserverInfo[]> {
-    const observations = await this.getObservations(forceRefresh);
+  async getObservers(forceRefresh: boolean = false, observations?: ProcessedObservation[]): Promise<ObserverInfo[]> {
+    // Reuse provided observations if available, otherwise fetch them
+    const obs = observations ?? await this.getObservations(forceRefresh);
 
     const observerMap = new Map<string, ObserverInfo>();
 
-    observations.forEach(obs => {
-      const observerId = obs.observer.id;
+    obs.forEach(observation => {
+      const observerId = observation.observer.id;
 
       if (!observerMap.has(observerId)) {
         observerMap.set(observerId, {
           id: observerId,
-          name: obs.observer.name,
-          location: obs.observer.location,
+          name: observation.observer.name,
+          location: observation.observer.location,
           observationCount: 0,
           averageMagnitude: 0,
         });
@@ -593,13 +592,13 @@ export class COBSApiClient {
 
       const observer = observerMap.get(observerId)!;
       observer.observationCount++;
-      observer.latestObservation = obs.date;
+      observer.latestObservation = observation.date;
     });
 
     // Calculate average magnitudes
     for (const observer of observerMap.values()) {
-      const observerObservations = observations.filter(obs => obs.observer.id === observer.id);
-      const totalMagnitude = observerObservations.reduce((sum, obs) => sum + obs.magnitude, 0);
+      const observerObservations = obs.filter(observation => observation.observer.id === observer.id);
+      const totalMagnitude = observerObservations.reduce((sum, observation) => sum + observation.magnitude, 0);
       observer.averageMagnitude = parseFloat((totalMagnitude / observer.observationCount).toFixed(2));
     }
 

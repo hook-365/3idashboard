@@ -19,16 +19,8 @@ import 'chartjs-adapter-date-fns';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
 import { createPerihelionLineDataset } from '@/utils/chart-helpers';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale
-);
+// Flag to track Chart.js registration
+let chartJsRegistered = false;
 
 export interface OrbitalVelocityDataPoint {
   date: string;
@@ -52,6 +44,23 @@ export default function OrbitalVelocityChart({
   showTrendLine = false
 }: OrbitalVelocityChartProps) {
   const [isClient, setIsClient] = useState(false);
+
+  // Register Chart.js components only when this chart loads
+  useEffect(() => {
+    if (!chartJsRegistered) {
+      ChartJS.register(
+        CategoryScale,
+        LinearScale,
+        PointElement,
+        LineElement,
+        Title,
+        Tooltip,
+        Legend,
+        TimeScale
+      );
+      chartJsRegistered = true;
+    }
+  }, []);
 
   useEffect(() => {
     setIsClient(true);
@@ -230,6 +239,13 @@ export default function OrbitalVelocityChart({
   const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
+    elements: {
+      point: {
+        radius: typeof window !== 'undefined' && window.innerWidth < 768 ? 5 : 4,
+        hitRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 10 : 6,
+        hoverRadius: typeof window !== 'undefined' && window.innerWidth < 768 ? 7 : 6,
+      },
+    },
     plugins: {
       legend: {
         display: true,
@@ -315,7 +331,7 @@ export default function OrbitalVelocityChart({
       }
     },
     interaction: {
-      mode: 'index',
+      mode: 'nearest',
       intersect: false
     }
   };

@@ -26,11 +26,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('Fetching observations with filters:', { observer, minMagnitude, maxMagnitude, days, includeStats, forceRefresh });
 
-    // Fetch all observations and observers in parallel if stats requested
-    const [observations, observers] = await Promise.all([
-      cobsApi.getObservations(forceRefresh),
-      includeStats ? cobsApi.getObservers(forceRefresh) : Promise.resolve([])
-    ]);
+    // Optimization: Fetch observations once and reuse for observer statistics
+    // This avoids duplicate fetches when getObservers() would internally call getObservations()
+    const observations = await cobsApi.getObservations(forceRefresh);
+    const observers = includeStats ? await cobsApi.getObservers(forceRefresh, observations) : [];
 
     // Apply filters
     let filteredObservations = observations;
@@ -140,6 +139,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
+        // Tier 1: Live observation data - 5 minutes (changes frequently from COBS)
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
         'X-Processing-Time': processingTime.toString(),
         'X-Total-Count': filteredObservations.length.toString(),

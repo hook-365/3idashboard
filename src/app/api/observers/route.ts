@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('Fetching observers with params:', { includeStats, format, minObservations, region });
 
-    const observers = await cobsApi.getObservers();
+    // Optimization: Fetch observations once and reuse for observer statistics
+    // This avoids duplicate fetches when getObservers() would internally call getObservations()
+    const observations = await cobsApi.getObservations();
+    const observers = await cobsApi.getObservers(false, observations);
 
     // Apply filters
     let filteredObservers = observers;
@@ -106,7 +109,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        // Tier 2: Derived analytics - 15 minutes (observer statistics and aggregations)
+        // Observer list changes less frequently than individual observations
+        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
         'X-Processing-Time': processingTime.toString(),
         'X-Total-Count': filteredObservers.length.toString(),
       },

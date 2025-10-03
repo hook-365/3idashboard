@@ -12,7 +12,7 @@ interface GalleryImage {
   title: string;
   description: string;
   date: string;
-  source: 'NASA' | 'ESA/Hubble' | 'JWST' | 'Virtual Telescope' | 'Community';
+  source: 'NASA' | 'ESA/Hubble' | 'JWST' | 'Virtual Telescope' | 'Community' | 'NOIRLab/Gemini' | 'ESO';
   imageUrl: string;
   thumbnailUrl: string;
   attribution: string;
@@ -113,6 +113,8 @@ export default function GalleryPage() {
       case 'NASA': return 'text-blue-400 bg-blue-900/20';
       case 'ESA/Hubble': return 'text-purple-400 bg-purple-900/20';
       case 'JWST': return 'text-red-400 bg-red-900/20';
+      case 'NOIRLab/Gemini': return 'text-cyan-400 bg-cyan-900/20';
+      case 'ESO': return 'text-indigo-400 bg-indigo-900/20';
       case 'Virtual Telescope': return 'text-green-400 bg-green-900/20';
       case 'Community': return 'text-orange-400 bg-orange-900/20';
       default: return 'text-gray-400 bg-gray-900/20';
@@ -159,6 +161,8 @@ export default function GalleryPage() {
                     <option value="NASA">NASA</option>
                     <option value="ESA/Hubble">ESA/Hubble</option>
                     <option value="JWST">James Webb Space Telescope</option>
+                    <option value="NOIRLab/Gemini">NOIRLab/Gemini Observatory</option>
+                    <option value="ESO">European Southern Observatory</option>
                     <option value="Virtual Telescope">Virtual Telescope Project</option>
                     <option value="Community">Community</option>
                   </select>
@@ -293,7 +297,7 @@ export default function GalleryPage() {
                   <p className="text-gray-300 mb-4">{selectedImage.description}</p>
 
                   {/* Metadata */}
-                  <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-4 mb-4 text-sm">
                     <div>
                       <span className="text-gray-400">Date:</span>
                       <div className="text-white">{new Date(selectedImage.date).toLocaleDateString()}</div>
@@ -379,6 +383,20 @@ export default function GalleryPage() {
                 <p className="text-gray-300 mb-2">Ground-based observations by Dr. Gianluca Masi</p>
                 <a href="https://www.virtualtelescope.eu" className="text-green-400 hover:text-green-300 underline" target="_blank" rel="noopener noreferrer">
                   virtualtelescope.eu
+                </a>
+              </div>
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="font-semibold text-cyan-400 mb-2">NOIRLab/Gemini Observatory</h4>
+                <p className="text-gray-300 mb-2">Twin 8.1-meter telescopes in Hawaiʻi and Chile providing critical early characterization</p>
+                <a href="https://noirlab.edu" className="text-cyan-400 hover:text-cyan-300 underline" target="_blank" rel="noopener noreferrer">
+                  noirlab.edu
+                </a>
+              </div>
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h4 className="font-semibold text-indigo-400 mb-2">European Southern Observatory</h4>
+                <p className="text-gray-300 mb-2">Very Large Telescope observations from Chile</p>
+                <a href="https://www.eso.org" className="text-indigo-400 hover:text-indigo-300 underline" target="_blank" rel="noopener noreferrer">
+                  eso.org
                 </a>
               </div>
             </div>
