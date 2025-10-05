@@ -14,7 +14,7 @@ import {
   ChartOptions,
   ChartData,
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Scatter } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
 
 // Flag to track Chart.js registration
@@ -95,14 +95,15 @@ export default function ComaAndTailChart({
         y: point.comaSize
       })),
       borderColor: '#10b981',
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      backgroundColor: '#10b981',
       pointBackgroundColor: '#10b981',
       pointBorderColor: '#ffffff',
       pointBorderWidth: 1,
       pointRadius: 4,
       pointHoverRadius: 6,
-      fill: false,
-      tension: 0.2,
+      showLine: true,
+      borderWidth: 2,
+      tension: 0.1,
       yAxisID: 'y',
     });
   }
@@ -115,22 +116,23 @@ export default function ComaAndTailChart({
         x: point.date,
         y: point.tailLength
       })),
-      borderColor: '#3b82f6',
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-      pointBackgroundColor: '#3b82f6',
+      borderColor: '#f59e0b',
+      backgroundColor: '#f59e0b',
+      pointBackgroundColor: '#f59e0b',
       pointBorderColor: '#ffffff',
       pointBorderWidth: 1,
       pointRadius: 4,
       pointHoverRadius: 6,
-      fill: false,
-      tension: 0.2,
+      showLine: true,
+      borderWidth: 2,
+      tension: 0.1,
       yAxisID: 'y1',
     });
   }
 
-  const chartData: ChartData<'line'> = { datasets };
+  const chartData: ChartData<'scatter'> = { datasets };
 
-  const options: ChartOptions<'line'> = {
+  const options: ChartOptions<'scatter'> = {
     responsive: true,
     maintainAspectRatio: false,
     elements: {
@@ -241,7 +243,7 @@ export default function ComaAndTailChart({
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <div style={{ height: '400px', width: '100%' }}>
-        <Line data={chartData} options={options} />
+        <Scatter data={chartData} options={options} />
       </div>
 
       {/* Simple stats */}

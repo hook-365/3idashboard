@@ -766,51 +766,31 @@ export default function AnalyticsPage() {
               )}
             </div>
 
-            {/* 4. ACTIVITY LEVEL ANALYSIS SECTION */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-purple-400 mb-2">
-                  🔥 Comet Activity & Outgassing
-                </h2>
-                <p className="text-gray-400 text-sm">
-                  How active the comet is - measuring gas and dust being released as the Sun heats its icy surface
-                </p>
-              </div>
-
-              {/* Current Activity Status */}
-              <div className="bg-gray-700 rounded-lg p-6 mb-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Current Activity Level</h3>
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-red-400 mb-2">
-                    {state.missionStatus?.activity_level || 'N/A'}
-                  </div>
-                  <div className="text-lg text-gray-300 mb-2">Activity Rating</div>
-                  <div className="text-sm text-gray-400">
-                    Measures how much gas and dust is being released
-                  </div>
-                </div>
-              </div>
-
-              {/* Activity Chart */}
-              {state.activityData.length > 0 && (
-                <ChartErrorBoundary>
-                  <ActivityLevelChart
-                    data={state.activityData}
-                    showComponents={true}
-                  />
-                </ChartErrorBoundary>
-              )}
-            </div>
-
-            {/* 5. MORPHOLOGY ANALYSIS SECTION */}
+            {/* 4. MORPHOLOGY ANALYSIS SECTION - HIDDEN FOR NOW */}
+            {false && (
             <div className="bg-gray-800 rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-teal-400 mb-2">
                   💫 Coma & Tail Development
                 </h2>
-                <p className="text-gray-400 text-sm">
-                  Tracking the size of the comet&apos;s coma (surrounding atmosphere) and tail as it approaches the Sun
-                </p>
+                <div className="text-gray-400 text-sm space-y-2">
+                  <p>
+                    As the comet heats up approaching the Sun, it develops two key features that observers measure:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>
+                      <strong className="text-green-400">Coma</strong>: The fuzzy cloud of gas and dust surrounding the comet&apos;s nucleus.
+                      Measured in <em>arcminutes</em> (apparent size in the sky - for reference, the full Moon is about 30 arcminutes wide).
+                    </li>
+                    <li>
+                      <strong className="text-blue-400">Tail</strong>: The streaming trail of gas and dust pushed away from the Sun by solar wind and radiation.
+                      Measured in <em>degrees</em> (angular length - your fist at arm&apos;s length is about 10 degrees).
+                    </li>
+                  </ul>
+                  <p className="text-xs italic">
+                    Growing coma and tail sizes indicate increasing activity as the comet releases more material.
+                  </p>
+                </div>
               </div>
 
               {/* Morphology Summary Stats */}
@@ -858,6 +838,43 @@ export default function AnalyticsPage() {
                     No coma or tail measurements available yet. Check back as more observations are reported.
                   </div>
                 </div>
+              )}
+            </div>
+            )}
+
+            {/* 4. ACTIVITY LEVEL ANALYSIS SECTION */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-purple-400 mb-2">
+                  🔥 Comet Activity & Outgassing
+                </h2>
+                <p className="text-gray-400 text-sm">
+                  How active the comet is - measuring gas and dust being released as the Sun heats its icy surface
+                </p>
+              </div>
+
+              {/* Current Activity Status */}
+              <div className="bg-gray-700 rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Current Activity Level</h3>
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-red-400 mb-2">
+                    {state.missionStatus?.activity_level || 'N/A'}
+                  </div>
+                  <div className="text-lg text-gray-300 mb-2">Activity Rating</div>
+                  <div className="text-sm text-gray-400">
+                    Measures how much gas and dust is being released
+                  </div>
+                </div>
+              </div>
+
+              {/* Activity Chart */}
+              {state.activityData.length > 0 && (
+                <ChartErrorBoundary>
+                  <ActivityLevelChart
+                    data={state.activityData}
+                    showComponents={true}
+                  />
+                </ChartErrorBoundary>
               )}
             </div>
 

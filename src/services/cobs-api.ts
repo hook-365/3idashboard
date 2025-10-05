@@ -291,8 +291,9 @@ export class COBSApiClient {
    * Extract coma size from COBS line
    */
   private extractComa(line: string): number | undefined {
-    // Look for coma size patterns
-    const comaMatch = line.match(/\s+(\d+\.\d+)\s+/);
+    // Look for coma size patterns in COBS format: DC=X/Y where Y is coma diameter in arcminutes
+    // Example: "DC=5/3.5" means coma is 3.5 arcminutes
+    const comaMatch = line.match(/DC[=:]?\s*\d+\s*\/\s*(\d+\.?\d*)/i);
     if (comaMatch && parseFloat(comaMatch[1]) > 0 && parseFloat(comaMatch[1]) < 10) {
       return parseFloat(comaMatch[1]);
     }
