@@ -1,6 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import InfoTooltip from './InfoTooltip';
+
+// Dynamically import ThemeSelector to avoid SSR issues
+const ThemeSelector = dynamic(() => import('./ThemeSelector'), {
+  ssr: false,
+  loading: () => <div className="w-24 h-10"></div>,
+});
 
 interface SourceStatus {
   active: boolean;
@@ -12,6 +21,7 @@ interface AppHeaderProps {
   sourceStatus?: {
     cobs?: SourceStatus;
     jpl_horizons?: SourceStatus;
+    jpl_ephemeris?: SourceStatus;
     theskylive?: SourceStatus;
     mpc?: SourceStatus;
   };
@@ -57,61 +67,117 @@ export default function AppHeader({ sourceStatus: sourceStatusProp }: AppHeaderP
   }, [sourceStatusProp]);
 
   return (
-    <div className="bg-gray-900 border-b border-gray-800">
+    <div className="bg-[var(--color-bg-primary)] border-b border-[var(--color-border-primary)]">
       <div className="container mx-auto px-6 py-6">
         <div className="flex items-start justify-between gap-6">
           {/* Left: Mission Control with Status */}
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3 flex-1">
             <span className="text-5xl">☄️</span>
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500 bg-clip-text text-transparent">
-                3I/ATLAS Comet Dashboard
-              </h1>
-              <p className="text-gray-400 text-sm italic mt-1">
+            <div className="flex-1">
+              <Link href="/" className="inline-block hover:opacity-80 transition-opacity">
+                <h1 className="text-4xl font-bold cursor-pointer" style={{ background: 'var(--gradient-title)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                  3I/Atlas Dashboard
+                </h1>
+              </Link>
+              <p className="text-[var(--color-text-tertiary)] text-sm italic mt-1">
                 Tracking the third interstellar object visiting our solar system
               </p>
 
               {/* Data Status */}
               {sourceStatus && (sourceStatus.cobs?.last_updated || sourceStatus.jpl_horizons?.last_updated) && (
-                <div className="mt-4 flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500">Data Status:</span>
-                    <div className="flex items-center gap-1.5 text-green-400">
-                      <span className="inline-block w-2 h-2 rounded-full bg-green-400"></span>
-                      <span className="font-medium">Live</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-gray-600">
-                      COBS: <span className={`font-mono ${sourceStatus.cobs?.active ? 'text-green-400' : 'text-red-400'}`}>{formatTimeAgo(sourceStatus.cobs?.last_updated)}</span>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-[var(--color-text-tertiary)]">Data Sources:</span>
+
+                  {/* COBS */}
+                  <span className="text-[var(--color-text-tertiary)] flex items-center gap-1">
+                    <span className="inline-flex items-center">
+                      COBS
+                      <InfoTooltip
+                        content="COBS (Comet Observation Database) - Global network of amateur and professional astronomers contributing brightness observations."
+                        position="bottom"
+                      />
                     </span>
-                    <span className="text-gray-600">
-                      JPL: <span className={`font-mono ${sourceStatus.jpl_horizons?.active ? 'text-green-400' : 'text-red-400'}`}>{formatTimeAgo(sourceStatus.jpl_horizons?.last_updated)}</span>
+                    <span className={`font-mono font-semibold ${sourceStatus.cobs?.active ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-error)]'}`}>{formatTimeAgo(sourceStatus.cobs?.last_updated)}</span>
+                  </span>
+
+                  {/* TSL */}
+                  <span className="text-[var(--color-text-tertiary)]">•</span>
+                  <span className="text-[var(--color-text-tertiary)] flex items-center gap-1">
+                    <span className="inline-flex items-center">
+                      TSL
+                      <InfoTooltip
+                        content="TheSkyLive - Real-time astronomical data service providing current coordinates and orbital positions."
+                        position="bottom"
+                      />
                     </span>
-                    <span className="text-gray-600">
-                      TSL: <span className={`font-mono ${sourceStatus.theskylive?.active ? 'text-green-400' : 'text-red-400'}`}>{formatTimeAgo(sourceStatus.theskylive?.last_updated)}</span>
-                    </span>
-                    {sourceStatus.mpc?.last_updated && (
-                      <span className="text-gray-600">
-                        MPC: <span className={`font-mono ${sourceStatus.mpc?.active ? 'text-green-400' : 'text-red-400'}`}>{formatTimeAgo(sourceStatus.mpc?.last_updated)}</span>
+                    <span className={`font-mono font-semibold ${sourceStatus.theskylive?.active ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-error)]'}`}>{formatTimeAgo(sourceStatus.theskylive?.last_updated)}</span>
+                  </span>
+
+                  {/* MPC */}
+                  {sourceStatus.mpc?.last_updated && (
+                    <>
+                      <span className="text-[var(--color-text-tertiary)]">•</span>
+                      <span className="text-[var(--color-text-tertiary)] flex items-center gap-1">
+                        <span className="inline-flex items-center">
+                          MPC
+                          <InfoTooltip
+                            content="MPC (Minor Planet Center) - International authority for observational data on minor planets and comets."
+                            position="bottom"
+                          />
+                        </span>
+                        <span className={`font-mono font-semibold ${sourceStatus.mpc?.active ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-error)]'}`}>{formatTimeAgo(sourceStatus.mpc?.last_updated)}</span>
                       </span>
-                    )}
-                  </div>
+                    </>
+                  )}
+
+                  {/* JPL Vec */}
+                  <span className="text-[var(--color-text-tertiary)]">•</span>
+                  <span className="text-[var(--color-text-tertiary)] flex items-center gap-1">
+                    <span className="inline-flex items-center">
+                      JPL-Vec
+                      <InfoTooltip
+                        content="JPL Horizons Vectors - NASA's orbital mechanics calculations (position and velocity)."
+                        position="bottom"
+                      />
+                    </span>
+                    <span className={`font-mono font-semibold ${sourceStatus.jpl_horizons?.active ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-warning)]'}`} title={sourceStatus.jpl_horizons?.error || 'NASA API temporarily unavailable - using TheSkyLive fallback data'}>{sourceStatus.jpl_horizons?.last_updated ? formatTimeAgo(sourceStatus.jpl_horizons.last_updated) : 'unavailable'}</span>
+                  </span>
+
+                  {/* JPL Eph */}
+                  <span className="text-[var(--color-text-tertiary)]">•</span>
+                  <span className="text-[var(--color-text-tertiary)] flex items-center gap-1">
+                    <span className="inline-flex items-center">
+                      JPL-Eph
+                      <InfoTooltip
+                        content="JPL Ephemeris - NASA's sky position predictions (RA/DEC coordinates)."
+                        position="bottom"
+                      />
+                    </span>
+                    <span className={`font-mono font-semibold ${sourceStatus.jpl_ephemeris?.active ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-warning)]'}`} title={sourceStatus.jpl_ephemeris?.error || 'NASA API temporarily unavailable - using TheSkyLive fallback coordinates'}>{sourceStatus.jpl_ephemeris?.last_updated ? formatTimeAgo(sourceStatus.jpl_ephemeris.last_updated) : 'unavailable'}</span>
+                  </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Right: Coffee Button */}
-          <a
-            href="https://buymeacoffee.com/anthonyhook"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-gradient-to-r from-yellow-600/90 to-yellow-500/90 hover:from-yellow-500 hover:to-yellow-400 text-white px-4 py-2 rounded-lg transition-all duration-300 border border-yellow-500/30 shadow-lg hover:shadow-yellow-500/20"
-          >
-            <span className="text-lg">☕</span>
-            <span className="hidden sm:inline font-['Cookie'] text-lg tracking-wide">Buy me a coffee</span>
-          </a>
+          {/* Right: Theme Selector and Coffee Button */}
+          <div className="flex items-center gap-3">
+            <ThemeSelector />
+            <a
+              href="https://buymeacoffee.com/anthonyhook"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 border shadow-lg"
+              style={{
+                background: 'var(--gradient-button)',
+                color: 'var(--color-text-primary)',
+                borderColor: 'var(--color-border-secondary)'
+              }}
+            >
+              <span className="text-lg">☕</span>
+              <span className="hidden sm:inline font-['Cookie'] text-lg tracking-wide">Buy me a coffee</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>
