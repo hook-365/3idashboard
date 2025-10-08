@@ -15,20 +15,27 @@ import AppHeader from '@/components/common/AppHeader';
 import { MissionStatusData } from '@/components/charts/MissionStatusWidget';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
 import { ChartErrorBoundary, VisualizationErrorBoundary } from '@/components/common/ErrorBoundary';
+import { calculatePositionFromElements } from '@/lib/orbital-calculations';
 import ChartSkeleton from '@/components/common/ChartSkeleton';
 import { VisualizationSkeleton } from '@/components/common/CardSkeleton';
 import CardSkeleton from '@/components/common/CardSkeleton';
 import OrbitalElementsComparison from '@/components/orbital/OrbitalElementsComparison';
 import type { MPCOrbitalElements } from '@/types/enhanced-comet-data';
 import type { JPLHorizonsData } from '@/lib/data-sources/jpl-horizons';
+import CurrentPositionBanner from '@/components/common/CurrentPositionBanner';
+import InfoTooltip from '@/components/common/InfoTooltip';
+import CanISeeItBanner from '@/components/common/CanISeeItBanner';
+import SimpleSkyCompass from '@/components/charts/SimpleSkyCompass';
+import MagnitudeScale from '@/components/charts/MagnitudeScale';
+import { formatDistance } from '@/utils/unit-conversions';
 
 // Dynamically import heavy 3D component (~500KB)
 const ModernSolarSystem = dynamic(() => import('@/components/visualization/ModernSolarSystem'), {
   loading: () => (
-    <div className="bg-gray-800 rounded-lg p-6 h-[600px] flex items-center justify-center">
+    <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 h-[600px] flex items-center justify-center">
       <div className="text-center">
-        <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-cyan-400 rounded-full mb-4"></div>
-        <div className="text-gray-400">Loading 3D Visualization...</div>
+        <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-[var(--color-chart-senary)] rounded-full mb-4"></div>
+        <div className="text-[var(--color-text-tertiary)]">Loading 3D Visualization...</div>
       </div>
     </div>
   ),
@@ -60,6 +67,12 @@ const ComaAndTailChart = dynamic(() => import('@/components/charts/ComaAndTailCh
   loading: () => <ChartSkeleton height={400} showLegend={true} />,
   ssr: false
 });
+
+// SkyPositionChart removed - not currently used
+// const SkyPositionChart = dynamic(() => import('@/components/charts/SkyPositionChart'), {
+//   loading: () => <ChartSkeleton height={500} showLegend={true} />,
+//   ssr: false
+// });
 
 
 // Data interfaces
@@ -102,6 +115,12 @@ interface AnalyticsPageState {
   } | null;
   mpcOrbitalElements?: MPCOrbitalElements;
   jplHorizonsData?: JPLHorizonsData | null;
+  ephemerisPosition?: {
+    ra: number;
+    dec: number;
+    last_updated: string;
+    data_source?: string;
+  };
 }
 
 export default function AnalyticsPage() {
@@ -117,6 +136,7 @@ export default function AnalyticsPage() {
     trendAnalysis: null,
     mpcOrbitalElements: undefined,
     jplHorizonsData: undefined,
+    ephemerisPosition: undefined,
   });
 
   const [loading, setLoading] = useState(true);
@@ -247,88 +267,139 @@ export default function AnalyticsPage() {
         }));
 
 
-        // Generate historical orbital velocity data using vis-viva equation
+        // Generate historical orbital velocity data using REAL orbital mechanics
         const orbitalVelocityTransformed: OrbitalVelocityDataPoint[] = [];
 
         if (cometData?.data?.orbital_mechanics?.current_velocity?.heliocentric) {
           const currentVel = cometData.data.orbital_mechanics.current_velocity.heliocentric;
           const currentGeoVel = cometData.data.orbital_mechanics.current_velocity.geocentric;
-          const startDate = new Date('2025-07-01');
-          const currentDate = new Date();
-          const perihelionDate = new Date('2025-10-30');
+          const currentDistance = cometData.data.orbital_mechanics.current_distance.heliocentric;
 
-          // Calculate current days to perihelion
-          const currentDaysToPerihelion = (perihelionDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24);
+          // Use UTC dates to avoid timezone issues
+          const startDate = new Date(Date.UTC(2025, 6, 1)); // July 1, 2025 UTC
+          const now = new Date();
+          const currentDateUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())); // Today at midnight UTC
 
-          // Generate weekly data points from July 1 to current date
-          const dataPoints: Array<{date: Date; daysToPerihelion: number}> = [];
-          for (let date = new Date(startDate); date <= currentDate; date.setDate(date.getDate() + 7)) {
-            const daysToPerihelion = (perihelionDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
-            dataPoints.push({ date: new Date(date), daysToPerihelion });
-          }
+          // Official 3I/ATLAS orbital elements (same as in source-manager.ts)
+          const ATLAS_ORBITAL_ELEMENTS = {
+            eccentricity: 6.13941774,
+            perihelion_distance_au: 1.35638454,
+            perihelion_date: new Date('2025-10-29T11:33:16.000Z')
+          };
 
-          // Process each data point
-          dataPoints.forEach((point, index) => {
-            const isLastPoint = index === dataPoints.length - 1;
+          // Constants for vis-viva equation
+          const GM_SUN = 1.32712440018e11; // km³/s² (Sun's gravitational parameter)
+          const AU_TO_KM = 149597870.7; // km per AU
 
-            let helioVel: number;
-            let geoVel: number;
+          // Generate DAILY data points from July 1 to current date
+          for (let date = new Date(startDate); date <= currentDateUTC; date.setUTCDate(date.getUTCDate() + 1)) {
+            const isCurrentDay = date.getTime() === currentDateUTC.getTime();
 
-            if (isLastPoint) {
-              // Use real current values from API for the last point
-              helioVel = currentVel;
-              geoVel = currentGeoVel;
+            // Calculate days from perihelion (negative = before perihelion)
+            const daysFromPerihelion = (date.getTime() - ATLAS_ORBITAL_ELEMENTS.perihelion_date.getTime()) / (1000 * 60 * 60 * 24);
+
+            // Calculate heliocentric distance using proper hyperbolic orbit mechanics
+            const q = ATLAS_ORBITAL_ELEMENTS.perihelion_distance_au; // perihelion distance
+            const e = ATLAS_ORBITAL_ELEMENTS.eccentricity;
+
+            // Use proper hyperbolic orbit calculation for historical data
+            let distance_au: number;
+            if (isCurrentDay) {
+              // Use current real-time distance from API (most accurate)
+              distance_au = currentDistance;
             } else {
-              // For historical points, use smooth interpolation from current values
-              // Velocity increases as comet approaches perihelion (conservation of energy)
-
-              // Calculate velocity ratio based on distance from perihelion
-              // At perihelion (day 0): v = 68 km/s
-              // Currently (day ~30): v = 66.94 km/s
-              // Back in July (day ~121): v was slower
-
-              // Use inverse square root relationship: v ∝ 1/sqrt(days_to_perihelion)
-              // Normalize so current day gives current velocity
-              const currentDaysFactor = Math.sqrt(Math.abs(currentDaysToPerihelion) + 1);
-              const historicalDaysFactor = Math.sqrt(Math.abs(point.daysToPerihelion) + 1);
-
-              // Scale current velocity by the ratio
-              helioVel = currentVel * (currentDaysFactor / historicalDaysFactor);
-
-              // Geocentric velocity: similar smooth interpolation
-              // Earth's motion adds/subtracts ~30 km/s depending on geometry
-              geoVel = currentGeoVel * (currentDaysFactor / historicalDaysFactor);
+              // Calculate using proper Kepler mechanics for hyperbolic orbits
+              const position = calculatePositionFromElements(daysFromPerihelion, {
+                e: e,
+                q: q,
+                i: 46.74,    // inclination (degrees)
+                omega: 338.5, // argument of periapsis (degrees)
+                node: 342.9   // longitude of ascending node (degrees)
+              });
+              // Calculate distance from position vector: r = sqrt(x² + y² + z²)
+              distance_au = Math.sqrt(position.x * position.x + position.y * position.y + position.z * position.z);
             }
 
+            // Calculate velocity using vis-viva equation: v = sqrt(μ * (2/r - 1/a))
+            const r_km = distance_au * AU_TO_KM;
+            const q_km = q * AU_TO_KM;
+            const a_km = q_km / (1 - e); // semi-major axis (negative for hyperbolic)
+
+            const velocity_km_s = Math.sqrt(GM_SUN * (2 / r_km - 1 / a_km));
+
+            // Calculate geocentric velocity (rough approximation accounting for Earth's motion)
+            // Earth's orbital velocity: ~29.78 km/s
+            // Simplified: geocentric ≈ heliocentric - Earth_component
+            const EARTH_ORBITAL_VELOCITY = 29.78;
+            const geocentric_velocity = Math.sqrt(
+              velocity_km_s * velocity_km_s +
+              EARTH_ORBITAL_VELOCITY * EARTH_ORBITAL_VELOCITY -
+              2 * velocity_km_s * EARTH_ORBITAL_VELOCITY * 0.5 // cos(angle) approximation
+            );
+
+            // Use real API values for current day
+            const helioVel = isCurrentDay ? currentVel : velocity_km_s;
+            const geoVel = isCurrentDay ? currentGeoVel : geocentric_velocity;
+
             orbitalVelocityTransformed.push({
-              date: point.date.toISOString(),
+              date: date.toISOString(),
               heliocentric_velocity: helioVel,
               geocentric_velocity: geoVel,
-              uncertainty: isLastPoint ? 0.1 : 0.5,
-              source: isLastPoint ? 'NASA/JPL Horizons' : 'Calculated (vis-viva)'
+              uncertainty: isCurrentDay ? 0.1 : 0.5,
+              source: isCurrentDay ? 'Real-time (TheSkyLive)' : 'Calculated (Kepler mechanics)'
             });
-          });
+          }
         }
 
         // Calculate acceleration data (change in velocity over time)
+        // Calculate acceleration using orbital mechanics (not numerical derivative)
+        // For an orbiting body: a = GM/r² (gravitational acceleration magnitude)
         const accelerationData: VelocityDataPoint[] = [];
-        for (let i = 1; i < orbitalVelocityTransformed.length; i++) {
-          const current = orbitalVelocityTransformed[i];
-          const previous = orbitalVelocityTransformed[i - 1];
+        const GM_SUN_ACCEL = 1.32712440018e11; // km³/s²
+        const AU_TO_KM_ACCEL = 149597870.7; // km per AU
+        const SECONDS_PER_DAY = 86400;
 
-          const currentDate = new Date(current.date);
-          const previousDate = new Date(previous.date);
-          const timeDiff = (currentDate.getTime() - previousDate.getTime()) / (1000 * 60 * 60 * 24); // days
+        if (cometData?.data?.orbital_mechanics?.current_distance?.heliocentric) {
+          const startDateAccel = new Date(Date.UTC(2025, 6, 1)); // July 1, 2025 UTC
+          const nowAccel = new Date();
+          const currentDateAccelUTC = new Date(Date.UTC(nowAccel.getUTCFullYear(), nowAccel.getUTCMonth(), nowAccel.getUTCDate()));
+          const ATLAS_ORBITAL_ELEMENTS = {
+            eccentricity: 6.13941774,
+            perihelion_distance_au: 1.35638454,
+            perihelion_date: new Date('2025-10-29T11:33:16.000Z')
+          };
 
-          // Calculate acceleration in km/s per day
-          const helioAcceleration = (current.heliocentric_velocity - previous.heliocentric_velocity) / timeDiff;
+          const q = ATLAS_ORBITAL_ELEMENTS.perihelion_distance_au;
+          const e = ATLAS_ORBITAL_ELEMENTS.eccentricity;
 
-          accelerationData.push({
-            date: current.date,
-            value: helioAcceleration,
-            confidence: 0.8,
-            dataPoints: 2
-          });
+          for (let date = new Date(startDateAccel); date <= currentDateAccelUTC; date.setUTCDate(date.getUTCDate() + 1)) {
+            const isCurrentDay = date.getTime() === currentDateAccelUTC.getTime();
+            const daysFromPerihelion = (date.getTime() - ATLAS_ORBITAL_ELEMENTS.perihelion_date.getTime()) / (1000 * 60 * 60 * 24);
+
+            // Calculate distance using proper hyperbolic orbit mechanics
+            const position = calculatePositionFromElements(daysFromPerihelion, {
+              e: e,
+              q: q,
+              i: 46.74,    // inclination (degrees)
+              omega: 338.5, // argument of periapsis (degrees)
+              node: 342.9   // longitude of ascending node (degrees)
+            });
+            const distance_au = Math.sqrt(position.x * position.x + position.y * position.y + position.z * position.z);
+            const r_km = distance_au * AU_TO_KM_ACCEL;
+
+            // Orbital acceleration magnitude: a = GM/r² (km/s²)
+            const acceleration_km_s2 = GM_SUN_ACCEL / (r_km * r_km);
+
+            // Convert to km/s per day for easier interpretation
+            const acceleration_km_s_per_day = acceleration_km_s2 * SECONDS_PER_DAY;
+
+            accelerationData.push({
+              date: date.toISOString(),
+              value: acceleration_km_s_per_day,
+              confidence: isCurrentDay ? 0.95 : 0.85,
+              dataPoints: 1
+            });
+          }
         }
 
         // Create mission status data - only if we have real data
@@ -353,7 +424,7 @@ export default function AnalyticsPage() {
             jpl: cometData.data.source_status?.jpl_horizons?.active ?? false,
             theskylive: cometData.data.source_status?.theskylive?.active ?? false,
           },
-          last_update: new Date().toISOString(),
+          last_update: cometData.data.stats?.observationDateRange?.latest || new Date().toISOString(),
           brightness_magnitude: cometData.data.comet?.currentMagnitude ?? 0,
           geocentric_distance_au: cometData.data.orbital_mechanics.current_distance?.geocentric ?? 0,
         } : null;
@@ -395,7 +466,13 @@ export default function AnalyticsPage() {
             },
             last_updated: new Date().toISOString(),
             data_source: 'JPL Horizons'
-          } : null
+          } : null,
+          ephemerisPosition: cometData?.data?.jpl_ephemeris?.current_position ? {
+            ra: cometData.data.jpl_ephemeris.current_position.ra,
+            dec: cometData.data.jpl_ephemeris.current_position.dec,
+            last_updated: cometData.data.jpl_ephemeris.current_position.last_updated,
+            data_source: cometData.data.jpl_ephemeris.data_source,
+          } : undefined,
         }));
 
       } catch (err) {
@@ -414,7 +491,7 @@ export default function AnalyticsPage() {
 
   return (
     <ExtensionSafeWrapper>
-      <div className="min-h-screen bg-gray-900 text-white">
+      <div className="min-h-screen bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]">
         {/* Header */}
         <AppHeader />
 
@@ -422,6 +499,23 @@ export default function AnalyticsPage() {
         <PageNavigation />
 
         <div className="container mx-auto px-6 py-8">
+          {/* Can I See It Tonight + Where to Look - 2-column responsive layout */}
+          {!loading && !error && state.ephemerisPosition && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <CanISeeItBanner
+                isVisible={false}
+                magnitude={state.missionStatus?.brightness_magnitude}
+                nextVisibleDate="Mid-November 2025"
+                reason="Currently behind the Sun from Earth's perspective"
+              />
+              <SimpleSkyCompass
+                ra={state.ephemerisPosition.ra}
+                dec={state.ephemerisPosition.dec}
+                isVisible={false}
+                magnitude={state.missionStatus?.brightness_magnitude}
+              />
+            </div>
+          )}
 
 
           {/* Loading State */}
@@ -430,8 +524,8 @@ export default function AnalyticsPage() {
               {/* 3D Visualization Skeleton */}
               <div className="space-y-8 mb-12">
                 <div className="text-center">
-                  <div className="h-10 w-64 bg-gray-700 rounded animate-pulse mx-auto mb-2"></div>
-                  <div className="h-5 w-96 bg-gray-700 rounded animate-pulse mx-auto"></div>
+                  <div className="h-10 w-64 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto mb-2"></div>
+                  <div className="h-5 w-96 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto"></div>
                 </div>
                 <VisualizationSkeleton />
                 <CardSkeleton height={400} className="mb-8" />
@@ -440,8 +534,8 @@ export default function AnalyticsPage() {
               {/* Velocity Analysis Skeletons */}
               <div className="space-y-8 mb-12">
                 <div className="text-center">
-                  <div className="h-10 w-96 bg-gray-700 rounded animate-pulse mx-auto mb-2"></div>
-                  <div className="h-5 w-80 bg-gray-700 rounded animate-pulse mx-auto"></div>
+                  <div className="h-10 w-96 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto mb-2"></div>
+                  <div className="h-5 w-80 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto"></div>
                 </div>
                 <CardSkeleton height={200} />
                 <ChartSkeleton height={400} />
@@ -451,8 +545,8 @@ export default function AnalyticsPage() {
               {/* Brightness Analysis Skeletons */}
               <div className="space-y-8 mb-12">
                 <div className="text-center">
-                  <div className="h-10 w-64 bg-gray-700 rounded animate-pulse mx-auto mb-2"></div>
-                  <div className="h-5 w-96 bg-gray-700 rounded animate-pulse mx-auto"></div>
+                  <div className="h-10 w-64 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto mb-2"></div>
+                  <div className="h-5 w-96 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto"></div>
                 </div>
                 <ChartSkeleton height={300} />
                 <ChartSkeleton height={400} />
@@ -462,8 +556,8 @@ export default function AnalyticsPage() {
               {/* Activity Level Skeletons */}
               <div className="space-y-8 mb-12">
                 <div className="text-center">
-                  <div className="h-10 w-80 bg-gray-700 rounded animate-pulse mx-auto mb-2"></div>
-                  <div className="h-5 w-96 bg-gray-700 rounded animate-pulse mx-auto"></div>
+                  <div className="h-10 w-80 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto mb-2"></div>
+                  <div className="h-5 w-96 bg-[var(--color-bg-tertiary)] rounded animate-pulse mx-auto"></div>
                 </div>
                 <CardSkeleton height={200} />
                 <ChartSkeleton height={400} />
@@ -473,12 +567,12 @@ export default function AnalyticsPage() {
 
           {/* Error State */}
           {error && (
-            <div className="bg-red-900 border border-red-600 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-red-200 mb-2">⚠️ Data Fetch Error</h3>
-              <p className="text-red-300 mb-4">{error}</p>
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-status-error)] rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-[var(--color-status-error)] mb-2">⚠️ Data Fetch Error</h3>
+              <p className="text-[var(--color-text-secondary)] mb-4">{error}</p>
               <button
                 onClick={() => window.location.reload()}
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white"
+                className="bg-[var(--color-status-error)] hover:opacity-90 px-4 py-2 rounded text-white transition-opacity"
               >
                 Retry
               </button>
@@ -490,13 +584,13 @@ export default function AnalyticsPage() {
             <>
 
             {/* Summary Widget - Like Mission Control on main page */}
-            <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6 border border-gray-600 mb-8">
+            <div className="bg-gradient-to-r from-[var(--color-bg-secondary)] to-[var(--color-bg-tertiary)] rounded-lg p-6 border border-[var(--color-border-secondary)] mb-8">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                    📊 Scientific Analysis Dashboard
+                  <h2 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                    📊 Scientific Data & Analysis
                   </h2>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-[var(--color-text-tertiary)] text-sm">
                     Detailed orbital mechanics, brightness trends, and activity analysis
                   </p>
                 </div>
@@ -505,69 +599,78 @@ export default function AnalyticsPage() {
               {/* Key Scientific Metrics */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                 {/* Orbital Type */}
-                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
                   <div className="text-2xl mb-1">🌌</div>
-                  <div className="text-xl font-bold text-purple-400">
+                  <div className="text-xl font-bold text-[var(--color-chart-quaternary)]">
                     Hyperbolic
                   </div>
-                  <div className="text-xs text-gray-400">Orbit Type</div>
-                  <div className="text-xs text-gray-500">Escaping solar system</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">Orbit Type</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">Escaping solar system</div>
                 </div>
 
                 {/* Velocity */}
-                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
                   <div className="text-2xl mb-1">🚀</div>
-                  <div className="text-xl font-bold text-cyan-400">
+                  <div className="text-xl font-bold text-[var(--color-chart-senary)]">
                     {state.missionStatus?.current_velocity_km_s?.toFixed(1) || 'N/A'} km/s
                   </div>
-                  <div className="text-xs text-gray-400">Current Speed</div>
-                  <div className="text-xs text-gray-500">Relative to Sun</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">Current Speed</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">Relative to Sun</div>
                 </div>
 
                 {/* Days to Perihelion */}
-                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
                   <div className="text-2xl mb-1">🎯</div>
-                  <div className="text-xl font-bold text-yellow-400">
+                  <div className="text-xl font-bold text-[var(--color-status-warning)]">
                     {state.missionStatus?.days_to_perihelion !== undefined ? state.missionStatus.days_to_perihelion : 'N/A'}
                   </div>
-                  <div className="text-xs text-gray-400">Days to Closest Approach</div>
-                  <div className="text-xs text-gray-500">October 30, 2025</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">Days to Closest Approach</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">October 30, 2025</div>
                 </div>
 
                 {/* Activity Level */}
-                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
                   <div className="text-2xl mb-1">🔥</div>
-                  <div className="text-xl font-bold text-red-400">
+                  <div className="text-xl font-bold text-[var(--color-status-error)]">
                     {state.missionStatus?.activity_level || 'N/A'}
                   </div>
-                  <div className="text-xs text-gray-400">Comet Activity</div>
-                  <div className="text-xs text-gray-500">Outgassing intensity</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">Comet Activity</div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">Outgassing intensity</div>
                 </div>
               </div>
             </div>
 
             {/* 1. TRAJECTORY & POSITION SECTION */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-green-400 mb-2">
+                <h2 className="text-2xl font-bold text-[var(--color-status-success)] mb-2">
                   🧭 Path Through the Solar System
                 </h2>
-                <p className="text-gray-400 text-sm">
-                  Watch the comet&apos;s journey in real-time as it passes through our solar system on its way back to interstellar space
+                <p className="text-[var(--color-text-tertiary)] text-sm">
+                  Watch 3I/ATLAS&apos;s journey in real-time as it passes through our solar system on its way back to interstellar space
                 </p>
               </div>
 
               {/* 3D Visualization - Lazy loaded after initial render */}
               <VisualizationErrorBoundary>
-                <div className="bg-gray-700 rounded-lg p-6 mb-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">Interactive 3D View</h3>
+                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6 mb-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Interactive 3D View</h3>
+                    <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+                      <span className="text-[var(--color-chart-primary)] font-mono">🖱️ Click & Drag</span>
+                      <span>•</span>
+                      <span className="text-[var(--color-chart-primary)] font-mono">🔄 Scroll</span>
+                      <span>•</span>
+                      <span className="text-[var(--color-chart-primary)] font-mono">⌥ Right Click</span>
+                    </div>
+                  </div>
                   {shouldLoadVisualization ? (
                     <ModernSolarSystem />
                   ) : (
-                    <div className="h-[600px] bg-gray-800 rounded-lg flex items-center justify-center">
+                    <div className="h-[600px] bg-[var(--color-bg-secondary)] rounded-lg flex items-center justify-center">
                       <div className="text-center">
                         <div className="text-4xl mb-4 opacity-50 animate-pulse">🌌</div>
-                        <div className="text-gray-400">Loading 3D visualization...</div>
+                        <div className="text-[var(--color-text-tertiary)]">Loading 3D visualization...</div>
                       </div>
                     </div>
                   )}
@@ -575,56 +678,102 @@ export default function AnalyticsPage() {
               </VisualizationErrorBoundary>
 
               {/* Orbital Parameters */}
-              <div className="bg-gray-700 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Technical Details</h3>
-                <p className="text-sm text-gray-400 mb-4">Orbital elements and current position data</p>
+              <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Technical Details</h3>
+                <p className="text-sm text-[var(--color-text-tertiary)] mb-4">Orbital elements and current position data</p>
 
-                <div className="p-4 bg-gray-800 rounded-lg max-w-4xl mx-auto">
-                  <div className="text-xs text-gray-300 space-y-3 font-mono">
+                <div className="p-4 bg-[var(--color-bg-secondary)] rounded-lg max-w-4xl mx-auto">
+                  <div className="text-xs text-[var(--color-text-secondary)] space-y-3 font-mono">
                     {/* Orbital Elements */}
                     <div>
-                      <div className="text-yellow-400 font-semibold mb-2 text-center">ORBIT SHAPE & ORIENTATION</div>
+                      <div className="text-[var(--color-status-warning)] font-semibold mb-2 text-center">ORBIT SHAPE & ORIENTATION</div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
-                        <div><span className="text-gray-500">Eccentricity:</span> <span className="text-blue-300">6.14</span> <span className="text-gray-600 text-[10px]">(escape orbit)</span></div>
-                        <div><span className="text-gray-500">Closest to Sun:</span> <span className="text-blue-300">1.36 AU</span></div>
-                        <div><span className="text-gray-500">Orbit tilt:</span> <span className="text-blue-300">175°</span> <span className="text-gray-600 text-[10px]">(retrograde)</span></div>
-                        <div><span className="text-gray-500">Ascending Node:</span> <span className="text-blue-300">322.16°</span></div>
-                        <div><span className="text-gray-500">Perihelion Arg:</span> <span className="text-blue-300">128.01°</span></div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Eccentricity:</span>{' '}
+                          <span className="text-[var(--color-chart-primary)]">6.14</span>{' '}
+                          <span className="text-[var(--color-text-tertiary)] text-[10px]">(escape orbit)</span>
+                          <InfoTooltip content="Eccentricity measures how stretched the orbit is. Values over 1 (like 6.14) mean hyperbolic - the comet will escape the solar system!" />
+                        </div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Closest to Sun:</span>{' '}
+                          <span className="text-[var(--color-chart-primary)]">{formatDistance(1.36)}</span>
+                          <InfoTooltip content="Perihelion distance - how close the comet gets to the Sun. At 1.36 AU, it passes inside Mars's orbit (Mars is at 1.52 AU)." />
+                        </div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Orbit tilt:</span>{' '}
+                          <span className="text-[var(--color-chart-primary)]">175°</span>{' '}
+                          <span className="text-[var(--color-text-tertiary)] text-[10px]">(retrograde)</span>
+                          <InfoTooltip content="Orbit tilt (inclination) is measured from Earth's orbit plane. 175° means retrograde - moving opposite to the planets. Common for interstellar objects." />
+                        </div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Ascending Node:</span>{' '}
+                          <span className="text-[var(--color-chart-primary)]">322.16°</span>
+                          <InfoTooltip content="The angle where the comet crosses Earth's orbital plane moving northward. Helps pinpoint the orbit's orientation in space." />
+                        </div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Perihelion Arg:</span>{' '}
+                          <span className="text-[var(--color-chart-primary)]">128.01°</span>
+                          <InfoTooltip content="Argument of perihelion - the angle from the ascending node to the closest point to the Sun. Together with other angles, this fully defines the orbit's orientation." />
+                        </div>
                       </div>
                     </div>
 
                     {/* Current State */}
-                    <div className="pt-2 border-t border-gray-700">
-                      <div className="text-yellow-400 font-semibold mb-2 text-center">CURRENT POSITION</div>
+                    <div className="pt-2 border-t border-[var(--color-border-primary)]">
+                      <div className="text-[var(--color-status-warning)] font-semibold mb-2 text-center">CURRENT POSITION</div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
-                        <div><span className="text-gray-500">Distance from Sun:</span> <span className="text-green-300">{state.missionStatus?.current_distance_au?.toFixed(3) || 'N/A'} AU</span></div>
-                        <div><span className="text-gray-500">Distance from Earth:</span> <span className="text-green-300">{state.missionStatus?.geocentric_distance_au?.toFixed(3) || 'N/A'} AU</span></div>
-                        <div><span className="text-gray-500">Days to closest:</span> <span className="text-green-300">{state.missionStatus?.days_to_perihelion !== undefined ? state.missionStatus.days_to_perihelion : 'N/A'}</span></div>
-                        <div><span className="text-gray-500">Closest approach:</span> <span className="text-green-300">Oct 30, 2025</span></div>
-                        <div><span className="text-gray-500">Escape speed:</span> <span className="text-green-300">58 km/s</span></div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Distance from Sun:</span>{' '}
+                          <span className="text-[var(--color-status-success)]">
+                            {state.missionStatus?.current_distance_au ? formatDistance(state.missionStatus.current_distance_au, 3) : 'N/A'}
+                          </span>
+                          <InfoTooltip content="Heliocentric distance - how far 3I/ATLAS is from the Sun. The object is brightest when closest to the Sun." />
+                        </div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Distance from Earth:</span>{' '}
+                          <span className="text-[var(--color-status-success)]">
+                            {state.missionStatus?.geocentric_distance_au ? formatDistance(state.missionStatus.geocentric_distance_au, 3) : 'N/A'}
+                          </span>
+                          <InfoTooltip content="Geocentric distance - how far 3I/ATLAS is from Earth. This affects how bright it appears to us, along with its actual brightness." />
+                        </div>
+                        <div><span className="text-[var(--color-text-tertiary)]">Days to closest:</span> <span className="text-[var(--color-status-success)]">{state.missionStatus?.days_to_perihelion !== undefined ? state.missionStatus.days_to_perihelion : 'N/A'}</span></div>
+                        <div><span className="text-[var(--color-text-tertiary)]">Closest approach:</span> <span className="text-[var(--color-status-success)]">Oct 30, 2025</span></div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Escape speed:</span>{' '}
+                          <span className="text-[var(--color-status-success)]">58 km/s</span>
+                          <InfoTooltip content="The speed at which 3I/ATLAS will leave the solar system after perihelion. It has enough energy to escape forever." />
+                        </div>
                       </div>
                     </div>
 
                     {/* Velocity State */}
-                    <div className="pt-2 border-t border-gray-700">
-                      <div className="text-yellow-400 font-semibold mb-2 text-center">SPEED</div>
+                    <div className="pt-2 border-t border-[var(--color-border-primary)]">
+                      <div className="text-[var(--color-status-warning)] font-semibold mb-2 text-center">SPEED</div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
-                        <div><span className="text-gray-500">Speed (vs Sun):</span> <span className="text-cyan-300">{state.missionStatus?.current_velocity_km_s?.toFixed(2) || 'N/A'} km/s</span></div>
-                        <div><span className="text-gray-500">Speed (vs Earth):</span> <span className="text-cyan-300">{state.orbitalVelocityData?.[state.orbitalVelocityData.length - 1]?.geocentric_velocity?.toFixed(2) || 'N/A'} km/s</span></div>
-                        <div><span className="text-gray-500">At closest point:</span> <span className="text-cyan-300">68 km/s</span></div>
-                        <div><span className="text-gray-500">Acceleration:</span> <span className="text-cyan-300">{state.accelerationData?.length > 0 ? (state.accelerationData[state.accelerationData.length - 1].value > 0 ? 'Speeding up ↑' : 'Slowing down ↓') : 'N/A'}</span></div>
-                        <div><span className="text-gray-500">7-day trend:</span> <span className="text-cyan-300">{state.missionStatus?.velocity_trend === 'constant' ? 'Steady' : state.missionStatus?.velocity_trend || 'N/A'}</span></div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Speed (vs Sun):</span>{' '}
+                          <span className="text-[var(--color-chart-senary)]">{state.missionStatus?.current_velocity_km_s?.toFixed(2) || 'N/A'} km/s</span>
+                          <InfoTooltip content="Heliocentric velocity - the object's speed relative to the Sun. It speeds up as it approaches the Sun (conservation of energy)." />
+                        </div>
+                        <div>
+                          <span className="text-[var(--color-text-tertiary)]">Speed (vs Earth):</span>{' '}
+                          <span className="text-[var(--color-chart-senary)]">{state.orbitalVelocityData?.[state.orbitalVelocityData.length - 1]?.geocentric_velocity?.toFixed(2) || 'N/A'} km/s</span>
+                          <InfoTooltip content="Geocentric velocity - the object's speed relative to Earth. This differs from heliocentric velocity because Earth is also moving (~30 km/s around the Sun)." />
+                        </div>
+                        <div><span className="text-[var(--color-text-tertiary)]">At closest point:</span> <span className="text-[var(--color-chart-senary)]">68 km/s</span></div>
+                        <div><span className="text-[var(--color-text-tertiary)]">Acceleration:</span> <span className="text-[var(--color-chart-senary)]">{state.accelerationData?.length > 0 ? (state.accelerationData[state.accelerationData.length - 1].value > 0 ? 'Speeding up ↑' : 'Slowing down ↓') : 'N/A'}</span></div>
+                        <div><span className="text-[var(--color-text-tertiary)]">7-day trend:</span> <span className="text-[var(--color-chart-senary)]">{state.missionStatus?.velocity_trend === 'constant' ? 'Steady' : state.missionStatus?.velocity_trend || 'N/A'}</span></div>
                       </div>
                     </div>
 
                     {/* Trajectory Characteristics */}
-                    <div className="pt-2 border-t border-gray-700">
-                      <div className="text-yellow-400 font-semibold mb-2 text-center">TRAJECTORY TYPE</div>
-                      <div className="text-center text-gray-400 space-y-1">
-                        <div><span className="text-purple-300">Hyperbolic:</span> Will escape the solar system forever</div>
-                        <div><span className="text-purple-300">Retrograde:</span> Moving opposite direction from planets</div>
-                        <div><span className="text-purple-300">Origin:</span> Interstellar space (3rd confirmed visitor)</div>
-                        <div className="text-[10px] pt-1 text-gray-500">One-time flyby • Never returning • From beyond our solar system</div>
+                    <div className="pt-2 border-t border-[var(--color-border-primary)]">
+                      <div className="text-[var(--color-status-warning)] font-semibold mb-2 text-center">TRAJECTORY TYPE</div>
+                      <div className="text-center text-[var(--color-text-tertiary)] space-y-1">
+                        <div><span className="text-[var(--color-chart-quaternary)]">Hyperbolic:</span> Will escape the solar system forever</div>
+                        <div><span className="text-[var(--color-chart-quaternary)]">Retrograde:</span> Moving opposite direction from planets</div>
+                        <div><span className="text-[var(--color-chart-quaternary)]">Origin:</span> Interstellar space (3rd confirmed visitor)</div>
+                        <div className="text-[10px] pt-1 text-[var(--color-text-tertiary)]">One-time flyby • Never returning • From beyond our solar system</div>
                       </div>
                     </div>
                   </div>
@@ -642,44 +791,56 @@ export default function AnalyticsPage() {
               )}
             </div>
 
+
+            {/* CURRENT POSITION BANNER */}
+            {state.ephemerisPosition && (
+              <CurrentPositionBanner
+                ra={state.ephemerisPosition.ra}
+                dec={state.ephemerisPosition.dec}
+                lastUpdated={state.ephemerisPosition.last_updated}
+              />
+            )}
+
             {/* 2. VELOCITY ANALYSIS SECTION */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-cyan-400 mb-2">
+                <h2 className="text-2xl font-bold text-[var(--color-chart-senary)] mb-2">
                   🚀 Speed Changes Over Time
                 </h2>
-                <p className="text-gray-400 text-sm">
-                  How the comet&apos;s velocity changes as it approaches and leaves the Sun, plus how fast it appears to move from Earth&apos;s perspective
+                <p className="text-[var(--color-text-tertiary)] text-sm">
+                  How the object&apos;s velocity changes as it approaches and leaves the Sun, plus how fast it appears to move from Earth&apos;s perspective
                 </p>
               </div>
 
               {/* Current Velocity Status */}
-              <div className="bg-gray-700 rounded-lg p-6 mb-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Current Speeds</h3>
+              <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
+                  Current Speeds
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-400">
+                    <div className="text-3xl font-bold text-[var(--color-chart-primary)]">
                       {state.missionStatus?.current_velocity_km_s?.toFixed(1) || 'N/A'} km/s
                     </div>
-                    <div className="text-sm text-gray-300">Speed Relative to Sun</div>
-                    <div className="text-xs text-gray-400">{((state.missionStatus?.current_velocity_km_s || 0) * 2237).toFixed(0)} mph</div>
+                    <div className="text-sm text-[var(--color-text-secondary)]">Speed Relative to Sun</div>
+                    <div className="text-xs text-[var(--color-text-tertiary)]">{((state.missionStatus?.current_velocity_km_s || 0) * 2237).toFixed(0)} mph</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-green-400">
+                    <div className="text-3xl font-bold text-[var(--color-status-success)]">
                       {state.orbitalVelocityData?.[0]?.geocentric_velocity?.toFixed(1) || 'N/A'} km/s
                     </div>
-                    <div className="text-sm text-gray-300">Speed Relative to Earth</div>
-                    <div className="text-xs text-gray-400">{((state.orbitalVelocityData?.[0]?.geocentric_velocity || 0) * 2237).toFixed(0)} mph</div>
+                    <div className="text-sm text-[var(--color-text-secondary)]">Speed Relative to Earth</div>
+                    <div className="text-xs text-[var(--color-text-tertiary)]">{((state.orbitalVelocityData?.[0]?.geocentric_velocity || 0) * 2237).toFixed(0)} mph</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-400">
+                    <div className="text-3xl font-bold text-[var(--color-chart-quaternary)]">
                       {state.accelerationData?.length > 0 ?
                         (state.accelerationData[state.accelerationData.length - 1].value > 0 ? '🔥 Speeding Up' : '🟡 Slowing Down')
                         : 'N/A'
                       }
                     </div>
-                    <div className="text-sm text-gray-300">Current Trend</div>
-                    <div className="text-xs text-gray-400">Change in velocity</div>
+                    <div className="text-sm text-[var(--color-text-secondary)]">Current Trend</div>
+                    <div className="text-xs text-[var(--color-text-tertiary)]">Change in velocity</div>
                   </div>
                 </div>
               </div>
@@ -711,15 +872,39 @@ export default function AnalyticsPage() {
             </div>
 
             {/* 3. BRIGHTNESS ANALYSIS SECTION */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-yellow-400 mb-2">
-                  ✨ How Bright the Comet Appears
+                <h2 className="text-xl md:text-2xl font-bold text-[var(--color-status-warning)] mb-2 break-words">
+                  ✨ How Bright 3I/ATLAS Appears
                 </h2>
-                <p className="text-gray-400 text-sm">
-                  Tracking how the comet&apos;s brightness changes over time as it gets closer to (and farther from) the Sun
+                <p className="text-[var(--color-text-tertiary)] text-sm">
+                  Tracking how 3I/ATLAS&apos;s brightness changes over time as it gets closer to (and farther from) the Sun
                 </p>
+                {/* Latest Observation Timestamp */}
+                {state.missionStatus?.last_update && (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+                    <span className="text-base">🔄</span>
+                    <span>
+                      <strong className="text-[var(--color-text-primary)]">Latest Observation:</strong>{' '}
+                      {new Date(state.missionStatus.last_update).toLocaleDateString('en-US', {
+                        timeZone: 'UTC',
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })} at {new Date(state.missionStatus.last_update).toLocaleTimeString('en-US', {
+                        timeZone: 'UTC',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                      })} UTC
+                      <span className="text-[var(--color-text-tertiary)]"> (from COBS)</span>
+                    </span>
+                  </div>
+                )}
               </div>
+
+              {/* Magnitude Scale - Amateur-friendly brightness explanation */}
+              <MagnitudeScale currentMagnitude={state.missionStatus?.brightness_magnitude} />
 
               {/* Brightness Trend Analysis */}
               <ChartErrorBoundary>
@@ -768,55 +953,55 @@ export default function AnalyticsPage() {
 
             {/* 4. MORPHOLOGY ANALYSIS SECTION - HIDDEN FOR NOW */}
             {false && (
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-teal-400 mb-2">
+                <h2 className="text-2xl font-bold text-[var(--color-chart-senary)] mb-2">
                   💫 Coma & Tail Development
                 </h2>
-                <div className="text-gray-400 text-sm space-y-2">
+                <div className="text-[var(--color-text-tertiary)] text-sm space-y-2">
                   <p>
-                    As the comet heats up approaching the Sun, it develops two key features that observers measure:
+                    As 3I/ATLAS heats up approaching the Sun, it develops two key features that observers measure:
                   </p>
                   <ul className="list-disc list-inside space-y-1 ml-2">
                     <li>
-                      <strong className="text-green-400">Coma</strong>: The fuzzy cloud of gas and dust surrounding the comet&apos;s nucleus.
+                      <strong className="text-[var(--color-status-success)]">Coma</strong>: The fuzzy cloud of gas and dust surrounding the object&apos;s nucleus.
                       Measured in <em>arcminutes</em> (apparent size in the sky - for reference, the full Moon is about 30 arcminutes wide).
                     </li>
                     <li>
-                      <strong className="text-blue-400">Tail</strong>: The streaming trail of gas and dust pushed away from the Sun by solar wind and radiation.
+                      <strong className="text-[var(--color-chart-primary)]">Tail</strong>: The streaming trail of gas and dust pushed away from the Sun by solar wind and radiation.
                       Measured in <em>degrees</em> (angular length - your fist at arm&apos;s length is about 10 degrees).
                     </li>
                   </ul>
                   <p className="text-xs italic">
-                    Growing coma and tail sizes indicate increasing activity as the comet releases more material.
+                    Growing coma and tail sizes indicate increasing activity as 3I/ATLAS releases more material.
                   </p>
                 </div>
               </div>
 
               {/* Morphology Summary Stats */}
               {state.morphologyData.length > 0 && (
-                <div className="bg-gray-700 rounded-lg p-6 mb-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">Current Morphology</h3>
+                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6 mb-6">
+                  <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Current Morphology</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="text-center">
-                      <div className="text-3xl font-bold text-green-400">
+                      <div className="text-3xl font-bold text-[var(--color-status-success)]">
                         {state.morphologyData.filter(d => d.comaSize).length > 0
                           ? state.morphologyData.filter(d => d.comaSize).slice(-1)[0].comaSize?.toFixed(2)
                           : 'N/A'} arcmin
                       </div>
-                      <div className="text-sm text-gray-300">Latest Coma Size</div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-sm text-[var(--color-text-secondary)]">Latest Coma Size</div>
+                      <div className="text-xs text-[var(--color-text-tertiary)]">
                         {state.morphologyData.filter(d => d.comaSize).length} measurements
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-400">
+                      <div className="text-3xl font-bold text-[var(--color-chart-primary)]">
                         {state.morphologyData.filter(d => d.tailLength).length > 0
                           ? state.morphologyData.filter(d => d.tailLength).slice(-1)[0].tailLength?.toFixed(2)
                           : 'N/A'} degrees
                       </div>
-                      <div className="text-sm text-gray-300">Latest Tail Length</div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-sm text-[var(--color-text-secondary)]">Latest Tail Length</div>
+                      <div className="text-xs text-[var(--color-text-tertiary)]">
                         {state.morphologyData.filter(d => d.tailLength).length} measurements
                       </div>
                     </div>
@@ -833,8 +1018,8 @@ export default function AnalyticsPage() {
                   />
                 </ChartErrorBoundary>
               ) : (
-                <div className="bg-gray-700 rounded-lg p-6 text-center">
-                  <div className="text-gray-400">
+                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6 text-center">
+                  <div className="text-[var(--color-text-tertiary)]">
                     No coma or tail measurements available yet. Check back as more observations are reported.
                   </div>
                 </div>
@@ -843,25 +1028,25 @@ export default function AnalyticsPage() {
             )}
 
             {/* 4. ACTIVITY LEVEL ANALYSIS SECTION */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-purple-400 mb-2">
+                <h2 className="text-2xl font-bold text-[var(--color-chart-quaternary)] mb-2">
                   🔥 Comet Activity & Outgassing
                 </h2>
-                <p className="text-gray-400 text-sm">
+                <p className="text-[var(--color-text-tertiary)] text-sm">
                   How active the comet is - measuring gas and dust being released as the Sun heats its icy surface
                 </p>
               </div>
 
               {/* Current Activity Status */}
-              <div className="bg-gray-700 rounded-lg p-6 mb-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Current Activity Level</h3>
+              <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Current Activity Level</h3>
                 <div className="text-center">
-                  <div className="text-4xl font-bold text-red-400 mb-2">
+                  <div className="text-4xl font-bold text-[var(--color-status-error)] mb-2">
                     {state.missionStatus?.activity_level || 'N/A'}
                   </div>
-                  <div className="text-lg text-gray-300 mb-2">Activity Rating</div>
-                  <div className="text-sm text-gray-400">
+                  <div className="text-lg text-[var(--color-text-secondary)] mb-2">Activity Rating</div>
+                  <div className="text-sm text-[var(--color-text-tertiary)]">
                     Measures how much gas and dust is being released
                   </div>
                 </div>
@@ -878,7 +1063,7 @@ export default function AnalyticsPage() {
               )}
             </div>
 
-            {/* Data Sources & Attribution */}
+            {/* Data Sources & Attribution - Moved from Overview page */}
             <DataSourcesSection />
             </>
           )}

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Cookie } from "next/font/google";
 import "./globals.css";
 import ExtensionSafeWrapper from '@/components/ExtensionSafeWrapper';
 import Footer from '@/components/common/Footer';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +27,7 @@ const cookie = Cookie({
 });
 
 export const metadata: Metadata = {
-  title: "3I/ATLAS Comet Dashboard - Observation Tracking",
+  title: "3I/ATLAS Dashboard - Observation Tracking",
   description: "Comprehensive tracking dashboard for interstellar comet 3I/ATLAS with astronomical observations and brightness analysis",
 };
 
@@ -40,15 +41,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${cookie.variable} antialiased flex flex-col min-h-screen`}
       >
-        <ExtensionSafeWrapper suppressWarnings={process.env.NODE_ENV === 'production'}>
-          <div className="flex flex-col min-h-screen">
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
-        </ExtensionSafeWrapper>
-
+        <ThemeProvider>
+          <ExtensionSafeWrapper suppressWarnings={process.env.NODE_ENV === 'production'}>
+            <div className="flex flex-col min-h-screen">
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </ExtensionSafeWrapper>
+        </ThemeProvider>
       </body>
     </html>
   );

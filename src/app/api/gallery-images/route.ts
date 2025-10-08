@@ -32,7 +32,7 @@ interface GalleryImage {
   title: string;
   description: string;
   date: string;
-  source: 'NASA' | 'ESA/Hubble' | 'JWST' | 'Virtual Telescope' | 'Community' | 'NOIRLab/Gemini' | 'ESO';
+  source: 'NASA' | 'ESA/Hubble' | 'ESA/ExoMars' | 'JWST' | 'Virtual Telescope' | 'Community' | 'NOIRLab/Gemini' | 'ESO';
   imageUrl: string;
   thumbnailUrl: string;
   attribution: string;
@@ -248,6 +248,66 @@ const official3IAtlasImages: GalleryImage[] = [
       instrument: 'GMOS (Gemini Multi-Object Spectrograph)',
       filters: 'Optical'
     }
+  },
+  {
+    id: 'perseverance-mars-view',
+    title: '3I/ATLAS from Mars (Annotated) - Perseverance Mastcam-Z | Sol 1643',
+    description: 'On October 4th (Sol 1643), NASA\'s Perseverance raised her head up at the night sky to capture interstellar comet 3I/ATLAS during its close encounter with Mars. The interstellar visitor was just 0.2 AU or 30 million km distant from Mars, far closer than the comet got to Earth. The comet is visible as a faint smudge next to a field of stars as dim as magnitude 8 which have all been blurred by the exposure time of 30s. This image has been stacked from 20 individual exposures resulting in a total integration time of 10 minutes. The image was further denoised with Adobe Lightroom and annotated in Pixinsight.',
+    date: '2025-10-04T06:26:44.922Z',
+    source: 'Community',
+    imageUrl: 'https://live.staticflickr.com/65535/54831807799_97ec572ba6_b.jpg',
+    thumbnailUrl: 'https://live.staticflickr.com/65535/54831807799_97ec572ba6_m.jpg',
+    attribution: 'NASA/JPL-Caltech/ASU/Simeon Schmauß',
+    metadata: {
+      telescope: 'Mars Perseverance Rover',
+      instrument: 'Mastcam-Z',
+      filters: 'Optical',
+      exposureTime: '20 x 30s (10 min total)'
+    }
+  },
+  {
+    id: 'exomars-tgo-animation',
+    title: 'ExoMars Trace Gas Orbiter Observes Comet 3I/ATLAS (Animation)',
+    description: 'ESA\'s ExoMars Trace Gas Orbiter captured this animated sequence of interstellar comet 3I/ATLAS moving through the star field. The comet appears as a slightly fuzzy bright white dot moving downward through the frames, showcasing its motion relative to background stars.',
+    date: '2025-10-07T00:00:00Z',
+    source: 'ESA/ExoMars',
+    imageUrl: 'https://www.esa.int/var/esa/storage/images/esa_multimedia/images/2025/10/exomars_trace_gas_orbiter_observes_comet_3i_atlas_gif/26909471-1-eng-GB/ExoMars_Trace_Gas_Orbiter_observes_comet_3I_ATLAS_GIF_pillars.gif',
+    thumbnailUrl: 'https://www.esa.int/var/esa/storage/images/esa_multimedia/images/2025/10/exomars_trace_gas_orbiter_observes_comet_3i_atlas_gif/26909471-1-eng-GB/ExoMars_Trace_Gas_Orbiter_observes_comet_3I_ATLAS_GIF_pillars.gif',
+    attribution: 'ESA/TGO/CaSSIS (CC BY-SA 3.0 IGO)',
+    metadata: {
+      telescope: 'ExoMars Trace Gas Orbiter',
+      instrument: 'CaSSIS (Colour and Stereo Surface Imaging System)',
+      filters: 'Optical'
+    }
+  },
+  {
+    id: 'exomars-tgo-static',
+    title: 'ExoMars Trace Gas Orbiter Image of Comet 3I/ATLAS',
+    description: 'ESA\'s ExoMars Trace Gas Orbiter captured this static observation of interstellar comet 3I/ATLAS. The image provides a clear view of the comet against the stellar background, demonstrating the spacecraft\'s imaging capabilities from Mars orbit.',
+    date: '2025-10-07T00:00:00Z',
+    source: 'ESA/ExoMars',
+    imageUrl: 'https://www.esa.int/var/esa/storage/images/esa_multimedia/images/2025/10/exomars_trace_gas_orbiter_observes_comet_3i_atlas_static/26909518-1-eng-GB/ExoMars_Trace_Gas_Orbiter_observes_comet_3I_ATLAS_static_article.png',
+    thumbnailUrl: 'https://www.esa.int/var/esa/storage/images/esa_multimedia/images/2025/10/exomars_trace_gas_orbiter_observes_comet_3i_atlas_static/26909518-1-eng-GB/ExoMars_Trace_Gas_Orbiter_observes_comet_3I_ATLAS_static_article.png',
+    attribution: 'ESA/TGO/CaSSIS (CC BY-SA 3.0 IGO)',
+    metadata: {
+      telescope: 'ExoMars Trace Gas Orbiter',
+      instrument: 'CaSSIS (Colour and Stereo Surface Imaging System)',
+      filters: 'Optical'
+    }
+  },
+  {
+    id: 'esa-mars-jupiter-missions',
+    title: 'ESA\'s Mars and Jupiter Missions Observe Comet 3I/ATLAS',
+    description: 'This diagram illustrates how ESA\'s spacecraft at Mars (ExoMars Trace Gas Orbiter and Mars Express) and Jupiter (JUICE - Jupiter Icy Moons Explorer) were positioned to observe interstellar comet 3I/ATLAS during its passage through the solar system in October 2025.',
+    date: '2025-10-07T00:00:00Z',
+    source: 'ESA/ExoMars',
+    imageUrl: 'https://www.esa.int/var/esa/storage/images/esa_multimedia/images/2025/09/esa_s_mars_and_jupiter_missions_observe_comet_3i_atlas/26888185-1-eng-GB/ESA_s_Mars_and_Jupiter_missions_observe_comet_3I_ATLAS_article.png',
+    thumbnailUrl: 'https://www.esa.int/var/esa/storage/images/esa_multimedia/images/2025/09/esa_s_mars_and_jupiter_missions_observe_comet_3i_atlas/26888185-1-eng-GB/ESA_s_Mars_and_Jupiter_missions_observe_comet_3I_ATLAS_article.png',
+    attribution: 'ESA (CC BY-SA 3.0 IGO)',
+    metadata: {
+      instrument: 'Mission Diagram',
+      filters: 'Visualization'
+    }
   }
 ];
 
@@ -373,6 +433,7 @@ export async function GET() {
           nasa_api_additional: sortedImages.length - official3IAtlasImages.length,
           nasa_total: sortedImages.filter(img => img.source === 'NASA').length,
           hubble: sortedImages.filter(img => img.source === 'ESA/Hubble').length,
+          esa_exomars: sortedImages.filter(img => img.source === 'ESA/ExoMars').length,
           jwst: sortedImages.filter(img => img.source === 'JWST').length,
           noirlab_gemini: sortedImages.filter(img => img.source === 'NOIRLab/Gemini').length,
           eso: sortedImages.filter(img => img.source === 'ESO').length,
@@ -401,6 +462,7 @@ export async function GET() {
           nasa_api_additional: 0,
           nasa_total: official3IAtlasImages.filter(img => img.source === 'NASA').length,
           hubble: official3IAtlasImages.filter(img => img.source === 'ESA/Hubble').length,
+          esa_exomars: official3IAtlasImages.filter(img => img.source === 'ESA/ExoMars').length,
           jwst: official3IAtlasImages.filter(img => img.source === 'JWST').length,
           noirlab_gemini: official3IAtlasImages.filter(img => img.source === 'NOIRLab/Gemini').length,
           eso: official3IAtlasImages.filter(img => img.source === 'ESO').length,
