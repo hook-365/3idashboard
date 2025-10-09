@@ -266,7 +266,8 @@ export default function ComaAndTailChart({
         ticks: {
           color: chartColors.secondary
         },
-        beginAtZero: true
+        beginAtZero: true,
+        max: 10
       },
       y1: {
         type: 'linear',
@@ -283,7 +284,8 @@ export default function ComaAndTailChart({
         ticks: {
           color: chartColors.quinary
         },
-        beginAtZero: true
+        beginAtZero: true,
+        max: 10
       }
     },
     interaction: {
