@@ -647,7 +647,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* 1. TRAJECTORY & POSITION SECTION */}
-            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
+            <div id="trajectory" className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[var(--color-status-success)] mb-2">
                   🧭 Path Through the Solar System
@@ -808,7 +808,7 @@ export default function AnalyticsPage() {
             )}
 
             {/* 2. VELOCITY ANALYSIS SECTION */}
-            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
+            <div id="velocity" className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[var(--color-chart-senary)] mb-2">
                   🚀 Speed Changes Over Time
@@ -878,7 +878,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* 3. BRIGHTNESS ANALYSIS SECTION */}
-            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
+            <div id="brightness" className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-xl md:text-2xl font-bold text-[var(--color-status-warning)] mb-2 break-words">
                   ✨ How Bright 3I/ATLAS Appears
@@ -959,7 +959,7 @@ export default function AnalyticsPage() {
 
             {/* 4. MORPHOLOGY ANALYSIS SECTION */}
             {state.morphologyData.length > 0 && (
-            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
+            <div id="coma-tail" className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[var(--color-chart-senary)] mb-2">
                   💫 Coma & Tail Development
@@ -1068,7 +1068,7 @@ export default function AnalyticsPage() {
             )}
 
             {/* 5. ACTIVITY LEVEL ANALYSIS SECTION */}
-            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
+            <div id="activity" className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[var(--color-chart-quaternary)] mb-2">
                   🔥 Comet Activity & Outgassing
