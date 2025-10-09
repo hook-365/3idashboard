@@ -154,6 +154,22 @@ export default function AnalyticsPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Handle hash navigation - scroll to section after page loads
+  useEffect(() => {
+    if (!loading && typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash) {
+        // Wait a bit for the page to finish rendering
+        setTimeout(() => {
+          const element = document.querySelector(hash);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 300);
+      }
+    }
+  }, [loading]);
+
   // Fetch real COBS data on component mount
   useEffect(() => {
     async function fetchRealData() {
