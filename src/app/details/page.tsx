@@ -210,10 +210,16 @@ export default function AnalyticsPage() {
         // Transform observations to morphology data (coma/tail)
         const transformedMorphologyData: MorphologyDataPoint[] = observations
           .filter((obs: { coma?: number; tail?: number }) => obs.coma !== undefined || obs.tail !== undefined)
-          .map((obs: { date: string; coma?: number; tail?: number }) => ({
+          .map((obs: { date: string; coma?: number; tail?: number; observer?: { name: string; telescope?: string; location?: string }; quality?: string }) => ({
             date: obs.date,
             comaSize: obs.coma,
             tailLength: obs.tail,
+            observer: obs.observer ? {
+              name: obs.observer.name,
+              telescope: obs.observer.telescope || 'Unknown',
+              location: obs.observer.location || 'Unknown'
+            } : undefined,
+            quality: obs.quality as 'excellent' | 'good' | 'fair' | 'poor' | undefined
           }));
 
         if (process.env.NODE_ENV === 'development') {
@@ -951,63 +957,97 @@ export default function AnalyticsPage() {
               )}
             </div>
 
-            {/* 4. MORPHOLOGY ANALYSIS SECTION - HIDDEN FOR NOW */}
-            {false && (
+            {/* 4. MORPHOLOGY ANALYSIS SECTION */}
+            {state.morphologyData.length > 0 && (
             <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[var(--color-chart-senary)] mb-2">
                   💫 Coma & Tail Development
                 </h2>
-                <div className="text-[var(--color-text-tertiary)] text-sm space-y-2">
-                  <p>
-                    As 3I/ATLAS heats up approaching the Sun, it develops two key features that observers measure:
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>
-                      <strong className="text-[var(--color-status-success)]">Coma</strong>: The fuzzy cloud of gas and dust surrounding the object&apos;s nucleus.
-                      Measured in <em>arcminutes</em> (apparent size in the sky - for reference, the full Moon is about 30 arcminutes wide).
-                    </li>
-                    <li>
-                      <strong className="text-[var(--color-chart-primary)]">Tail</strong>: The streaming trail of gas and dust pushed away from the Sun by solar wind and radiation.
-                      Measured in <em>degrees</em> (angular length - your fist at arm&apos;s length is about 10 degrees).
-                    </li>
-                  </ul>
-                  <p className="text-xs italic">
-                    Growing coma and tail sizes indicate increasing activity as 3I/ATLAS releases more material.
-                  </p>
+                <p className="text-[var(--color-text-tertiary)] text-sm">
+                  Evolution of coma diameter (arcminutes) and tail length (degrees) from COBS observations
+                </p>
+              </div>
+
+              {/* Layperson-friendly explanations */}
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-[var(--color-text-heading)] mb-3 flex items-center gap-2">
+                  📏 What do these measurements mean?
+                </h3>
+                <div className="text-sm space-y-3 text-[var(--color-text-secondary)]">
+                  <div>
+                    <strong className="text-[var(--color-chart-secondary)]">Coma (arcminutes):</strong>{' '}
+                    The fuzzy cloud of gas and dust around the comet&apos;s nucleus. The full Moon is ~30 arcminutes wide,
+                    so a coma of 3 arcminutes would appear 1/10th the Moon&apos;s width through a telescope.
+                  </div>
+                  <div>
+                    <strong className="text-[var(--color-chart-quinary)]">Tail (degrees):</strong>{' '}
+                    The streaming trail of gas and dust blown away by solar wind. Your fist held at arm&apos;s length
+                    covers ~10 degrees, so a 5-degree tail would stretch halfway across your fist in the sky.
+                  </div>
                 </div>
               </div>
 
-              {/* Morphology Summary Stats */}
-              {state.morphologyData.length > 0 && (
-                <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6 mb-6">
-                  <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Current Morphology</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-[var(--color-status-success)]">
-                        {state.morphologyData.filter(d => d.comaSize).length > 0
-                          ? state.morphologyData.filter(d => d.comaSize).slice(-1)[0].comaSize?.toFixed(2)
-                          : 'N/A'} arcmin
+              {/* Statistics Cards */}
+              {state.morphologyData.length > 0 && (() => {
+                const comaValues = state.morphologyData.filter(p => p.comaSize !== undefined).map(p => p.comaSize!);
+                const tailValues = state.morphologyData.filter(p => p.tailLength !== undefined).map(p => p.tailLength!);
+                const comaCount = comaValues.length;
+                const tailCount = tailValues.length;
+                const comaMin = comaValues.length > 0 ? Math.min(...comaValues) : 0;
+                const comaMax = comaValues.length > 0 ? Math.max(...comaValues) : 0;
+                const tailMin = tailValues.length > 0 ? Math.min(...tailValues) : 0;
+                const tailMax = tailValues.length > 0 ? Math.max(...tailValues) : 0;
+
+                return (
+                  <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-6 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div>
+                        <div className="text-3xl font-bold text-[var(--color-chart-secondary)]">
+                          {comaCount}
+                        </div>
+                        <div className="text-sm text-[var(--color-text-tertiary)] mt-1">
+                          Coma Observations
+                        </div>
                       </div>
-                      <div className="text-sm text-[var(--color-text-secondary)]">Latest Coma Size</div>
-                      <div className="text-xs text-[var(--color-text-tertiary)]">
-                        {state.morphologyData.filter(d => d.comaSize).length} measurements
+                      <div>
+                        <div className="text-3xl font-bold text-[var(--color-chart-secondary)]">
+                          {comaMin > 0 ? `${comaMin.toFixed(1)} - ${comaMax.toFixed(1)}` : 'N/A'}
+                        </div>
+                        <div className="text-sm text-[var(--color-text-tertiary)] mt-1">
+                          Coma Range (arcmin)
+                        </div>
+                        {comaMin > 0 && (
+                          <div className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                            🌕 ~{((comaMin / 30) * 100).toFixed(0)}% to {((comaMax / 30) * 100).toFixed(0)}% of Moon&apos;s diameter
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-[var(--color-chart-primary)]">
-                        {state.morphologyData.filter(d => d.tailLength).length > 0
-                          ? state.morphologyData.filter(d => d.tailLength).slice(-1)[0].tailLength?.toFixed(2)
-                          : 'N/A'} degrees
+                      <div>
+                        <div className="text-3xl font-bold text-[var(--color-chart-quinary)]">
+                          {tailCount}
+                        </div>
+                        <div className="text-sm text-[var(--color-text-tertiary)] mt-1">
+                          Tail Observations
+                        </div>
                       </div>
-                      <div className="text-sm text-[var(--color-text-secondary)]">Latest Tail Length</div>
-                      <div className="text-xs text-[var(--color-text-tertiary)]">
-                        {state.morphologyData.filter(d => d.tailLength).length} measurements
+                      <div>
+                        <div className="text-3xl font-bold text-[var(--color-chart-quinary)]">
+                          {tailMin > 0 ? `${tailMin.toFixed(1)} - ${tailMax.toFixed(1)}` : 'N/A'}
+                        </div>
+                        <div className="text-sm text-[var(--color-text-tertiary)] mt-1">
+                          Tail Range (degrees)
+                        </div>
+                        {tailMin > 0 && (
+                          <div className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                            ✊ ~{(tailMin / 10).toFixed(1)} to {(tailMax / 10).toFixed(1)} fist-widths
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Coma & Tail Chart */}
               {state.morphologyData.length > 0 ? (
@@ -1027,7 +1067,7 @@ export default function AnalyticsPage() {
             </div>
             )}
 
-            {/* 4. ACTIVITY LEVEL ANALYSIS SECTION */}
+            {/* 5. ACTIVITY LEVEL ANALYSIS SECTION */}
             <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-[var(--color-chart-quaternary)] mb-2">

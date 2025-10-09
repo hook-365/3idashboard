@@ -282,33 +282,82 @@ export class COBSApiClient {
    * Extract aperture from COBS line
    */
   private extractAperture(line: string): number {
-    // Look for aperture patterns like "5.0R", "30.0H", "40.0L"
-    const apertureMatch = line.match(/(\d+\.?\d*)[RHL]/);
+    // Look for aperture patterns like "5.0R", "30.0H", "40.0L", "7.0A", "28.0D"
+    const apertureMatch = line.match(/(\d+\.?\d*)[RHLAD]/);
     return apertureMatch ? parseFloat(apertureMatch[1]) : 0;
   }
 
   /**
    * Extract coma size from COBS line
+   * Format: After aperture (e.g., "7.0A"), skip DC class field, then coma is next numeric field
+   * Example: "7.0A 3a300   1.2  4" -> coma is 1.2 arcminutes
    */
   private extractComa(line: string): number | undefined {
-    // Look for coma size patterns in COBS format: DC=X/Y where Y is coma diameter in arcminutes
-    // Example: "DC=5/3.5" means coma is 3.5 arcminutes
-    const comaMatch = line.match(/DC[=:]?\s*\d+\s*\/\s*(\d+\.?\d*)/i);
-    if (comaMatch && parseFloat(comaMatch[1]) > 0 && parseFloat(comaMatch[1]) < 10) {
-      return parseFloat(comaMatch[1]);
+    try {
+      // Find aperture pattern (e.g., "7.0A", "27.0L", "30.0H")
+      const apertureMatch = line.match(/(\d+\.?\d*)[RHLAD]/);
+      if (!apertureMatch) return undefined;
+
+      const apertureEndPos = apertureMatch.index! + apertureMatch[0].length;
+      const afterAperture = line.substring(apertureEndPos).trim();
+      const parts = afterAperture.split(/\s+/);
+
+      // Skip first part (DC class like "3a300", "5", "4a900")
+      // Coma is the next numeric field
+      for (let i = 1; i < Math.min(parts.length, 4); i++) {
+        const cleanValue = parts[i].replace(/\/$/, ''); // Remove trailing slash
+        const value = parseFloat(cleanValue);
+
+        // Coma diameter is typically 0.1-10 arcminutes for comets
+        if (!isNaN(value) && value >= 0.1 && value <= 10) {
+          return parseFloat(value.toFixed(2));
+        }
+      }
+    } catch (error) {
+      // Silently fail if parsing error occurs
     }
     return undefined;
   }
 
   /**
    * Extract tail length from COBS line
+   * Format: Tail follows coma field in the fixed-width format
+   * Example: "7.0A 3a300   1.2  4" -> tail is 4 degrees
    */
   private extractTail(line: string): number | undefined {
-    // Look for tail length patterns in COBS format
-    // Tail is typically reported as degrees, e.g., "DC=5/T=2.5" or "T:2.5"
-    const tailMatch = line.match(/T[=:]?\s*(\d+\.?\d*)/i);
-    if (tailMatch && parseFloat(tailMatch[1]) > 0 && parseFloat(tailMatch[1]) < 50) {
-      return parseFloat(tailMatch[1]);
+    try {
+      // Find aperture pattern
+      const apertureMatch = line.match(/(\d+\.?\d*)[RHLAD]/);
+      if (!apertureMatch) return undefined;
+
+      const apertureEndPos = apertureMatch.index! + apertureMatch[0].length;
+      const afterAperture = line.substring(apertureEndPos).trim();
+      const parts = afterAperture.split(/\s+/);
+
+      // Find coma first, then tail is the next field
+      let comaIndex = -1;
+      for (let i = 1; i < Math.min(parts.length, 4); i++) {
+        const cleanValue = parts[i].replace(/\/$/, '');
+        const value = parseFloat(cleanValue);
+
+        if (!isNaN(value) && value >= 0.1 && value <= 10) {
+          comaIndex = i;
+          break;
+        }
+      }
+
+      // Tail is the field after coma
+      if (comaIndex >= 0 && comaIndex + 1 < parts.length) {
+        const tailStr = parts[comaIndex + 1].replace(/\/$/, ''); // Remove trailing slash
+        const tailValue = parseFloat(tailStr);
+
+        // Tail length is typically 0.1-20 degrees for comets
+        if (!isNaN(tailValue) && tailValue > 0 && tailValue <= 20) {
+          return parseFloat(tailValue.toFixed(2));
+        }
+      }
+    } catch (error) {
+      // Silently fail if parsing error occurs
     }
     return undefined;
   }

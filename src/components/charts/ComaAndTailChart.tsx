@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,6 +16,7 @@ import {
 } from 'chart.js';
 import { Scatter } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import { getChartColors, getTextColors, getBorderColors, getBackgroundColors, hexToRgba } from '@/utils/chart-theme';
 
 // Flag to track Chart.js registration
 let chartJsRegistered = false;
@@ -24,6 +25,12 @@ export interface MorphologyDataPoint {
   date: string;
   comaSize?: number;      // arcminutes
   tailLength?: number;    // degrees
+  observer?: {
+    name: string;
+    telescope: string;
+    location: string;
+  };
+  quality?: 'excellent' | 'good' | 'fair' | 'poor';
 }
 
 interface ComaAndTailChartProps {
@@ -36,6 +43,13 @@ export default function ComaAndTailChart({
   title = "Coma & Tail Evolution"
 }: ComaAndTailChartProps) {
   const [isClient, setIsClient] = useState(false);
+  const chartRef = useRef<ChartJS<'scatter'>>(null);
+
+  // Get theme colors
+  const chartColors = getChartColors();
+  const textColors = getTextColors();
+  const borderColors = getBorderColors();
+  const bgColors = getBackgroundColors();
 
   // Register Chart.js components only when this chart loads
   useEffect(() => {
@@ -60,9 +74,9 @@ export default function ComaAndTailChart({
 
   if (!isClient || !data || data.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6" style={{ height: '400px' }}>
+      <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6" style={{ height: '400px' }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             {data?.length === 0 ? 'No morphology data available' : 'Loading chart...'}
           </div>
         </div>
@@ -76,9 +90,9 @@ export default function ComaAndTailChart({
 
   if (comaData.length === 0 && tailData.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6" style={{ height: '400px' }}>
+      <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6" style={{ height: '400px' }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-gray-400">No coma or tail measurements available</div>
+          <div className="text-[var(--color-text-tertiary)]">No coma or tail measurements available</div>
         </div>
       </div>
     );
@@ -91,19 +105,18 @@ export default function ComaAndTailChart({
     datasets.push({
       label: 'Coma Size (arcminutes)',
       data: comaData.map(point => ({
-        x: point.date,
-        y: point.comaSize
+        x: new Date(point.date).getTime(),
+        y: point.comaSize,
+        pointData: point  // Store full point data for tooltip
       })),
-      borderColor: '#10b981',
-      backgroundColor: '#10b981',
-      pointBackgroundColor: '#10b981',
-      pointBorderColor: '#ffffff',
+      borderColor: chartColors.secondary,
+      backgroundColor: chartColors.secondary,
+      pointBackgroundColor: chartColors.secondary,
+      pointBorderColor: textColors.primary,
       pointBorderWidth: 1,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      showLine: true,
-      borderWidth: 2,
-      tension: 0.1,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      showLine: false,
       yAxisID: 'y',
     });
   }
@@ -113,19 +126,18 @@ export default function ComaAndTailChart({
     datasets.push({
       label: 'Tail Length (degrees)',
       data: tailData.map(point => ({
-        x: point.date,
-        y: point.tailLength
+        x: new Date(point.date).getTime(),
+        y: point.tailLength,
+        pointData: point  // Store full point data for tooltip
       })),
-      borderColor: '#f59e0b',
-      backgroundColor: '#f59e0b',
-      pointBackgroundColor: '#f59e0b',
-      pointBorderColor: '#ffffff',
+      borderColor: chartColors.quinary,
+      backgroundColor: chartColors.quinary,
+      pointBackgroundColor: chartColors.quinary,
+      pointBorderColor: textColors.primary,
       pointBorderWidth: 1,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      showLine: true,
-      borderWidth: 2,
-      tension: 0.1,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      showLine: false,
       yAxisID: 'y1',
     });
   }
@@ -146,34 +158,74 @@ export default function ComaAndTailChart({
       legend: {
         display: true,
         labels: {
-          color: '#9ca3af',
+          color: textColors.tertiary,
           usePointStyle: true,
         }
       },
       title: {
         display: true,
         text: title,
-        color: '#ffffff',
+        color: textColors.heading,
         font: {
           size: 16,
           weight: 'bold'
         }
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#ffffff',
-        borderColor: '#6366f1',
+        backgroundColor: bgColors.tertiary,
+        titleColor: textColors.primary,
+        bodyColor: textColors.secondary,
+        borderColor: borderColors.secondary,
         borderWidth: 1,
         callbacks: {
+          title: (context) => {
+            const date = new Date(context[0].parsed.x);
+            return date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            });
+          },
           label: (context) => {
+            const rawData = context.raw as { x: number; y: number; pointData?: MorphologyDataPoint };
+            const point = rawData?.pointData;
             const value = context.parsed.y;
             const label = context.dataset.label || '';
+
+            const lines = [];
+
+            // Measurement value
             if (label.includes('Coma')) {
-              return `${label}: ${value.toFixed(2)} arcminutes`;
+              lines.push(`Coma: ${value.toFixed(2)} arcminutes`);
+              // Show tail if available on same observation
+              if (point?.tailLength) {
+                lines.push(`Tail: ${point.tailLength.toFixed(2)} degrees`);
+              }
             } else {
-              return `${label}: ${value.toFixed(2)} degrees`;
+              lines.push(`Tail: ${value.toFixed(2)} degrees`);
+              // Show coma if available on same observation
+              if (point?.comaSize) {
+                lines.push(`Coma: ${point.comaSize.toFixed(2)} arcminutes`);
+              }
             }
+
+            // Observer info
+            if (point?.observer) {
+              lines.push(`Observer: ${point.observer.name}`);
+              if (point.observer.telescope) {
+                lines.push(`Telescope: ${point.observer.telescope}`);
+              }
+              if (point.observer.location) {
+                lines.push(`Location: ${point.observer.location}`);
+              }
+            }
+
+            // Quality
+            if (point?.quality) {
+              lines.push(`Quality: ${point.quality}`);
+            }
+
+            return lines;
           }
         }
       }
@@ -190,13 +242,13 @@ export default function ComaAndTailChart({
         title: {
           display: true,
           text: 'Date',
-          color: '#9ca3af'
+          color: textColors.tertiary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: hexToRgba(borderColors.primary, 0.2)
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary
         }
       },
       y: {
@@ -206,13 +258,13 @@ export default function ComaAndTailChart({
         title: {
           display: true,
           text: 'Coma Size (arcminutes)',
-          color: '#10b981'
+          color: chartColors.secondary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: hexToRgba(borderColors.primary, 0.2)
         },
         ticks: {
-          color: '#10b981'
+          color: chartColors.secondary
         },
         beginAtZero: true
       },
@@ -223,13 +275,13 @@ export default function ComaAndTailChart({
         title: {
           display: true,
           text: 'Tail Length (degrees)',
-          color: '#3b82f6'
+          color: chartColors.quinary
         },
         grid: {
           drawOnChartArea: false,
         },
         ticks: {
-          color: '#3b82f6'
+          color: chartColors.quinary
         },
         beginAtZero: true
       }
@@ -241,23 +293,23 @@ export default function ComaAndTailChart({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
+    <div className="bg-[var(--color-bg-secondary)] rounded-lg p-4">
       <div style={{ height: '400px', width: '100%' }}>
-        <Scatter data={chartData} options={options} />
+        <Scatter ref={chartRef} data={chartData} options={options} />
       </div>
 
       {/* Simple stats */}
-      <div className="mt-3 pt-3 border-t border-gray-700">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-400">
+      <div className="mt-3 pt-3 border-t border-[var(--color-border-primary)]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-[var(--color-text-tertiary)]">
           {comaData.length > 0 && (
             <div>
-              <span className="text-green-400">Coma Size:</span> {Math.min(...comaData.map(d => d.comaSize!)).toFixed(1)} - {Math.max(...comaData.map(d => d.comaSize!)).toFixed(1)} arcminutes
+              <span className="text-[var(--color-chart-secondary)]">Coma Size:</span> {Math.min(...comaData.map(d => d.comaSize!)).toFixed(1)} - {Math.max(...comaData.map(d => d.comaSize!)).toFixed(1)} arcminutes
               <span className="ml-2">({comaData.length} measurements)</span>
             </div>
           )}
           {tailData.length > 0 && (
             <div>
-              <span className="text-blue-400">Tail Length:</span> {Math.min(...tailData.map(d => d.tailLength!)).toFixed(1)} - {Math.max(...tailData.map(d => d.tailLength!)).toFixed(1)} degrees
+              <span className="text-[var(--color-chart-quinary)]">Tail Length:</span> {Math.min(...tailData.map(d => d.tailLength!)).toFixed(1)} - {Math.max(...tailData.map(d => d.tailLength!)).toFixed(1)} degrees
               <span className="ml-2">({tailData.length} measurements)</span>
             </div>
           )}
