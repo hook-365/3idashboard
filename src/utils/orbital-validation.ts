@@ -308,7 +308,7 @@ export function formatElementValue(value: number | string, unit: string = ''): s
  */
 export function getValidationColor(agrees: boolean, mpcValue: string | number, jplValue: string | number): string {
   if (mpcValue === 'N/A' || jplValue === 'N/A') {
-    return 'text-gray-500'; // Missing data
+    return 'text-[var(--color-text-tertiary)]'; // Missing data
   }
   return agrees ? 'text-green-400' : 'text-yellow-400'; // Green = agrees, Yellow = disagrees
 }

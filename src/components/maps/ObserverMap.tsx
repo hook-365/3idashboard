@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
 import dynamic from 'next/dynamic';
 import ExtensionSafeWrapper from '../ExtensionSafeWrapper';
 import 'leaflet/dist/leaflet.css';
@@ -143,7 +143,7 @@ const createCustomIcon = (observer: ObserverLocation, colorBy: string): import('
   });
 };
 
-export default function ObserverMap({
+const ObserverMap = memo(function ObserverMap({
   observers = [],
   className = '',
   height = '500px',
@@ -243,9 +243,9 @@ export default function ObserverMap({
 
   if (!isClient) {
     return (
-      <div className={`bg-gray-800 rounded-lg p-6 ${className}`} style={{ height }}>
+      <div className={`bg-[var(--color-bg-secondary)] rounded-lg p-6 ${className}`} style={{ height }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-gray-400">Loading world map...</div>
+          <div className="text-[var(--color-text-tertiary)]">Loading world map...</div>
         </div>
       </div>
     );
@@ -253,9 +253,9 @@ export default function ObserverMap({
 
   if (validObservers.length === 0) {
     return (
-      <div className={`bg-gray-800 rounded-lg p-6 ${className}`} style={{ height }}>
+      <div className={`bg-[var(--color-bg-secondary)] rounded-lg p-6 ${className}`} style={{ height }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-center text-gray-400">
+          <div className="text-center text-[var(--color-text-tertiary)]">
             <div className="text-xl mb-2">🌍</div>
             <div>No observer locations available</div>
             <div className="text-sm mt-1">Waiting for observation data with coordinates...</div>
@@ -267,13 +267,13 @@ export default function ObserverMap({
 
   return (
     <ExtensionSafeWrapper>
-      <div className={`bg-gray-800 rounded-lg overflow-hidden ${className}`}>
+      <div className={`bg-[var(--color-bg-secondary)] rounded-lg overflow-hidden ${className}`}>
         {/* Header with controls */}
-        <div className="p-4 border-b border-gray-700">
+        <div className="p-4 border-b border-[var(--color-border-primary)]">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="text-lg font-semibold text-white">Global Observer Network</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Global Observer Network</h3>
+              <p className="text-sm text-[var(--color-text-tertiary)]">
                 {validObservers.length} active observers worldwide
                 {realTimeUpdates && (
                   <span className="ml-2 inline-flex items-center">
@@ -292,8 +292,8 @@ export default function ObserverMap({
                   onClick={() => {}}
                   className={`px-3 py-1 text-xs rounded-full transition-colors ${
                     colorBy === mode
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-blue-600 text-[var(--color-text-primary)]'
+                      : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'
                   }`}
                 >
                   {mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -329,7 +329,7 @@ export default function ObserverMap({
                 <Popup>
                   <div className="max-w-xs">
                     <h4 className="font-semibold text-gray-900 mb-2">{observer.name}</h4>
-                    <div className="space-y-1 text-sm text-gray-700">
+                    <div className="space-y-1 text-sm text-[var(--color-text-secondary)]">
                       <p><strong>Location:</strong> {observer.location.name}</p>
                       <p><strong>Observations:</strong> {observer.observationCount}</p>
                       <p><strong>Avg Magnitude:</strong> {observer.averageMagnitude.toFixed(2)}m</p>
@@ -340,7 +340,7 @@ export default function ObserverMap({
                     </div>
                     <button
                       onClick={() => handleObserverClick(observer)}
-                      className="mt-2 w-full bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                      className="mt-2 w-full bg-blue-600 text-[var(--color-text-primary)] px-3 py-1 rounded text-sm hover:bg-blue-700"
                     >
                       View Details
                     </button>
@@ -352,10 +352,10 @@ export default function ObserverMap({
         </div>
 
         {/* Legend */}
-        <div className="p-4 border-t border-gray-700 bg-gray-850">
+        <div className="p-4 border-t border-[var(--color-border-primary)] bg-[var(--color-bg-primary)]">
           <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
             <div>
-              <h4 className="text-sm font-medium text-white mb-2">{colorInfo.title}</h4>
+              <h4 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">{colorInfo.title}</h4>
               <div className="flex flex-wrap gap-3">
                 {colorInfo.legend.map((item, index) => (
                   <div key={index} className="flex items-center gap-2">
@@ -368,14 +368,14 @@ export default function ObserverMap({
                         border: '1px solid white',
                       }}
                     />
-                    <span className="text-xs text-gray-300">{item.label}</span>
+                    <span className="text-xs text-[var(--color-text-secondary)]">{item.label}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="text-right">
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-[var(--color-text-tertiary)]">
                 <p>• Click markers for observer details</p>
                 <p>• Individual markers (clustering unavailable)</p>
                 <p>• Numbers show observation count</p>
@@ -386,17 +386,17 @@ export default function ObserverMap({
 
         {/* Selected observer details modal/panel */}
         {selectedObserver && (
-          <div className="absolute top-4 right-4 bg-gray-900 rounded-lg p-4 shadow-lg border border-gray-600 max-w-xs z-10">
+          <div className="absolute top-4 right-4 bg-[var(--color-bg-primary)] rounded-lg p-4 shadow-lg border border-[var(--color-border-secondary)] max-w-xs z-10">
             <div className="flex justify-between items-start mb-2">
-              <h4 className="font-semibold text-white">{selectedObserver.name}</h4>
+              <h4 className="font-semibold text-[var(--color-text-primary)]">{selectedObserver.name}</h4>
               <button
                 onClick={() => setSelectedObserver(null)}
-                className="text-gray-400 hover:text-white ml-2"
+                className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] ml-2"
               >
                 ✕
               </button>
             </div>
-            <div className="space-y-1 text-sm text-gray-300">
+            <div className="space-y-1 text-sm text-[var(--color-text-secondary)]">
               <p><strong>Location:</strong> {selectedObserver.location.name}</p>
               <p><strong>Coordinates:</strong> {selectedObserver.location.lat.toFixed(4)}, {selectedObserver.location.lng.toFixed(4)}</p>
               <p><strong>Total Observations:</strong> {selectedObserver.observationCount}</p>
@@ -408,4 +408,6 @@ export default function ObserverMap({
       </div>
     </ExtensionSafeWrapper>
   );
-}
+});
+
+export default ObserverMap;

@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
       }
     }, {
       headers: {
-        // Tier 2: Derived analytics - 15 minutes (calculated from observations, changes less frequently)
-        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
+        // Browser + CDN cache for 10 minutes (velocity calculations are stable)
+        'Cache-Control': 'public, max-age=600, s-maxage=600, stale-while-revalidate=1200',
         'X-Processing-Time': processingTime.toString(),
       },
     });

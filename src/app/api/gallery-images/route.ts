@@ -308,6 +308,174 @@ const official3IAtlasImages: GalleryImage[] = [
       instrument: 'Mission Diagram',
       filters: 'Visualization'
     }
+  },
+  // Avi Loeb Research Images - ArXiv Papers
+  // Paper 1: https://arxiv.org/abs/2510.11779 (Keck/KCWI Integral Field Spectroscopy)
+  {
+    id: 'keck-kcwi-whitelight-2510.11779',
+    title: 'Keck/KCWI Whitelight Image of 3I/ATLAS',
+    description: '3425 Å to 5500 Å whitelight image from KCWI integral field spectroscopy showing the comet\'s coma and sunward jet. The yellow arrow denotes direction to the Sun. Scale bar shows physical scale viewed from Earth.',
+    date: '2025-10-15T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/keck-kcwi-whitelight.png',
+    thumbnailUrl: '/gallery/loeb-research/keck-kcwi-whitelight.png',
+    attribution: 'Loeb et al. 2024, arXiv:2510.11779 - Keck Observatory',
+    metadata: {
+      telescope: 'Keck II',
+      instrument: 'KCWI',
+      filters: '3425-5500Å whitelight'
+    }
+  },
+  {
+    id: 'keck-kcwi-spectrum-2510.11779',
+    title: 'Keck/KCWI Spectrum: Nickel and Cyanide Detection',
+    description: 'Continuum-subtracted KCWI spectrum between 3425 Å and 4050 Å showing prominent nickel (Ni) and cyanide (CN) emission lines from 3I/ATLAS, extracted from 3 arcsec aperture.',
+    date: '2025-10-15T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/keck-kcwi-spectrum.png',
+    thumbnailUrl: '/gallery/loeb-research/keck-kcwi-spectrum.png',
+    attribution: 'Loeb et al. 2024, arXiv:2510.11779 - Keck Observatory',
+    metadata: {
+      telescope: 'Keck II',
+      instrument: 'KCWI',
+      filters: 'Spectroscopy 3425-4050Å'
+    }
+  },
+  {
+    id: 'keck-kcwi-cn-ni-comparison-2510.11779',
+    title: 'Keck/KCWI CN vs Ni Narrow-band Comparison',
+    description: 'Narrow-band images from KCWI data cube comparing CN emissions (3865-3885Å, left) and Ni emissions (3605-3625Å, right). Both shown on same color scale revealing spatial distribution differences.',
+    date: '2025-10-15T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/keck-kcwi-cn-ni-comparison.png',
+    thumbnailUrl: '/gallery/loeb-research/keck-kcwi-cn-ni-comparison.png',
+    attribution: 'Loeb et al. 2024, arXiv:2510.11779 - Keck Observatory',
+    metadata: {
+      telescope: 'Keck II',
+      instrument: 'KCWI',
+      filters: 'CN (3865-3885Å) & Ni (3605-3625Å)'
+    }
+  },
+  {
+    id: 'keck-kcwi-jets-radial-2510.11779',
+    title: 'Keck/KCWI Jet Detection in Radial Profiles',
+    description: 'Model-subtracted radial profiles revealing strong solar and anti-solar jets in whitelight, CN, and Ni emissions. Left panels show 2D spatial distributions, right panels show azimuthal flux variations.',
+    date: '2025-10-15T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/keck-kcwi-jets-radial.png',
+    thumbnailUrl: '/gallery/loeb-research/keck-kcwi-jets-radial.png',
+    attribution: 'Loeb et al. 2024, arXiv:2510.11779 - Keck Observatory',
+    metadata: {
+      telescope: 'Keck II',
+      instrument: 'KCWI',
+      filters: 'Multi-wavelength jet analysis'
+    }
+  },
+  {
+    id: 'keck-kcwi-cn-ni-radial-diff-2510.11779',
+    title: 'Keck/KCWI CN vs Ni Radial Difference Analysis',
+    description: 'Measured radial differences between CN and Ni emissions showing different spatial extents. Binned data (large points) fit with exponential functions revealing coma morphology differences.',
+    date: '2025-10-15T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/keck-kcwi-cn-ni-radial-diff.png',
+    thumbnailUrl: '/gallery/loeb-research/keck-kcwi-cn-ni-radial-diff.png',
+    attribution: 'Loeb et al. 2024, arXiv:2510.11779 - Keck Observatory',
+    metadata: {
+      telescope: 'Keck II',
+      instrument: 'KCWI',
+      filters: 'CN & Ni radial profile comparison'
+    }
+  },
+  // Paper 2: https://arxiv.org/abs/2509.26053 (VLT/UVES Ni/Fe Ratio Analysis)
+  {
+    id: 'vlt-uves-ni-spatial-2509.26053',
+    title: 'VLT/UVES Nickel Spatial Profile',
+    description: 'Spatial profile of brightest NiI emission line (λ3458Å) observed with VLT UVES on September 4, showing extended nickel distribution in the coma.',
+    date: '2025-09-04T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/vlt-uves-ni-spatial.png',
+    thumbnailUrl: '/gallery/loeb-research/vlt-uves-ni-spatial.png',
+    attribution: 'Hutsemékers et al. 2024, arXiv:2509.26053 - ESO/VLT',
+    metadata: {
+      telescope: 'VLT',
+      instrument: 'UVES',
+      filters: 'NiI λ3458Å'
+    }
+  },
+  {
+    id: 'vlt-uves-fe-ni-spectra-2509.26053',
+    title: 'VLT/UVES Iron and Nickel Emission Spectra',
+    description: 'Continuum-subtracted UVES spectra from August 28 and September 3-4 showing detection of three narrow FeI lines on August 28. Demonstrates temporal evolution of iron and nickel emissions.',
+    date: '2025-09-04T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/vlt-uves-fe-ni-spectra.png',
+    thumbnailUrl: '/gallery/loeb-research/vlt-uves-fe-ni-spectra.png',
+    attribution: 'Hutsemékers et al. 2024, arXiv:2509.26053 - ESO/VLT',
+    metadata: {
+      telescope: 'VLT',
+      instrument: 'UVES',
+      filters: 'FeI & NiI spectroscopy'
+    }
+  },
+  {
+    id: 'vlt-uves-ni-fe-ratio-aug28-2509.26053',
+    title: 'VLT/UVES Ni/Fe Ratio Analysis - August 28',
+    description: 'Ratio log₁₀(Iobs/Imod) for FeI (red diamonds) and NiI (blue squares) lines observed on August 28, showing extreme nickel-to-iron ratio anomaly compared to solar system comets.',
+    date: '2025-08-28T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/vlt-uves-ni-fe-ratio-aug28.png',
+    thumbnailUrl: '/gallery/loeb-research/vlt-uves-ni-fe-ratio-aug28.png',
+    attribution: 'Hutsemékers et al. 2024, arXiv:2509.26053 - ESO/VLT',
+    metadata: {
+      telescope: 'VLT',
+      instrument: 'UVES',
+      filters: 'Ni/Fe abundance ratio'
+    }
+  },
+  {
+    id: 'vlt-uves-ni-fe-ratio-sep12-2509.26053',
+    title: 'VLT/UVES Ni/Fe Ratio Analysis - September 12',
+    description: 'Ratio log₁₀(Iobs/Imod) for FeI and NiI lines on September 12, continuing to show unprecedented nickel enrichment relative to iron in this interstellar visitor.',
+    date: '2025-09-12T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/vlt-uves-ni-fe-ratio-sep12.png',
+    thumbnailUrl: '/gallery/loeb-research/vlt-uves-ni-fe-ratio-sep12.png',
+    attribution: 'Hutsemékers et al. 2024, arXiv:2509.26053 - ESO/VLT',
+    metadata: {
+      telescope: 'VLT',
+      instrument: 'UVES',
+      filters: 'Ni/Fe abundance ratio'
+    }
+  },
+  {
+    id: 'vlt-ni-fe-vs-heliocentric-2509.26053',
+    title: 'Ni/Fe Ratio vs Heliocentric Distance',
+    description: 'Q(NiI)/Q(FeI) production rate ratio as function of heliocentric distance for 3I/ATLAS (interstellar) compared to solar system comets, highlighting extreme nickel enrichment throughout approach to perihelion.',
+    date: '2025-09-12T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/vlt-ni-fe-vs-heliocentric.png',
+    thumbnailUrl: '/gallery/loeb-research/vlt-ni-fe-vs-heliocentric.png',
+    attribution: 'Hutsemékers et al. 2024, arXiv:2509.26053 - ESO/VLT',
+    metadata: {
+      telescope: 'VLT',
+      instrument: 'UVES',
+      filters: 'Comparative analysis'
+    }
+  },
+  {
+    id: 'vlt-ni-production-rate-2509.26053',
+    title: 'Nickel Production Rate Evolution',
+    description: 'Q(NiI) production rate in 3I/ATLAS as function of heliocentric distance with Ni(CO)₄ sublimation curve overlay. Analysis suggests nickel carbonyl as potential parent molecule for extreme Ni emissions.',
+    date: '2025-09-12T00:00:00Z',
+    source: 'Research',
+    imageUrl: '/gallery/loeb-research/vlt-ni-production-rate.png',
+    thumbnailUrl: '/gallery/loeb-research/vlt-ni-production-rate.png',
+    attribution: 'Hutsemékers et al. 2024, arXiv:2509.26053 - ESO/VLT',
+    metadata: {
+      telescope: 'VLT',
+      instrument: 'UVES',
+      filters: 'Production rate modeling'
+    }
   }
 ];
 
@@ -443,8 +611,8 @@ export async function GET() {
       }
     }, {
       headers: {
-        // Tier 4: Static content - 24 hours (gallery images change very infrequently)
-        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=172800',
+        // Gallery images are static - cache for 1 hour in browser, 24 hours on CDN
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=172800',
       }
     });
 
@@ -473,8 +641,8 @@ export async function GET() {
       }
     }, {
       headers: {
-        // Tier 4: Static content - 24 hours (gallery images change very infrequently)
-        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=172800',
+        // Gallery images are static - cache for 1 hour in browser, 24 hours on CDN
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=172800',
       }
     });
   }

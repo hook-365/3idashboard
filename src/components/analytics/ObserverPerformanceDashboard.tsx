@@ -232,34 +232,34 @@ export default function ObserverPerformanceDashboard() {
     return (
       <div className="space-y-6">
         {/* Summary Widget Skeleton */}
-        <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6 border border-gray-600 animate-pulse">
+        <div className="bg-gradient-to-r from-[var(--color-bg-secondary)] to-[var(--color-bg-tertiary)] rounded-lg p-6 border border-[var(--color-border-secondary)] animate-pulse">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <div className="h-6 w-64 bg-gray-700 rounded mb-2"></div>
-              <div className="h-4 w-96 bg-gray-700 rounded"></div>
+              <div className="h-6 w-64 bg-[var(--color-bg-tertiary)] rounded mb-2"></div>
+              <div className="h-4 w-96 bg-[var(--color-bg-tertiary)] rounded"></div>
             </div>
             <div className="flex gap-3">
-              <div className="h-10 w-24 bg-gray-700 rounded"></div>
-              <div className="h-10 w-24 bg-gray-700 rounded"></div>
+              <div className="h-10 w-24 bg-[var(--color-bg-tertiary)] rounded"></div>
+              <div className="h-10 w-24 bg-[var(--color-bg-tertiary)] rounded"></div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-gray-700 rounded-lg p-4">
-                <div className="h-8 w-8 bg-gray-600 rounded mx-auto mb-2"></div>
-                <div className="h-6 w-16 bg-gray-600 rounded mx-auto mb-2"></div>
-                <div className="h-3 w-24 bg-gray-600 rounded mx-auto mb-1"></div>
-                <div className="h-3 w-20 bg-gray-600 rounded mx-auto"></div>
+              <div key={i} className="bg-[var(--color-bg-tertiary)] rounded-lg p-4">
+                <div className="h-8 w-8 bg-[var(--color-bg-tertiary)] rounded mx-auto mb-2"></div>
+                <div className="h-6 w-16 bg-[var(--color-bg-tertiary)] rounded mx-auto mb-2"></div>
+                <div className="h-3 w-24 bg-[var(--color-bg-tertiary)] rounded mx-auto mb-1"></div>
+                <div className="h-3 w-20 bg-[var(--color-bg-tertiary)] rounded mx-auto"></div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Tab Navigation Skeleton */}
-        <div className="bg-gray-800 rounded-lg p-6 animate-pulse">
-          <div className="h-6 w-48 bg-gray-700 rounded mb-4"></div>
-          <div className="h-12 bg-gray-700 rounded"></div>
+        <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 animate-pulse">
+          <div className="h-6 w-48 bg-[var(--color-bg-tertiary)] rounded mb-4"></div>
+          <div className="h-12 bg-[var(--color-bg-tertiary)] rounded"></div>
         </div>
       </div>
     );
@@ -283,13 +283,13 @@ export default function ObserverPerformanceDashboard() {
   return (
     <div className="space-y-6">
       {/* Summary Widget */}
-      <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6 border border-gray-600">
+      <div className="bg-gradient-to-r from-[var(--color-bg-secondary)] to-[var(--color-bg-tertiary)] rounded-lg p-6 border border-[var(--color-border-secondary)]">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
               👥 Worldwide Observer Network
             </h2>
-            <p className="text-gray-400 text-sm">
+            <p className="text-[var(--color-text-tertiary)] text-sm">
               Amateur and professional astronomers tracking the comet from around the globe
             </p>
           </div>
@@ -297,7 +297,7 @@ export default function ObserverPerformanceDashboard() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded-lg transition-colors flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-[var(--color-bg-tertiary)] rounded-lg transition-colors flex items-center gap-2 text-sm"
             >
               {refreshing ? (
                 <>
@@ -322,49 +322,49 @@ export default function ObserverPerformanceDashboard() {
         {/* Key Metrics */}
         {statistics && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
               <div className="text-2xl mb-1">👨‍🔬</div>
               <div className="text-xl font-bold text-blue-400">
                 {statistics.summary.totalObservers.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-400">Contributing Astronomers</div>
-              <div className="text-xs text-gray-500">Worldwide network</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Contributing Astronomers</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Worldwide network</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
               <div className="text-2xl mb-1">📊</div>
-              <div className="text-xl font-bold text-green-400">
+              <div className="text-xl font-bold text-[var(--color-chart-secondary)]">
                 {statistics.summary.totalObservations.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-400">Total Measurements</div>
-              <div className="text-xs text-gray-500">Since discovery</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Total Measurements</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Since discovery</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
               <div className="text-2xl mb-1">📈</div>
               <div className="text-xl font-bold text-purple-400">
                 {statistics.summary.averageObservationsPerObserver.toFixed(1)}
               </div>
-              <div className="text-xs text-gray-400">Average per Person</div>
-              <div className="text-xs text-gray-500">Measurements</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Average per Person</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Measurements</div>
             </div>
-            <div className="bg-gray-700 rounded-lg p-4 text-center">
+            <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 text-center">
               <div className="text-2xl mb-1">🌍</div>
-              <div className="text-xl font-bold text-yellow-400">
+              <div className="text-xl font-bold text-[var(--color-chart-quinary)]">
                 {new Set(observers.map(obs => obs.country)).size}
               </div>
-              <div className="text-xs text-gray-400">Countries Participating</div>
-              <div className="text-xs text-gray-500">Global coverage</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Countries Participating</div>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Global coverage</div>
             </div>
           </div>
         )}
       </div>
 
           {/* Tab Navigation */}
-          <div className="bg-gray-800 rounded-lg p-6">
+          <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6">
             <div className="mb-4">
-              <h3 className="text-xl font-bold text-white mb-2">🔍 Explore the Network</h3>
-              <p className="text-sm text-gray-400">View rankings, regional breakdowns, and collaboration insights</p>
+              <h3 className="text-xl font-bold text-[var(--color-text-primary)] mb-2">🔍 Explore the Network</h3>
+              <p className="text-sm text-[var(--color-text-tertiary)]">View rankings, regional breakdowns, and collaboration insights</p>
             </div>
-            <div className="flex space-x-1 bg-gray-700 rounded-lg p-1">
+            <div className="flex space-x-1 bg-[var(--color-bg-tertiary)] rounded-lg p-1">
               {[
                 { id: 'leaderboard', label: 'Top Contributors', icon: '🏆' },
                 { id: 'regional', label: 'By Country', icon: '🌍' },
@@ -375,8 +375,8 @@ export default function ObserverPerformanceDashboard() {
                   onClick={() => setActiveTab(tab.id as 'leaderboard' | 'regional' | 'insights')}
                   className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-600'
+                      ? 'bg-blue-600 text-[var(--color-text-primary)]'
+                      : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]'
                   }`}
                 >
                   {tab.icon} {tab.label}
@@ -385,36 +385,36 @@ export default function ObserverPerformanceDashboard() {
             </div>
 
             {/* Filters */}
-            <div className="mt-6 p-4 bg-gray-700 rounded-lg">
-              <h4 className="text-sm font-semibold mb-3 text-gray-300">Filter Results</h4>
+            <div className="mt-6 p-4 bg-[var(--color-bg-tertiary)] rounded-lg">
+              <h4 className="text-sm font-semibold mb-3 text-[var(--color-text-secondary)]">Filter Results</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Minimum Measurements</label>
+                <label className="block text-sm text-[var(--color-text-tertiary)] mb-1">Minimum Measurements</label>
                 <input
                   type="number"
                   value={filters.minObservations}
                   onChange={(e) => setFilters(prev => ({ ...prev, minObservations: parseInt(e.target.value) || 1 }))}
-                  className="w-full px-3 py-2 bg-gray-600 rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-white"
+                  className="w-full px-3 py-2 bg-[var(--color-bg-tertiary)] rounded border border-[var(--color-border-secondary)] focus:border-blue-500 focus:outline-none text-[var(--color-text-primary)]"
                   min="1"
                   max="100"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Filter by Country</label>
+                <label className="block text-sm text-[var(--color-text-tertiary)] mb-1">Filter by Country</label>
                 <input
                   type="text"
                   value={filters.region}
                   onChange={(e) => setFilters(prev => ({ ...prev, region: e.target.value }))}
                   placeholder="e.g., USA, France, Japan..."
-                  className="w-full px-3 py-2 bg-gray-600 rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-white placeholder-gray-400"
+                  className="w-full px-3 py-2 bg-[var(--color-bg-tertiary)] rounded border border-[var(--color-border-secondary)] focus:border-blue-500 focus:outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)]"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Show Top</label>
+                <label className="block text-sm text-[var(--color-text-tertiary)] mb-1">Show Top</label>
                 <select
                   value={filters.limit}
                   onChange={(e) => setFilters(prev => ({ ...prev, limit: parseInt(e.target.value) }))}
-                  className="w-full px-3 py-2 bg-gray-600 rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-white"
+                  className="w-full px-3 py-2 bg-[var(--color-bg-tertiary)] rounded border border-[var(--color-border-secondary)] focus:border-blue-500 focus:outline-none text-[var(--color-text-primary)]"
                 >
                   <option value={50}>50 people</option>
                   <option value={100}>100 people</option>
@@ -439,10 +439,10 @@ export default function ObserverPerformanceDashboard() {
           )}
 
           {activeTab === 'insights' && (
-            <div className="bg-gray-800 rounded-lg p-6 space-y-6">
+            <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white mb-2">📊 Network Highlights</h2>
-                <p className="text-sm text-gray-400">Key statistics about the worldwide observation network</p>
+                <h2 className="text-xl font-bold text-[var(--color-text-primary)] mb-2">📊 Network Highlights</h2>
+                <p className="text-sm text-[var(--color-text-tertiary)]">Key statistics about the worldwide observation network</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {getInsights.map((insight, index) => (
@@ -453,14 +453,14 @@ export default function ObserverPerformanceDashboard() {
                         ? 'bg-green-900/30 border-green-500'
                         : insight.type === 'info'
                         ? 'bg-blue-900/30 border-blue-500'
-                        : 'bg-gray-700 border-gray-600'
+                        : 'bg-[var(--color-bg-tertiary)] border-[var(--color-border-secondary)]'
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">{insight.icon}</span>
                       <div>
-                        <h3 className="text-lg font-semibold mb-2 text-white">{insight.title}</h3>
-                        <p className="text-gray-300 text-sm">{insight.content}</p>
+                        <h3 className="text-lg font-semibold mb-2 text-[var(--color-text-primary)]">{insight.title}</h3>
+                        <p className="text-[var(--color-text-secondary)] text-sm">{insight.content}</p>
                       </div>
                     </div>
                   </div>
@@ -469,11 +469,11 @@ export default function ObserverPerformanceDashboard() {
 
               {/* Educational Content */}
               <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-lg p-6 border border-purple-500/30">
-                <h3 className="text-xl font-semibold mb-4 text-white">💡 Why Global Collaboration Matters</h3>
+                <h3 className="text-xl font-semibold mb-4 text-[var(--color-text-primary)]">💡 Why Global Collaboration Matters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <h4 className="font-medium text-purple-300 mb-2">What Makes a Good Observer</h4>
-                    <ul className="space-y-1 text-gray-300">
+                    <ul className="space-y-1 text-[var(--color-text-secondary)]">
                       <li>• Regular and consistent measurements</li>
                       <li>• Careful attention to accuracy</li>
                       <li>• Coverage from different locations</li>
@@ -482,7 +482,7 @@ export default function ObserverPerformanceDashboard() {
                   </div>
                   <div>
                     <h4 className="font-medium text-blue-300 mb-2">Benefits of Worldwide Network</h4>
-                    <ul className="space-y-1 text-gray-300">
+                    <ul className="space-y-1 text-[var(--color-text-secondary)]">
                       <li>• Someone is always watching (24/7 coverage)</li>
                       <li>• Bad weather in one place? Others can observe</li>
                       <li>• Multiple people confirm the same changes</li>
@@ -495,7 +495,7 @@ export default function ObserverPerformanceDashboard() {
           )}
 
         {/* Footer */}
-        <div className="bg-gray-800 rounded-lg p-4 text-center text-sm text-gray-400">
+        <div className="bg-[var(--color-bg-secondary)] rounded-lg p-4 text-center text-sm text-[var(--color-text-tertiary)]">
           <p>Last updated: {lastUpdated.toLocaleString()}</p>
           <p className="mt-1">Data from COBS • {observers.length} astronomers contributing</p>
         </div>

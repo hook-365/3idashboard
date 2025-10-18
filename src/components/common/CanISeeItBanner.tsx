@@ -13,13 +13,14 @@ export default function CanISeeItBanner({
   nextVisibleDate = 'Late 2025',
   reason = 'Currently too close to the Sun'
 }: CanISeeItBannerProps) {
-  // Determine equipment needed based on magnitude
+  // Determine equipment needed based on magnitude (for extended objects like comets)
   const getEquipmentNeeded = (mag?: number): string => {
-    if (!mag) return 'Telescope or strong binoculars';
+    if (!mag) return '8-10 inch telescope (200-254mm) minimum';
     if (mag <= 6) return 'Naked eye (dark skies only)';
-    if (mag <= 9) return 'Binoculars (7x50 or 10x50)';
-    if (mag <= 12) return 'Small telescope (4-6 inch / 100-150mm)';
-    return 'Large telescope (8+ inch / 200mm+)';
+    if (mag <= 10.5) return 'Binoculars (10x50) or small telescope';
+    if (mag <= 11.5) return 'Medium telescope (6-8 inch / 150-200mm)';
+    if (mag <= 12.5) return 'Large telescope (8-10 inch / 200-254mm)';
+    return 'Very large telescope (12+ inch / 300mm+) or astrophotography';
   };
 
   const equipment = getEquipmentNeeded(magnitude);
@@ -42,65 +43,42 @@ export default function CanISeeItBanner({
     : '🔴';
 
   return (
-    <div className={`${bgColor} border-2 rounded-lg p-6`}>
-      <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-4 flex items-center gap-3">
-        <span>🔭</span> Can I See It Tonight?
-      </h2>
-
-      <div className="space-y-4">
-        {/* Visibility status */}
-        <div className={`text-xl font-semibold ${textColor} flex items-center gap-2`}>
-          <span>{emoji}</span>
-          {isVisible ? (
-            magnitude && magnitude <= 9 ? 'YES - Observable!' : 'MAYBE - Difficult'
-          ) : (
-            'NO - Not Visible'
-          )}
+    <div className={`${bgColor} border-l-4 rounded-lg p-4`}>
+      <div className="flex items-center justify-between gap-4">
+        {/* Left: Quick Status */}
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{emoji}</span>
+          <div>
+            <div className="text-sm text-[var(--color-text-tertiary)] font-medium">Can I see it tonight?</div>
+            <div className={`text-xl font-bold ${textColor}`}>
+              {isVisible ? (
+                magnitude && magnitude <= 9 ? 'YES' : 'MAYBE'
+              ) : (
+                'NO'
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Details */}
-        {!isVisible ? (
-          <>
-            <p className="text-[var(--color-text-primary)]">
-              3I/ATLAS is currently not observable from Earth.
-            </p>
-            <p className="text-[var(--color-text-secondary)]">
-              <strong>Reason:</strong> {reason}
-            </p>
-            <p className="text-[var(--color-text-secondary)]">
-              <strong>Next visibility:</strong> {nextVisibleDate}
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-[var(--color-text-primary)]">
-              {magnitude && magnitude <= 9
-                ? '3I/ATLAS is currently bright enough to observe!'
-                : '3I/ATLAS is visible but requires dark skies and optical aid.'
-              }
-            </p>
-            {magnitude && (
-              <div className="space-y-2">
-                <p className="text-[var(--color-text-secondary)]">
-                  <strong>Current brightness:</strong> Magnitude {magnitude.toFixed(1)}
-                  <span className="text-xs ml-2">(Lower = Brighter)</span>
-                </p>
-                <p className="text-[var(--color-text-secondary)]">
-                  <strong>Equipment needed:</strong> {equipment}
-                </p>
+        {/* Right: Key Info */}
+        <div className="text-right">
+          {!isVisible ? (
+            <>
+              <div className="text-sm text-[var(--color-text-secondary)]">{reason}</div>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)] mt-1">
+                Next visible: <span className={textColor}>{nextVisibleDate}</span>
               </div>
-            )}
-          </>
-        )}
-
-        {/* Tips section */}
-        <div className="mt-4 pt-4 border-t border-[var(--color-border-secondary)]">
-          <p className="text-sm text-[var(--color-text-tertiary)]">
-            <span>💡</span> <strong>Tip:</strong> {isVisible
-              ? 'Look during astronomical twilight (when the sky is dark). Avoid nights with a bright moon.'
-              : 'Set a reminder for the next visibility window. You can track the brightness predictions below.'
-            }
-          </p>
+            </>
+          ) : (
+            <>
+              {magnitude && (
+                <>
+                  <div className="text-sm text-[var(--color-text-secondary)]">Magnitude {magnitude.toFixed(1)}</div>
+                  <div className="text-sm font-semibold text-[var(--color-text-primary)] mt-1">{equipment}</div>
+                </>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

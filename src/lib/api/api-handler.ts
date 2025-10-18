@@ -77,7 +77,7 @@ export function apiHandler<TQuery = unknown, TResponse = unknown>(
         if (!result.success) {
           logger.warn({
             route,
-            errors: result.error.errors,
+            errors: result.error.issues,
             type: 'validation_error'
           }, 'Query parameter validation failed');
 
@@ -85,7 +85,7 @@ export function apiHandler<TQuery = unknown, TResponse = unknown>(
             {
               success: false,
               error: 'Invalid query parameters',
-              details: result.error.errors.map(e => ({
+              details: result.error.issues.map(e => ({
                 field: e.path.join('.'),
                 message: e.message
               }))

@@ -25,7 +25,7 @@ export const ANALYTICS_DATE_CONFIG = {
     startDate: '2025-07-01',
     endDate: '2025-12-31',
     limit: 365,
-    days: 183
+    days: 90  // Maximum for orbital-velocity API (prevents JPL Horizons timeouts)
   }
 };
 

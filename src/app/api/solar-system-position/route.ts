@@ -4,11 +4,12 @@ import * as Astronomy from 'astronomy-engine';
 import { saveSolarSystemCache, loadSolarSystemCache } from '@/lib/cache/persistent-cache';
 import { getSBDBPosition } from '@/lib/data-sources/nasa-sbdb';
 import { CACHE_TTL } from '@/constants/cache';
+import { calculatePositionFromElements } from '@/lib/orbital-calculations';
 import {
-  calculatePositionFromElements,
   calculateAtlasProjectionFromStateVectors,
-  calculateAtlasTrailFromOrbit
-} from '@/lib/orbital-calculations';
+  calculateAtlasTrailFromOrbit,
+  getCalculationMetadata
+} from '@/lib/orbital-bridge';
 import {
   PLANET_ORBITS,
   calculateAllPlanetPositions,
@@ -143,17 +144,17 @@ async function calculateAtlasProjection(
     return calculateAtlasProjectionFromStateVectors(projectionDays, startDate, currentPosition, currentVelocity);
   }
 
-  // Perihelion date: October 29, 2025 12:00 UT (JD 2460613.5)
-  const perihelionDate = new Date('2025-10-29T12:00:00Z');
+  // Perihelion date: 2025 Oct. 29.21095 TT from MPC MPEC 2025-N12
+  const perihelionDate = new Date('2025-10-29T05:03:46.000Z');
   const currentDate = startDate;
 
-  // Official orbital elements for 3I/ATLAS (from MPC, epoch 2025-May-05)
+  // Official orbital elements for 3I/ATLAS from Minor Planet Center MPEC 2025-N12
   const elements = {
-    e: 6.2769,     // Hyperbolic eccentricity (MPC: 6.2769203)
-    q: 1.3746,     // Perihelion distance (AU) (MPC: 1.3745928)
-    i: 175.117,    // Inclination (degrees) (MPC: 175.11669°)
-    omega: 127.79, // Argument of periapsis (degrees) (MPC: 127.79317°)
-    node: 322.27,  // Longitude of ascending node (degrees) (MPC: 322.27219°)
+    e: 6.2769203,     // Eccentricity (hyperbolic)
+    q: 1.3745928,     // Perihelion distance (AU)
+    i: 175.11669,     // Inclination (degrees) - retrograde, ~5° from ecliptic
+    omega: 127.79317, // Argument of periapsis (degrees)
+    node: 322.27219,  // Longitude of ascending node (degrees)
   };
 
   // Calculate projection using Kepler mechanics
@@ -321,24 +322,36 @@ export async function GET(request: NextRequest) {
         cometDataSource = 'NASA_SBDB';
         console.log('✓ Using NASA SBDB data (approximate positions)');
       } else {
-        // 3. Final fallback: use simplified calculation
-        console.warn('All NASA APIs unavailable - using simplified calculation');
-        const perihelionDate = new Date('2025-10-30T00:00:00Z');
-        const daysUntilPerihelion = (perihelionDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24);
-        const distance = Math.max(1.56, 3.0 - (90 - daysUntilPerihelion) * 0.016);
-        const angle = (daysUntilPerihelion * 2.0) * (Math.PI / 180);
+        // 3. Final fallback: calculate from official MPC orbital elements
+        console.warn('All NASA APIs unavailable - calculating from MPC orbital elements');
 
-        cometPos = [
-          distance * Math.cos(angle) * 0.8,
-          distance * Math.sin(angle) * 0.6,
-          distance * 0.3
-        ];
+        // Official MPC orbital elements (MPEC 2025-N12)
+        const perihelionDate = new Date('2025-10-29T05:03:46.000Z'); // Corrected perihelion date
+        const daysFromPerihelion = (currentDate.getTime() - perihelionDate.getTime()) / (1000 * 60 * 60 * 24);
+
+        const elements = {
+          e: 6.2769203,     // Eccentricity (official MPC)
+          q: 1.3745928,     // Perihelion distance (AU) (official MPC)
+          i: 175.11669,     // Inclination (degrees)
+          omega: 127.79317, // Argument of periapsis (degrees)
+          node: 322.27219,  // Longitude of ascending node (degrees)
+        };
+
+        // Calculate position using Kepler orbital mechanics
+        const pos = calculatePositionFromElements(daysFromPerihelion, elements);
+        cometPos = [pos.x, pos.y, pos.z];
+
+        // Estimate velocity using finite difference (position at t+0.1 days)
+        const posFuture = calculatePositionFromElements(daysFromPerihelion + 0.1, elements);
+        const dt = 0.1; // days
         cometVel = [
-          -0.015 * Math.sin(angle),
-          0.018 * Math.cos(angle),
-          0.008
+          (posFuture.x - pos.x) / dt,
+          (posFuture.y - pos.y) / dt,
+          (posFuture.z - pos.z) / dt
         ];
-        cometDataSource = 'calculated';
+
+        cometDataSource = 'MPC_orbital_elements';
+        console.log(`✓ Calculated position from MPC elements: (${pos.x.toFixed(3)}, ${pos.y.toFixed(3)}, ${pos.z.toFixed(3)}) AU`);
       }
     }
 
@@ -491,8 +504,8 @@ export async function GET(request: NextRequest) {
       }
     }, {
       headers: {
-        // Tier 3: Orbital mechanics - 1 hour (3D positions and orbital trails change very slowly)
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        // Orbital positions change slowly - cache for 30 min in browser, 1 hour on CDN
+        'Cache-Control': 'public, max-age=1800, s-maxage=3600, stale-while-revalidate=7200',
         'X-Processing-Time': processingTime.toString(),
         'X-Data-Source': cometDataSource,
         'X-Trail-Points': orbitalTrail.length.toString()

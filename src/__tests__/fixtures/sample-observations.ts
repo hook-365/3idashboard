@@ -21,7 +21,6 @@ export const SAMPLE_COBS_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'USA', lat: 40.7128, lng: -74.0060 },
     telescope: 'Refractor 150mm',
-    uncertainty: 0.3,
     source: 'COBS',
   },
   {
@@ -35,7 +34,6 @@ export const SAMPLE_COBS_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'UK', lat: 51.5074, lng: -0.1278 },
     telescope: 'Reflector 200mm',
-    uncertainty: 0.2,
     source: 'COBS',
   },
   {
@@ -49,7 +47,6 @@ export const SAMPLE_COBS_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Australia', lat: -33.8688, lng: 151.2093 },
     telescope: 'SCT 250mm',
-    uncertainty: 0.25,
     source: 'COBS',
   },
   {
@@ -63,7 +60,6 @@ export const SAMPLE_COBS_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Canada', lat: 43.6532, lng: -79.3832 },
     telescope: 'Refractor 180mm',
-    uncertainty: 0.15,
     source: 'COBS',
   },
   {
@@ -77,7 +73,6 @@ export const SAMPLE_COBS_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Germany', lat: 52.5200, lng: 13.4050 },
     telescope: 'Reflector 300mm',
-    uncertainty: 0.2,
     source: 'COBS',
   },
 ];
@@ -97,7 +92,6 @@ export const BRIGHTENING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'USA', lat: 40.0, lng: -100.0 },
     telescope: 'Telescope A',
-    uncertainty: 0.4,
     source: 'COBS',
   },
   {
@@ -111,7 +105,6 @@ export const BRIGHTENING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'France', lat: 48.8566, lng: 2.3522 },
     telescope: 'Telescope B',
-    uncertainty: 0.3,
     source: 'COBS',
   },
   {
@@ -125,7 +118,6 @@ export const BRIGHTENING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Japan', lat: 35.6762, lng: 139.6503 },
     telescope: 'Telescope C',
-    uncertainty: 0.35,
     source: 'COBS',
   },
   {
@@ -139,7 +131,6 @@ export const BRIGHTENING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Spain', lat: 40.4168, lng: -3.7038 },
     telescope: 'Telescope D',
-    uncertainty: 0.25,
     source: 'COBS',
   },
 ];
@@ -159,7 +150,6 @@ export const DIMMING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Italy', lat: 41.9028, lng: 12.4964 },
     telescope: 'Telescope E',
-    uncertainty: 0.3,
     source: 'COBS',
   },
   {
@@ -173,7 +163,6 @@ export const DIMMING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Poland', lat: 52.2297, lng: 21.0122 },
     telescope: 'Telescope F',
-    uncertainty: 0.25,
     source: 'COBS',
   },
   {
@@ -187,7 +176,6 @@ export const DIMMING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Brazil', lat: -15.8267, lng: -47.9218 },
     telescope: 'Telescope G',
-    uncertainty: 0.35,
     source: 'COBS',
   },
   {
@@ -201,7 +189,6 @@ export const DIMMING_OBSERVATIONS: CometObservation[] = [
     },
     location: { name: 'Chile', lat: -33.4489, lng: -70.6693 },
     telescope: 'Telescope H',
-    uncertainty: 0.4,
     source: 'COBS',
   },
 ];
@@ -220,7 +207,6 @@ export const PERIHELION_OBSERVATION: CometObservation = {
   },
   location: { name: 'Hawaii', lat: 19.8968, lng: -155.5828 },
   telescope: 'Large Telescope',
-  uncertainty: 0.1,
   source: 'COBS',
 };
 
@@ -233,14 +219,12 @@ export const INVALID_OBSERVATIONS = [
     magnitude: null, // Invalid magnitude
     observer: 'Invalid Observer',
     instrument: 'Telescope',
-    uncertainty: 0.3,
   },
   {
     date: 'invalid-date', // Invalid date
     magnitude: 14.5,
     observer: 'Bad Date Observer',
     instrument: 'Telescope',
-    uncertainty: 0.3,
   },
 ];
 

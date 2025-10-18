@@ -125,29 +125,26 @@ export async function GET(request: NextRequest) {
       startTime,
     });
 
-    // Start enhanced data fetch with timeout (5 seconds)
+    // Try to fetch enhanced data with timeout, fall back to COBS-only on failure
     const ENHANCED_DATA_TIMEOUT = 5000;
-    const enhancedPromise = getEnhancedCometData()
-      .then(data => ({ type: 'enhanced' as const, data }))
-      .catch((error: unknown) => {
-        console.warn('Enhanced data fetch failed:', error instanceof Error ? error.message : error);
-        return null;
-      });
+    let enhancedResult = null;
 
-    const timeoutPromise = new Promise<null>((resolve) =>
-      setTimeout(() => {
-        console.log(`Enhanced data timeout after ${ENHANCED_DATA_TIMEOUT}ms`);
-        resolve(null);
-      }, ENHANCED_DATA_TIMEOUT)
-    );
-
-    // Race enhanced data against timeout
-    const enhancedResult = await Promise.race([enhancedPromise, timeoutPromise]);
+    try {
+      enhancedResult = await Promise.race([
+        getEnhancedCometData(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout')), ENHANCED_DATA_TIMEOUT)
+        )
+      ]);
+      console.log('Successfully fetched enhanced multi-source data');
+    } catch (error) {
+      console.log(`Enhanced data timeout or error after ${ENHANCED_DATA_TIMEOUT}ms:`, error instanceof Error ? error.message : error);
+    }
 
     // If enhanced data is available, use it; otherwise use COBS-only
-    if (enhancedResult?.type === 'enhanced') {
+    if (enhancedResult) {
       console.log('Using enhanced multi-source data');
-      const enhancedData = enhancedResult.data;
+      const enhancedData = enhancedResult;
 
       // Apply frontend processing to enhanced data
       let processedLightCurve = enhancedData.comet.lightCurve;
@@ -210,6 +207,7 @@ export async function GET(request: NextRequest) {
           orbital_mechanics: enhancedData.orbital_mechanics,
           brightness_enhanced: enhancedData.brightness_enhanced,
           source_status: enhancedData.source_status,
+          jpl_ephemeris: enhancedData.jpl_ephemeris,
           // Data attributions preserved from sources
           data_attributions: {
             visual_observations: 'COBS Comet Observation Database (CC BY-NC-SA 4.0)',
@@ -245,9 +243,11 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(response, {
         headers: {
-          // Tier 1: Live observation data - 5 minutes (primary COBS observations change frequently)
-          // Even with orbital mechanics included, the core observation data drives updates
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          // Browser cache for 5 minutes, CDN for 5 min, revalidate in background for 10 min
+          // max-age: browser cache, s-maxage: CDN cache, stale-while-revalidate: background refresh
+          'Cache-Control': forceRefresh
+            ? 'no-cache, no-store, must-revalidate'
+            : 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
           'X-Processing-Time': processingTime.toString(),
           'X-Data-Source': 'Multi-Source-Enhanced-v2.1',
           'X-Active-Sources': activeSources.join(','),
@@ -280,8 +280,10 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(responseWithFallbackInfo, {
         headers: {
-          // Tier 1: Live observation data - 5 minutes (COBS fallback also contains live observations)
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          // Browser + CDN cache for 5 minutes, revalidate in background for 10 min
+          'Cache-Control': forceRefresh
+            ? 'no-cache, no-store, must-revalidate'
+            : 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
           'X-Processing-Time': processingTime.toString(),
           'X-Data-Source': 'COBS-API-v2-Timeout-Fallback',
           'X-Fallback': 'true',

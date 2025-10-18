@@ -46,6 +46,45 @@ export interface JPLHorizonsData {
   data_source: string; // "JPL Horizons"
 }
 
+/**
+ * Ephemeris data point for a single timestamp
+ * Represents observer-centric position and brightness data
+ */
+export interface JPLEphemerisPoint {
+  date: string;                    // ISO timestamp
+  jd: number;                      // Julian Date
+  ra: number;                      // Right Ascension (degrees)
+  dec: number;                     // Declination (degrees)
+  delta: number;                   // Observer range (AU) - distance from Earth
+  r: number;                       // Heliocentric range (AU) - distance from Sun
+  phase_angle: number;             // Sun-Target-Observer angle (degrees)
+  solar_elongation: number;        // Sun-Observer-Target angle (degrees)
+  magnitude: number;               // Visual magnitude (V-band)
+  surface_brightness: number;      // Surface brightness (mag/arcsec²)
+  delta_rate: number;              // Range rate (km/s) - velocity toward/away from Earth
+  r_rate: number;                  // Heliocentric range rate (km/s)
+}
+
+/**
+ * Full ephemeris dataset for a date range
+ * Contains time-series position and brightness data
+ */
+export interface JPLEphemerisData {
+  target: string;                  // "3I/ATLAS"
+  observer_location: string;       // "Geocentric" or specific observatory
+  ephemeris_points: JPLEphemerisPoint[];
+  metadata: {
+    start_date: string;
+    end_date: string;
+    step_size: string;             // e.g., "1d", "6h"
+    coordinate_system: string;     // "ICRF/J2000.0"
+    reference_frame: string;       // "Earth Mean Equator and Equinox of Reference Epoch"
+    total_points: number;
+  };
+  last_updated: string;
+  data_source: string;             // "JPL Horizons Ephemeris"
+}
+
 // Date range interface for querying specific time periods
 export interface DateRange {
   start: string; // ISO date string
@@ -54,7 +93,7 @@ export interface DateRange {
 
 // JPL Horizons API configuration
 const JPL_HORIZONS_BASE = 'https://ssd.jpl.nasa.gov/api/horizons.api';
-const COMET_DESIGNATION = '3I'; // 3I/ATLAS (also known as C/2025 N1)
+const COMET_DESIGNATION = "'C/2025 N1'"; // Official MPC designation (3I/ATLAS informal name)
 
 // Cache implementation (following established codebase pattern)
 interface CacheEntry<T> {
@@ -126,7 +165,7 @@ const cache = new MemoryCache();
 const rateLimiter = new RateLimiter();
 
 /**
- * Build URL parameters for JPL Horizons API request
+ * Build URL parameters for JPL Horizons API request (orbital mechanics - state vectors)
  */
 export function buildHorizonsParams(dateRange?: DateRange): URLSearchParams {
   const now = new Date();
@@ -152,6 +191,56 @@ export function buildHorizonsParams(dateRange?: DateRange): URLSearchParams {
 
     // Essential options only
     'OUT_UNITS': 'AU-D' // AU and days
+  });
+
+  return params;
+}
+
+/**
+ * Build URL parameters for JPL Horizons ephemeris query (observer-centric data)
+ *
+ * @param dateRange - Optional date range for ephemeris
+ * @param stepSize - Time step (e.g., "1d", "6h", "1h") - default "1d"
+ * @returns URLSearchParams for JPL Horizons API
+ */
+export function buildEphemerisParams(dateRange?: DateRange, stepSize: string = '1d'): URLSearchParams {
+  const now = new Date();
+  const defaultStart = now.toISOString().split('T')[0]; // Today
+  const defaultEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // +7 days
+
+  const params = new URLSearchParams({
+    // Target specification
+    'COMMAND': COMET_DESIGNATION,
+
+    // Ephemeris mode
+    'MAKE_EPHEM': 'YES',
+    'EPHEM_TYPE': 'OBSERVER',
+
+    // Output format
+    'format': 'text',
+
+    // Time specification
+    'START_TIME': dateRange?.start || defaultStart,
+    'STOP_TIME': dateRange?.end || defaultEnd,
+    'STEP_SIZE': stepSize,
+
+    // Observer location (geocentric - Earth center)
+    'CENTER': '500@399', // Geocentric (Earth center, NAIF ID 399)
+
+    // Request comprehensive ephemeris data:
+    // 1 = RA & DEC
+    // 19 = Heliocentric & Geocentric distances + range rates (r, r_rate, delta, delta_rate)
+    // 20 = Observer range & range-rate (alternative)
+    'QUANTITIES': '1,19,20',
+
+    // Coordinate system and formatting
+    'REF_SYSTEM': 'ICRF',           // ICRF/J2000.0 coordinates
+    'CAL_FORMAT': 'CAL',             // Calendar date only (simpler parsing)
+    'ANG_FORMAT': 'DEG',             // Angles in decimal degrees
+    'APPARENT': 'AIRLESS',           // No atmospheric refraction (for consistency)
+    'RANGE_UNITS': 'AU',             // Distances in AU
+    'EXTRA_PREC': 'NO',              // Standard precision
+    'CSV_FORMAT': 'NO',              // ASCII table format
   });
 
   return params;
@@ -570,6 +659,147 @@ export function calculateOrbitalParameters(data: JPLHorizonsData): {
 }
 
 /**
+ * Parse JPL Horizons ephemeris ASCII response format
+ * Extracts observer-centric position data (RA/DEC)
+ *
+ * Expected format (from QUANTITIES='1'):
+ * Date__(UT)__HR:MN     R.A._____(ICRF)_____DEC
+ * 2025-Oct-05 00:00     213.96893 -10.27342
+ *
+ * Note: RA and DEC are in decimal degrees when ANG_FORMAT='DEG'
+ */
+export function parseEphemerisResponse(response: string, dateRange?: DateRange, stepSize?: string): JPLEphemerisData {
+  console.log('Parsing JPL Horizons ephemeris response...');
+
+  const ephemeris_points: JPLEphemerisPoint[] = [];
+
+  try {
+    // Find the data section between $$SOE and $$EOE markers
+    const dataStart = response.indexOf('$$SOE');
+    const dataEnd = response.indexOf('$$EOE');
+
+    if (dataStart === -1 || dataEnd === -1) {
+      console.warn('No ephemeris data section found in JPL response (missing $$SOE/$$EOE markers)');
+      throw new Error('No ephemeris data section found in JPL response');
+    }
+
+    const dataSection = response.substring(dataStart + 5, dataEnd); // Skip '$$SOE'
+    const lines = dataSection.split('\n').filter(line => line.trim().length > 0);
+
+    console.log(`Found ${lines.length} ephemeris data lines to parse`);
+
+    for (const line of lines) {
+      try {
+        // Parse format with QUANTITIES='1,19,20':
+        // "YYYY-MMM-DD HH:MM  RA  DEC  delta  deldot  r  rdot"
+        // Example: " 2025-Oct-05 00:00     213.96893 -10.27342  2.456  -12.34  1.234  15.67"
+
+        // Split by whitespace
+        const parts = line.trim().split(/\s+/);
+
+        if (parts.length < 4) {
+          // Need at least: date, time, RA, DEC
+          continue;
+        }
+
+        // Extract date and time
+        const dateStr = parts[0]; // "2025-Oct-05"
+        const timeStr = parts[1]; // "00:00"
+
+        // Parse date into ISO format
+        const date = new Date(`${dateStr} ${timeStr} UTC`).toISOString();
+
+        // Extract RA and DEC (already in decimal degrees)
+        const ra = parseFloat(parts[2]);
+        const dec = parseFloat(parts[3]);
+
+        // Validate coordinates
+        if (isNaN(ra) || isNaN(dec)) {
+          console.warn(`Skipping invalid coordinates: ${line.substring(0, 50)}...`);
+          continue;
+        }
+
+        // Additional validation
+        if (ra < 0 || ra > 360 || dec < -90 || dec > 90) {
+          console.warn(`Skipping out-of-range coordinates: RA=${ra}, DEC=${dec}`);
+          continue;
+        }
+
+        // Calculate Julian Date
+        const jd = dateToJulianDate(new Date(date));
+
+        // Extract additional fields from QUANTITIES 19,20 (if available)
+        // Format varies, but typically:
+        // parts[4] = delta (geocentric distance, AU)
+        // parts[5] = delta_rate (geocentric range rate, km/s) or deldot
+        // parts[6] = r (heliocentric distance, AU)
+        // parts[7] = r_rate (heliocentric range rate, km/s) or rdot
+
+        const delta = parts.length > 4 ? parseFloat(parts[4]) : 0;
+        const delta_rate = parts.length > 5 ? parseFloat(parts[5]) : 0;
+        const r = parts.length > 6 ? parseFloat(parts[6]) : 0;
+        const r_rate = parts.length > 7 ? parseFloat(parts[7]) : 0;
+
+        // Create ephemeris point with all available data
+        ephemeris_points.push({
+          date,
+          jd,
+          ra,
+          dec,
+          delta: !isNaN(delta) ? delta : 0,
+          r: !isNaN(r) ? r : 0,
+          phase_angle: 0,          // Would need separate quantity code
+          solar_elongation: 0,     // Would need separate quantity code
+          magnitude: 0,            // Would need separate quantity code
+          surface_brightness: 0,   // Would need separate quantity code
+          delta_rate: !isNaN(delta_rate) ? delta_rate : 0,
+          r_rate: !isNaN(r_rate) ? r_rate : 0,
+        });
+
+      } catch (lineError) {
+        console.warn(`Error parsing ephemeris line: ${line.substring(0, 50)}...`, lineError);
+        // Continue to next line
+      }
+    }
+
+    console.log(`Successfully parsed ${ephemeris_points.length} ephemeris points (RA/DEC + distances + velocities)`);
+
+  } catch (error) {
+    console.error('Error parsing JPL Horizons ephemeris response:', error);
+  }
+
+  // Build metadata
+  const now = new Date();
+  const defaultStart = dateRange?.start || now.toISOString().split('T')[0];
+  const defaultEnd = dateRange?.end || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  return {
+    target: '3I/ATLAS',
+    observer_location: 'Geocentric',
+    ephemeris_points,
+    metadata: {
+      start_date: defaultStart,
+      end_date: defaultEnd,
+      step_size: stepSize || '1d',
+      coordinate_system: 'ICRF/J2000.0',
+      reference_frame: 'Earth Mean Equator and Equinox of Reference Epoch',
+      total_points: ephemeris_points.length,
+    },
+    last_updated: new Date().toISOString(),
+    data_source: 'JPL Horizons Ephemeris (Full)',
+  };
+}
+
+/**
+ * Convert Date to Julian Date
+ * Helper function for ephemeris data
+ */
+function dateToJulianDate(date: Date): number {
+  const time = date.getTime();
+  return (time / 86400000) + 2440587.5;
+}
+
+/**
  * Planet position data interface
  */
 export interface PlanetPosition {
@@ -747,6 +977,156 @@ export async function fetchAllPlanetPositions(date?: Date): Promise<PlanetPositi
   }
 
   return planets;
+}
+
+/**
+ * Fetch ephemeris data from JPL Horizons API
+ *
+ * @param dateRange - Optional date range for ephemeris (defaults to today + 7 days)
+ * @param stepSize - Time step between ephemeris points (default: "1d")
+ * @returns JPLEphemerisData with time-series position/brightness data, or null on error
+ */
+export async function fetchJPLEphemerisData(
+  dateRange?: DateRange,
+  stepSize: string = '1d'
+): Promise<JPLEphemerisData | null> {
+  const cacheKey = `jpl_ephemeris_${dateRange?.start || 'current'}_${dateRange?.end || 'week'}_${stepSize}`;
+
+  // Check cache first
+  const cached = cache.get<JPLEphemerisData>(cacheKey);
+  if (cached) {
+    console.log('JPL Horizons ephemeris cache hit - returning cached data');
+    return cached;
+  }
+
+  try {
+    await rateLimiter.waitForSlot();
+
+    console.log('Fetching JPL Horizons ephemeris data...');
+
+    const params = buildEphemerisParams(dateRange, stepSize);
+    const url = `${JPL_HORIZONS_BASE}?${params.toString()}`;
+
+    console.log('JPL Ephemeris API URL:', url);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': '3I-ATLAS-Dashboard/1.0 (Educational/Research)',
+        'Accept': 'text/plain,*/*',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`JPL Horizons ephemeris HTTP error: ${response.status} ${response.statusText}`);
+    }
+
+    const responseText = await response.text();
+
+    if (!responseText || responseText.trim().length === 0) {
+      throw new Error('JPL Horizons returned empty ephemeris response');
+    }
+
+    // Check for error indicators in JPL response
+    if (responseText.includes('ERROR') || responseText.includes('No ephemeris')) {
+      throw new Error('JPL Horizons API returned error or no ephemeris data');
+    }
+
+    // Parse the ASCII response
+    const ephemerisData = parseEphemerisResponse(responseText, dateRange, stepSize);
+
+    // Validate the parsed data
+    if (ephemerisData.ephemeris_points.length === 0) {
+      throw new Error('No valid ephemeris points found in JPL response');
+    }
+
+    // Validate data quality (RA/DEC coordinates)
+    const firstPoint = ephemerisData.ephemeris_points[0];
+    if (firstPoint.ra < 0 || firstPoint.ra > 360) {
+      throw new Error(`Invalid RA value in ephemeris data: ${firstPoint.ra}`);
+    }
+    if (firstPoint.dec < -90 || firstPoint.dec > 90) {
+      throw new Error(`Invalid DEC value in ephemeris data: ${firstPoint.dec}`);
+    }
+
+    // Cache successful result for 15 minutes (ephemeris changes more frequently than orbital elements)
+    cache.set(cacheKey, ephemerisData, 900000);
+
+    console.log(`Successfully fetched and parsed JPL Horizons ephemeris data (${ephemerisData.ephemeris_points.length} points)`);
+    return ephemerisData;
+
+  } catch (error) {
+    console.error('Failed to fetch JPL Horizons ephemeris data:', error);
+    console.log('JPL Ephemeris API unavailable - no fallback data will be provided');
+
+    // Return null instead of throwing (allows graceful degradation)
+    return null;
+  }
+}
+
+/**
+ * Get current ephemeris (single point for "now")
+ * Optimized for real-time position tracking
+ *
+ * @returns Single JPLEphemerisPoint for current time, or null on error
+ */
+export async function getCurrentJPLEphemeris(): Promise<JPLEphemerisPoint | null> {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // Fetch ephemeris for today with hourly steps to get current position
+  const ephemerisData = await fetchJPLEphemerisData(
+    { start: today, end: tomorrow },
+    '1h' // Hourly steps for better precision
+  );
+
+  if (!ephemerisData || ephemerisData.ephemeris_points.length === 0) {
+    return null;
+  }
+
+  // Find the point closest to current time
+  const currentTime = now.getTime();
+  let closestPoint = ephemerisData.ephemeris_points[0];
+  let minTimeDiff = Math.abs(new Date(closestPoint.date).getTime() - currentTime);
+
+  for (const point of ephemerisData.ephemeris_points) {
+    const timeDiff = Math.abs(new Date(point.date).getTime() - currentTime);
+    if (timeDiff < minTimeDiff) {
+      minTimeDiff = timeDiff;
+      closestPoint = point;
+    }
+  }
+
+  console.log(`Found current ephemeris point (${Math.round(minTimeDiff / 60000)} minutes from now)`);
+  return closestPoint;
+}
+
+/**
+ * Get JPL Horizons ephemeris data with comprehensive error handling
+ * Main export function for dashboard components
+ *
+ * @param dateRange - Optional date range
+ * @param stepSize - Optional step size (default: "1d")
+ * @returns JPLEphemerisData or null if unavailable
+ */
+export async function getJPLEphemerisData(
+  dateRange?: DateRange,
+  stepSize?: string
+): Promise<JPLEphemerisData | null> {
+  try {
+    return await fetchJPLEphemerisData(dateRange, stepSize);
+  } catch (error) {
+    console.error('Critical error in JPL ephemeris data fetch:', error);
+    return null;
+  }
 }
 
 /**

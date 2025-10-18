@@ -21,8 +21,15 @@
 
 import { cobsApi, type LightCurvePoint, type ProcessedObservation } from '../../services/cobs-api';
 import { getTheSkyLiveOrbitalData, type TheSkyLiveData } from './theskylive';
-import { getJPLHorizonsOrbitalData, type JPLHorizonsData, calculateOrbitalParameters } from './jpl-horizons';
+import {
+  getJPLHorizonsOrbitalData,
+  getJPLEphemerisData,
+  type JPLHorizonsData,
+  type JPLEphemerisData,
+  calculateOrbitalParameters
+} from './jpl-horizons';
 import { getMPCOrbitalData, type MPCSourceData } from './mpc';
+import { calculateAtlasRADEC } from '../orbital-calculations';
 import type {
   EnhancedCometData,
   CacheEntry,
@@ -31,6 +38,24 @@ import type {
 
 // Re-export types for backward compatibility
 export type { EnhancedCometData, CacheStatus } from '../../types/enhanced-comet-data';
+
+/**
+ * Official orbital elements for 3I/ATLAS from IAU/MPC
+ * Source: TheSkyLive.com / Minor Planet Center MPEC 2025-N12
+ * Epoch: July 18, 2025 (JD 2460875.5)
+ *
+ * These are published, measured values - not mock data
+ */
+const ATLAS_3I_ORBITAL_ELEMENTS = {
+  eccentricity: 6.13941774,        // Hyperbolic orbit (interstellar)
+  perihelion_distance_au: 1.35638454,  // Closest approach to Sun
+  perihelion_date: '2025-10-29T11:33:16.000Z',
+  inclination_deg: 175.11310480,   // Retrograde orbit
+  ascending_node_deg: 322.15684249,
+  argument_of_perihelion_deg: 128.01051367,
+  epoch: '2025-07-18T00:00:00.000Z',
+  epoch_jd: 2460875.5
+} as const;
 
 /**
  * Internal type for COBS data structure with derived stats and light curve
@@ -62,10 +87,11 @@ export class DataSourceManager {
 
   // Cache TTL values (in milliseconds)
   private readonly CACHE_TTL = {
-    COBS: 15 * 60 * 1000,      // 15 minutes
-    THESKYLIVE: 15 * 60 * 1000, // 15 minutes
-    JPL_HORIZONS: 30 * 60 * 1000, // 30 minutes
-    MPC: 24 * 60 * 60 * 1000,  // 24 hours (MPC updates few times per month)
+    COBS: 15 * 60 * 1000,           // 15 minutes
+    THESKYLIVE: 15 * 60 * 1000,     // 15 minutes
+    JPL_HORIZONS: 30 * 60 * 1000,   // 30 minutes (orbital elements change slowly)
+    JPL_EPHEMERIS: 15 * 60 * 1000,  // 15 minutes (position changes faster)
+    MPC: 24 * 60 * 60 * 1000,       // 24 hours (MPC updates few times per month)
     FAILED_REQUEST: 10 * 60 * 1000, // 10 minutes for failed requests
   };
 
@@ -76,10 +102,11 @@ export class DataSourceManager {
     console.log(`[DataSourceManager ${this.instanceId}] Starting multi-source data fetch...`);
 
     // Fetch from all sources in parallel using Promise.allSettled
-    const [cobsResult, theSkyResult, jplResult, mpcResult] = await Promise.allSettled([
+    const [cobsResult, theSkyResult, jplResult, jplEphemerisResult, mpcResult] = await Promise.allSettled([
       this.fetchWithCache('cobs', () => this.fetchCOBSData(), this.CACHE_TTL.COBS),
       this.fetchWithCache('theskylive', () => getTheSkyLiveOrbitalData(), this.CACHE_TTL.THESKYLIVE),
       this.fetchWithCache('jpl_horizons', () => getJPLHorizonsOrbitalData(), this.CACHE_TTL.JPL_HORIZONS),
+      this.fetchWithCache('jpl_ephemeris', () => getJPLEphemerisData(), this.CACHE_TTL.JPL_EPHEMERIS),
       this.fetchWithCache('mpc', () => getMPCOrbitalData(), this.CACHE_TTL.MPC),
     ]);
 
@@ -87,18 +114,20 @@ export class DataSourceManager {
     const cobsData = cobsResult.status === 'fulfilled' ? cobsResult.value : null;
     const theSkyData = theSkyResult.status === 'fulfilled' ? theSkyResult.value : null;
     const jplData = jplResult.status === 'fulfilled' ? jplResult.value : null;
+    const jplEphemerisData = jplEphemerisResult.status === 'fulfilled' ? jplEphemerisResult.value : null;
     const mpcData = mpcResult.status === 'fulfilled' ? mpcResult.value : null;
 
     // Log source status
     console.log('Source fetch results:', {
       cobs: cobsResult.status,
       theskylive: theSkyResult.status,
-      jpl: jplResult.status,
+      jpl_horizons: jplResult.status,
+      jpl_ephemeris: jplEphemerisResult.status,
       mpc: mpcResult.status,
     });
 
     // Merge data sources with intelligent fallbacks
-    return this.mergeDataSources(cobsData, jplData, theSkyData, mpcData);
+    return this.mergeDataSources(cobsData, jplData, jplEphemerisData, theSkyData, mpcData);
   }
 
   /**
@@ -273,6 +302,7 @@ export class DataSourceManager {
   private mergeDataSources(
     cobsData: COBSDataStructure | null,
     jplData: JPLHorizonsData | null,
+    jplEphemerisData: JPLEphemerisData | null,
     theSkyData: TheSkyLiveData | null,
     mpcData: MPCSourceData | null
   ): EnhancedCometData {
@@ -281,14 +311,18 @@ export class DataSourceManager {
     // Use COBS as primary source for observations and basic stats
     const baseData: COBSDataStructure = cobsData || (this.getMockData('cobs') as COBSDataStructure);
 
-    // Calculate orbital mechanics from available sources
-    const orbitalMechanics = this.calculateOrbitalMechanics(jplData, theSkyData);
+    // Calculate orbital mechanics from available sources (including MPC for orbital elements)
+    const orbitalMechanics = this.calculateOrbitalMechanics(jplData, jplEphemerisData, theSkyData, mpcData);
 
     // Enhanced brightness analysis
-    const brightnessEnhanced = this.calculateBrightnessEnhanced(baseData, jplData, theSkyData);
+    const brightnessEnhanced = this.calculateBrightnessEnhanced(baseData, jplData, jplEphemerisData, theSkyData);
 
     // Source status reporting
-    const sourceStatus = this.getSourceStatus(cobsData, jplData, theSkyData, mpcData);
+    const sourceStatus = this.getSourceStatus(cobsData, jplData, jplEphemerisData, theSkyData, mpcData);
+
+    // Extract ephemeris data for frontend (with calculated fallback)
+    const jplEphemeris = this.extractEphemerisData(jplEphemerisData, theSkyData);
+    console.log(`jplEphemeris extracted:`, jplEphemeris ? `RA=${jplEphemeris.current_position?.ra?.toFixed(2)}°, source=${jplEphemeris.data_source}` : 'null');
 
     return {
       // Existing COBS structure
@@ -307,6 +341,10 @@ export class DataSourceManager {
         daysUntilPerihelion: Math.floor(
           (new Date('2025-10-30').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
         ),
+        observationDateRange: baseData.stats?.observationDateRange || {
+          earliest: '',
+          latest: '',
+        },
       },
 
       // Enhanced multi-source data
@@ -316,7 +354,173 @@ export class DataSourceManager {
 
       // MPC orbital elements (if available)
       mpc_orbital_elements: mpcData?.orbital_elements,
+
+      // JPL Horizons ephemeris data (calculated from orbital elements when JPL unavailable)
+      jpl_ephemeris: jplEphemeris,
     };
+  }
+
+  /**
+   * Extract and format ephemeris data for frontend consumption
+   * Falls back to calculated position from our orbital elements when JPL unavailable
+   */
+  private extractEphemerisData(jplEphemerisData: JPLEphemerisData | null, theSkyData: TheSkyLiveData | null = null) {
+    // Priority 1: Try JPL ephemeris first (most accurate)
+    if (jplEphemerisData && jplEphemerisData.ephemeris_points.length > 0) {
+      // Get the most recent (current) position
+      const latestPoint = jplEphemerisData.ephemeris_points[jplEphemerisData.ephemeris_points.length - 1];
+
+      console.log(`Using JPL ephemeris data: RA=${latestPoint.ra.toFixed(2)}°, DEC=${latestPoint.dec.toFixed(2)}°`);
+      return {
+        current_position: {
+          ra: latestPoint.ra,
+          dec: latestPoint.dec,
+          magnitude: latestPoint.magnitude,
+          last_updated: latestPoint.date,
+        },
+        time_series: jplEphemerisData.ephemeris_points.map(point => ({
+          date: point.date,
+          ra: point.ra,
+          dec: point.dec,
+          delta: point.delta,
+          r: point.r,
+          magnitude: point.magnitude,
+        })),
+        data_source: 'JPL Horizons Ephemeris',
+      };
+    }
+
+    // Priority 2: Use TheSkyLive if available (observational data)
+    if (theSkyData?.ra !== undefined && theSkyData?.dec !== undefined) {
+      console.log(`Using TheSkyLive ephemeris data: RA=${theSkyData.ra.toFixed(2)}°, DEC=${theSkyData.dec.toFixed(2)}°`);
+      return {
+        current_position: {
+          ra: theSkyData.ra,
+          dec: theSkyData.dec,
+          magnitude: theSkyData.magnitude || 0,
+          last_updated: new Date().toISOString(),
+        },
+        time_series: undefined,
+        data_source: 'TheSkyLive (observational)',
+      };
+    }
+
+    // Priority 3: Fallback to calculation from orbital elements
+    console.log('JPL ephemeris and TheSkyLive unavailable - calculating RA/DEC from orbital elements');
+    const calculated = calculateAtlasRADEC();
+    console.log(`Calculated ephemeris: RA=${calculated.ra.toFixed(2)}°, DEC=${calculated.dec.toFixed(2)}°`);
+
+    return {
+      current_position: {
+        ra: calculated.ra,
+        dec: calculated.dec,
+        magnitude: 0, // No magnitude from calculation
+        last_updated: calculated.last_updated,
+      },
+      time_series: undefined,
+      data_source: 'Calculated (orbital elements)',
+    };
+  }
+
+  /**
+   * Calculate heliocentric velocity from orbital elements using vis-viva equation
+   *
+   * Vis-viva equation: v = sqrt(μ * (2/r - 1/a))
+   * Where:
+   *   μ = Sun's gravitational parameter = 1.327124e11 km³/s²
+   *   r = current heliocentric distance (km)
+   *   a = semi-major axis (km), calculated from eccentricity and perihelion distance
+   *
+   * For hyperbolic orbits (e > 1):
+   *   a = q / (1 - e) where e > 1 makes a negative
+   *   The 1/a term becomes negative, increasing velocity (as expected for interstellar objects)
+   *
+   * @param heliocentric_distance - Current distance from Sun in AU
+   * @param eccentricity - Orbital eccentricity (>1 for hyperbolic/interstellar)
+   * @param perihelion_distance - Perihelion distance in AU
+   * @returns Heliocentric velocity in km/s, or null if inputs are invalid
+   */
+  private calculateVelocityFromOrbitalElements(
+    heliocentric_distance: number,
+    eccentricity: number,
+    perihelion_distance: number
+  ): number | null {
+    // Validate inputs
+    if (heliocentric_distance <= 0 || perihelion_distance <= 0) {
+      console.warn('Invalid distances for velocity calculation:', {
+        heliocentric_distance,
+        perihelion_distance
+      });
+      return null;
+    }
+
+    // Constants
+    const GM_SUN = 1.32712440018e11; // km³/s² (Sun's gravitational parameter)
+    const AU_TO_KM = 149597870.7; // km per AU
+
+    // Convert distances from AU to km
+    const r_km = heliocentric_distance * AU_TO_KM;
+    const q_km = perihelion_distance * AU_TO_KM;
+
+    // Calculate semi-major axis from eccentricity and perihelion distance
+    // For hyperbolic orbits (e > 1), a is negative
+    // a = q / (1 - e)
+    const a_km = q_km / (1 - eccentricity);
+
+    console.log('Velocity calculation from orbital elements:', {
+      heliocentric_distance_au: heliocentric_distance.toFixed(3),
+      eccentricity: eccentricity.toFixed(3),
+      perihelion_distance_au: perihelion_distance.toFixed(3),
+      semi_major_axis_km: a_km.toFixed(0),
+      orbit_type: eccentricity > 1 ? 'hyperbolic (interstellar)' : eccentricity === 1 ? 'parabolic' : 'elliptical'
+    });
+
+    // Apply vis-viva equation: v = sqrt(μ * (2/r - 1/a))
+    const velocity_km_s = Math.sqrt(GM_SUN * (2 / r_km - 1 / a_km));
+
+    console.log(`Calculated heliocentric velocity: ${velocity_km_s.toFixed(2)} km/s (from orbital elements)`);
+
+    return velocity_km_s;
+  }
+
+  /**
+   * Calculate geocentric velocity accounting for Earth's orbital motion
+   *
+   * Simple approximation: geocentric velocity depends on:
+   * - Heliocentric velocity of comet
+   * - Geocentric distance
+   * - Earth's orbital velocity (~29.78 km/s)
+   * - Angle between comet and Earth velocity vectors
+   *
+   * For a rough estimate, we approximate based on geometry
+   */
+  private calculateGeocentricVelocity(
+    heliocentric_velocity: number,
+    geocentric_distance: number,
+    heliocentric_distance: number
+  ): number {
+    // Earth's average orbital velocity
+    const EARTH_ORBITAL_VELOCITY = 29.78; // km/s
+
+    // Simple vector subtraction approximation
+    // In reality, this requires full 3D vector math with angles
+    // For interstellar comets, the velocity is so high that Earth's contribution is relatively small
+
+    // Estimate based on triangle: comet-Sun-Earth
+    // Using law of cosines approximation
+    const cos_angle = (heliocentric_distance * heliocentric_distance + geocentric_distance * geocentric_distance - 1.0) /
+                      (2 * heliocentric_distance * geocentric_distance);
+
+    // Geocentric velocity component (simplified)
+    const geocentric_velocity = Math.sqrt(
+      heliocentric_velocity * heliocentric_velocity +
+      EARTH_ORBITAL_VELOCITY * EARTH_ORBITAL_VELOCITY -
+      2 * heliocentric_velocity * EARTH_ORBITAL_VELOCITY * cos_angle
+    );
+
+    console.log(`Calculated geocentric velocity: ${geocentric_velocity.toFixed(2)} km/s (accounting for Earth's motion)`);
+
+    return geocentric_velocity;
   }
 
   /**
@@ -324,32 +528,139 @@ export class DataSourceManager {
    */
   private calculateOrbitalMechanics(
     jplData: JPLHorizonsData | null,
-    theSkyData: TheSkyLiveData | null
+    jplEphemerisData: JPLEphemerisData | null,
+    theSkyData: TheSkyLiveData | null,
+    mpcData: MPCSourceData | null
   ) {
-    // Prioritize JPL for velocity calculations (most accurate)
-    let heliocentric_velocity = 40.0; // Default for interstellar comet
-    let geocentric_velocity = 35.0;
+    // Initialize with null - we'll ALWAYS calculate from orbital elements if needed
+    let heliocentric_velocity: number | null = null;
+    let geocentric_velocity: number | null = null;
     let angular_velocity = 0.5; // arcsec/day
+    let velocity_source = 'unknown';
 
-    // Calculate distances from available sources
+    // Calculate distances from available sources (prioritize ephemeris > orbital > TheSkyLive)
     let heliocentric_distance = 2.1; // Default AU
     let geocentric_distance = 3.2; // Default AU
 
+    // Prioritize ephemeris data for distances (observer-centric, more up-to-date)
+    if (jplEphemerisData && jplEphemerisData.ephemeris_points.length > 0) {
+      const latestPoint = jplEphemerisData.ephemeris_points[jplEphemerisData.ephemeris_points.length - 1];
+      heliocentric_distance = latestPoint.r;
+      geocentric_distance = latestPoint.delta;
+
+      // Use range rate from ephemeris for geocentric velocity (if available)
+      if (latestPoint.delta_rate) {
+        geocentric_velocity = Math.abs(latestPoint.delta_rate);
+      }
+
+      console.log('Using JPL ephemeris for distances');
+    } else if (jplData) {
+      // Fallback to orbital mechanics calculations
+      const orbitalParams = calculateOrbitalParameters(jplData);
+      heliocentric_distance = orbitalParams.distance_from_sun;
+      geocentric_distance = orbitalParams.distance_from_earth;
+
+      console.log('Using JPL orbital mechanics for distances');
+    } else if (theSkyData) {
+      // Last resort: use TheSkyLive distance data
+      heliocentric_distance = theSkyData.heliocentric_distance;
+      geocentric_distance = theSkyData.geocentric_distance;
+
+      console.log('Using TheSkyLive for distances (JPL unavailable)');
+    }
+
+    // VELOCITY CALCULATION PRIORITY:
+    // 1. JPL ephemeris range rate (most accurate, real-time)
+    // 2. JPL orbital parameters calculation
+    // 3. TheSkyLive calculated velocity (from orbital elements + vis-viva equation)
+    // 4. MPC orbital elements + vis-viva equation (if available)
+    // 5. TheSkyLive orbital elements (manual calculation)
+    // 6. Official published 3I/ATLAS orbital elements (ALWAYS available)
+
+    // Try JPL orbital data first for heliocentric velocity
     if (jplData) {
       const orbitalParams = calculateOrbitalParameters(jplData);
       heliocentric_velocity = orbitalParams.current_velocity;
-      geocentric_velocity = heliocentric_velocity * 0.9; // Approximation
-      heliocentric_distance = orbitalParams.distance_from_sun;
-      geocentric_distance = orbitalParams.distance_from_earth;
-    } else if (theSkyData) {
-      // Use TheSkyLive distance data if JPL not available
-      heliocentric_distance = theSkyData.heliocentric_distance;
-      geocentric_distance = theSkyData.geocentric_distance;
+      velocity_source = 'JPL orbital parameters';
+      console.log(`Using JPL orbital parameters for velocity: ${heliocentric_velocity.toFixed(2)} km/s`);
+    }
+    // If no JPL, try TheSkyLive calculated velocity (from orbital elements)
+    else if (theSkyData?.calculated_velocity) {
+      heliocentric_velocity = theSkyData.calculated_velocity;
+      velocity_source = 'TheSkyLive orbital elements (vis-viva equation)';
+      console.log(`Using TheSkyLive calculated velocity: ${heliocentric_velocity.toFixed(2)} km/s`);
+    }
+    // If no TheSkyLive calculated velocity, try calculating from MPC orbital elements
+    else if (mpcData?.orbital_elements?.eccentricity && mpcData?.orbital_elements?.perihelion_distance) {
+      const calculated_velocity = this.calculateVelocityFromOrbitalElements(
+        heliocentric_distance,
+        mpcData.orbital_elements.eccentricity,
+        mpcData.orbital_elements.perihelion_distance
+      );
+
+      if (calculated_velocity !== null) {
+        heliocentric_velocity = calculated_velocity;
+        velocity_source = 'MPC orbital elements (vis-viva equation)';
+        console.log(`Using MPC orbital elements for velocity calculation: ${heliocentric_velocity.toFixed(2)} km/s`);
+      }
+    }
+    // Try manual calculation if TheSkyLive has orbital elements but no calculated velocity
+    else if (theSkyData?.eccentricity && theSkyData?.perihelion_distance) {
+      const calculated_velocity = this.calculateVelocityFromOrbitalElements(
+        heliocentric_distance,
+        theSkyData.eccentricity,
+        theSkyData.perihelion_distance
+      );
+
+      if (calculated_velocity !== null) {
+        heliocentric_velocity = calculated_velocity;
+        velocity_source = 'TheSkyLive orbital elements (manual calculation)';
+        console.log(`Calculated velocity from TheSkyLive orbital elements: ${heliocentric_velocity.toFixed(2)} km/s`);
+      }
     }
 
+    // FINAL FALLBACK: If no data source provided velocity, calculate from official orbital elements
+    // This should ALWAYS work as long as we have distance data
+    if (heliocentric_velocity === null) {
+      console.log('No velocity from data sources - calculating from official 3I/ATLAS orbital elements');
+
+      const calculated_velocity = this.calculateVelocityFromOrbitalElements(
+        heliocentric_distance,
+        ATLAS_3I_ORBITAL_ELEMENTS.eccentricity,
+        ATLAS_3I_ORBITAL_ELEMENTS.perihelion_distance_au
+      );
+
+      if (calculated_velocity !== null) {
+        heliocentric_velocity = calculated_velocity;
+        velocity_source = 'Official 3I/ATLAS orbital elements (IAU/MPC)';
+        console.log(`✓ Calculated velocity from official orbital elements: ${heliocentric_velocity.toFixed(2)} km/s`);
+      } else {
+        // This should NEVER happen unless distance data is completely invalid
+        throw new Error('CRITICAL: Failed to calculate velocity - distance data invalid');
+      }
+    }
+
+    // Calculate geocentric velocity if not already set
+    if (geocentric_velocity === null) {
+      geocentric_velocity = this.calculateGeocentricVelocity(
+        heliocentric_velocity,
+        geocentric_distance,
+        heliocentric_distance
+      );
+    }
+
+    // Calculate angular velocity
     if (theSkyData) {
       angular_velocity = theSkyData.orbital_velocity * 0.01; // Convert to arcsec/day approximation
     }
+
+    console.log('Orbital mechanics summary:', {
+      heliocentric_velocity: `${heliocentric_velocity.toFixed(2)} km/s`,
+      geocentric_velocity: `${geocentric_velocity.toFixed(2)} km/s`,
+      heliocentric_distance: `${heliocentric_distance.toFixed(3)} AU`,
+      geocentric_distance: `${geocentric_distance.toFixed(3)} AU`,
+      velocity_source
+    });
 
     // Calculate velocity changes (simplified - would need historical data for accurate trends)
     const acceleration = this.calculateAcceleration(jplData);
@@ -455,10 +766,14 @@ export class DataSourceManager {
   private calculateBrightnessEnhanced(
     cobsData: COBSDataStructure,
     jplData: JPLHorizonsData | null,
+    jplEphemerisData: JPLEphemerisData | null,
     theSkyData: TheSkyLiveData | null
   ) {
-    // Use real data only - no fabricated fallbacks
+    // Priority: COBS (observed) > JPL ephemeris (calculated) > TheSkyLive > JPL orbital
     const visual_magnitude = cobsData?.stats?.currentMagnitude ||
+                           (jplEphemerisData && jplEphemerisData.ephemeris_points.length > 0
+                             ? jplEphemerisData.ephemeris_points[jplEphemerisData.ephemeris_points.length - 1].magnitude
+                             : null) ||
                            theSkyData?.magnitude_estimate ||
                            jplData?.ephemeris?.magnitude ||
                            0; // Will display as "N/A" in UI
@@ -522,6 +837,7 @@ export class DataSourceManager {
   private getSourceStatus(
     cobsData: COBSDataStructure | null,
     jplData: JPLHorizonsData | null,
+    jplEphemerisData: JPLEphemerisData | null,
     theSkyData: TheSkyLiveData | null,
     mpcData: MPCSourceData | null
   ) {
@@ -539,7 +855,12 @@ export class DataSourceManager {
       jpl_horizons: {
         active: !!jplData,
         last_updated: jplData?.last_updated || '',
-        error: jplData ? undefined : 'Failed to fetch JPL Horizons data',
+        error: jplData ? undefined : 'JPL API unavailable or no orbital data for 3I/ATLAS',
+      },
+      jpl_ephemeris: {
+        active: !!jplEphemerisData,
+        last_updated: jplEphemerisData?.last_updated || '',
+        error: jplEphemerisData ? undefined : 'JPL API unavailable or no ephemeris data for 3I/ATLAS',
       },
       mpc: {
         active: !!mpcData,
@@ -688,6 +1009,7 @@ export class DataSourceManager {
       cobs: getStatus('cobs', this.CACHE_TTL.COBS),
       theskylive: getStatus('theskylive', this.CACHE_TTL.THESKYLIVE),
       jpl_horizons: getStatus('jpl_horizons', this.CACHE_TTL.JPL_HORIZONS),
+      jpl_ephemeris: getStatus('jpl_ephemeris', this.CACHE_TTL.JPL_EPHEMERIS),
       mpc: getStatus('mpc', this.CACHE_TTL.MPC),
     };
   }

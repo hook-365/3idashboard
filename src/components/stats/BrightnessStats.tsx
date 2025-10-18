@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { getChartColors, getStatusColors, getBackgroundColors } from '@/utils/chart-theme';
 
 export interface BrightnessData {
   date: string | Date;
@@ -65,6 +66,11 @@ const BrightnessStats = React.memo(function BrightnessStats({
 }: BrightnessStatsProps) {
   const [previousStats, setPreviousStats] = useState<Stats | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Get theme colors
+  const chartColors = getChartColors();
+  const statusColors = getStatusColors();
+  const bgColors = getBackgroundColors();
 
   const stats: Stats = useMemo(() => {
     if (data.length === 0) {
@@ -184,9 +190,9 @@ const BrightnessStats = React.memo(function BrightnessStats({
 
   const getTrendColor = (direction: string) => {
     switch (direction) {
-      case 'brightening': return 'text-green-400';
-      case 'dimming': return 'text-red-400';
-      default: return 'text-yellow-400';
+      case 'brightening': return 'text-[var(--color-status-success)]';
+      case 'dimming': return 'text-[var(--color-status-error)]';
+      default: return 'text-[var(--color-status-warning)]';
     }
   };
 
@@ -198,10 +204,10 @@ const BrightnessStats = React.memo(function BrightnessStats({
 
     return (
       <div className="flex items-center gap-1 text-xs">
-        <span className={change < 0 ? 'text-green-400' : 'text-red-400'}>
+        <span className={change < 0 ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-error)]'}>
           {change < 0 ? '↗' : '↘'}
         </span>
-        <span className="text-gray-400">
+        <span className="text-[var(--color-text-tertiary)]">
           {Math.abs(change).toFixed(2)}m {change < 0 ? 'brighter' : 'dimmer'}
         </span>
       </div>
@@ -213,17 +219,17 @@ const BrightnessStats = React.memo(function BrightnessStats({
   // Compact mode: single line with magnitude and trend
   if (compact) {
     return (
-      <div className={`bg-gray-800 rounded-lg p-4 ${className}`}>
+      <div className={`bg-[var(--color-bg-secondary)] rounded-lg p-4 ${className}`}>
         <div className="flex items-center justify-between">
           {/* Left: Current Magnitude */}
           <div className="flex items-center gap-4">
             <div>
-              <div className="text-sm text-gray-400 mb-1">Brightness Analysis</div>
+              <div className="text-sm text-[var(--color-text-tertiary)] mb-1">Brightness Analysis</div>
               <div className="flex items-center gap-2">
-                <div className="text-3xl font-bold text-blue-300">
+                <div className="text-3xl font-bold text-[var(--color-chart-primary)]">
                   {formatMagnitude(stats.current.magnitude)}m
                 </div>
-                <div className="text-sm text-gray-400">
+                <div className="text-sm text-[var(--color-text-tertiary)]">
                   ({stats.current.daysAgo === 0 ? 'Today' : `${stats.current.daysAgo}d ago`})
                 </div>
               </div>
@@ -234,7 +240,7 @@ const BrightnessStats = React.memo(function BrightnessStats({
           {showTrend && (
             <div className="flex items-center gap-6">
               <div className="text-right">
-                <div className="text-xs text-gray-400 mb-1">Trend</div>
+                <div className="text-xs text-[var(--color-text-tertiary)] mb-1">Trend</div>
                 <div className="flex items-center gap-2">
                   <span className="text-xl">{getTrendIcon(stats.trend.direction)}</span>
                   <span className={`text-lg font-bold ${getTrendColor(stats.trend.direction)}`}>
@@ -243,16 +249,19 @@ const BrightnessStats = React.memo(function BrightnessStats({
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs text-gray-400 mb-1">Rate</div>
-                <div className="text-lg font-bold text-gray-200">
+                <div className="text-xs text-[var(--color-text-tertiary)] mb-1">Rate</div>
+                <div className="text-lg font-bold text-[var(--color-text-secondary)]">
                   {Math.abs(stats.trend.rate).toFixed(3)} mag/day
                 </div>
               </div>
-              <div className={`px-3 py-2 rounded text-xs font-medium ${
-                stats.trend.confidence === 'high' ? 'bg-green-800 text-green-200' :
-                stats.trend.confidence === 'medium' ? 'bg-yellow-800 text-yellow-200' :
-                'bg-red-800 text-red-200'
-              }`}>
+              <div className="px-3 py-2 rounded text-xs font-medium" style={{
+                backgroundColor: stats.trend.confidence === 'high' ? bgColors.tertiary :
+                  stats.trend.confidence === 'medium' ? bgColors.secondary :
+                  bgColors.secondary,
+                color: stats.trend.confidence === 'high' ? statusColors.success :
+                  stats.trend.confidence === 'medium' ? statusColors.warning :
+                  statusColors.error
+              }}>
                 {stats.trend.confidence} confidence
               </div>
             </div>
@@ -264,24 +273,24 @@ const BrightnessStats = React.memo(function BrightnessStats({
 
   // Full mode: all statistics
   return (
-    <div className={`bg-gray-800 rounded-lg p-6 ${className}`}>
+    <div className={`bg-[var(--color-bg-secondary)] rounded-lg p-6 ${className}`}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+          <h3 className="text-xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
             Brightness Analysis
             {realTimeUpdates && (
-              <span className={`w-3 h-3 rounded-full ${isUpdating ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`}></span>
+              <span className={`w-3 h-3 rounded-full ${isUpdating ? 'bg-[var(--color-status-success)] animate-pulse' : 'bg-[var(--color-text-tertiary)]'}`}></span>
             )}
           </h3>
           {getBrightnessChangeIndicator()}
         </div>
         <div className="text-right">
-          <div className="text-sm text-gray-400">
-            Last updated: {stats.current.date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })} UTC
+          <div className="text-sm text-[var(--color-text-tertiary)]">
+            Last observed: {stats.current.date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })} UTC
           </div>
-          {realTimeUpdates && (
-            <div className="text-xs text-gray-500">
-              {isUpdating ? 'Updating...' : 'Live monitoring'}
+          {realTimeUpdates && isUpdating && (
+            <div className="text-xs text-[var(--color-text-tertiary)]">
+              Checking for updates...
             </div>
           )}
         </div>
@@ -289,47 +298,49 @@ const BrightnessStats = React.memo(function BrightnessStats({
 
       {/* Current Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className={`bg-gradient-to-br from-blue-900 to-blue-800 rounded-lg p-4 transition-all duration-500 ${
-          isUpdating ? 'ring-2 ring-blue-400 ring-opacity-50' : ''
+        <div className={`bg-gradient-to-br from-yellow-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-5 text-center border border-yellow-500/30 hover:scale-105 transition-all ${
+          isUpdating ? 'ring-2 ring-yellow-500/50' : ''
         }`}>
-          <div className="text-3xl font-bold text-blue-300">
-            {formatMagnitude(stats.current.magnitude)}m
+          <div className="text-4xl mb-2">🌟</div>
+          <div className="text-2xl font-bold text-yellow-400 mb-1">
+            {formatMagnitude(stats.current.magnitude)}
           </div>
-          <div className="text-blue-200 text-sm">Current Magnitude</div>
-          <div className="flex items-center justify-between mt-1">
-            <div className="text-blue-400 text-xs">
-              {stats.current.daysAgo === 0 ? 'Today' : `${stats.current.daysAgo}d ago`}
-            </div>
-            {getBrightnessChangeIndicator()}
+          <div className="text-sm text-[var(--color-text-secondary)]">Current Magnitude</div>
+          <div className="text-xs text-[var(--color-text-tertiary)] mt-2">
+            {stats.current.daysAgo === 0 ? 'Today' : `${stats.current.daysAgo}d ago`}
           </div>
+          {getBrightnessChangeIndicator()}
         </div>
 
-        <div className="bg-gradient-to-br from-purple-900 to-purple-800 rounded-lg p-4">
-          <div className="text-3xl font-bold text-purple-300">
-            {formatMagnitude(stats.average.last7days)}m
+        <div className="bg-gradient-to-br from-cyan-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-5 text-center border border-cyan-500/30 hover:scale-105 transition-transform">
+          <div className="text-4xl mb-2">📊</div>
+          <div className="text-2xl font-bold text-cyan-400 mb-1">
+            {formatMagnitude(stats.average.last7days)}
           </div>
-          <div className="text-purple-200 text-sm">7-Day Average</div>
-          <div className="text-purple-400 text-xs mt-1">
+          <div className="text-sm text-[var(--color-text-secondary)]">7-Day Average</div>
+          <div className="text-xs text-[var(--color-text-tertiary)] mt-2">
             {stats.observationCount.last7days} observations
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-900 to-green-800 rounded-lg p-4">
-          <div className="text-3xl font-bold text-green-300">
-            {formatMagnitude(stats.extremes.brightest.magnitude)}m
+        <div className="bg-gradient-to-br from-green-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-5 text-center border border-green-500/30 hover:scale-105 transition-transform">
+          <div className="text-4xl mb-2">✨</div>
+          <div className="text-2xl font-bold text-green-400 mb-1">
+            {formatMagnitude(stats.extremes.brightest.magnitude)}
           </div>
-          <div className="text-green-200 text-sm">Brightest Recorded</div>
-          <div className="text-green-400 text-xs mt-1">
+          <div className="text-sm text-[var(--color-text-secondary)]">Brightest Recorded</div>
+          <div className="text-xs text-[var(--color-text-tertiary)] mt-2">
             {stats.extremes.brightest.date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })} UTC
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-900 to-orange-800 rounded-lg p-4">
-          <div className="text-3xl font-bold text-orange-300">
+        <div className="bg-gradient-to-br from-blue-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-5 text-center border border-blue-500/30 hover:scale-105 transition-transform">
+          <div className="text-4xl mb-2">🔭</div>
+          <div className="text-2xl font-bold text-blue-400 mb-1">
             {stats.observationCount.total}
           </div>
-          <div className="text-orange-200 text-sm">Total Observations</div>
-          <div className="text-orange-400 text-xs mt-1">
+          <div className="text-sm text-[var(--color-text-secondary)]">Total Observations</div>
+          <div className="text-xs text-[var(--color-text-tertiary)] mt-2">
             {realTimeUpdates ? `${stats.observationCount.last7days} this week` : 'Since tracking began'}
           </div>
         </div>
@@ -337,17 +348,20 @@ const BrightnessStats = React.memo(function BrightnessStats({
 
       {/* Trend Analysis */}
       {showTrend && (
-        <div className="bg-gray-700 rounded-lg p-4 mb-4">
+        <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+            <h4 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
               {getTrendIcon(stats.trend.direction)}
               Brightness Trend
             </h4>
-            <div className={`px-2 py-1 rounded text-xs font-medium ${
-              stats.trend.confidence === 'high' ? 'bg-green-800 text-green-200' :
-              stats.trend.confidence === 'medium' ? 'bg-yellow-800 text-yellow-200' :
-              'bg-red-800 text-red-200'
-            }`}>
+            <div className="px-2 py-1 rounded text-xs font-medium" style={{
+              backgroundColor: stats.trend.confidence === 'high' ? bgColors.tertiary :
+                stats.trend.confidence === 'medium' ? bgColors.secondary :
+                bgColors.secondary,
+              color: stats.trend.confidence === 'high' ? statusColors.success :
+                stats.trend.confidence === 'medium' ? statusColors.warning :
+                statusColors.error
+            }}>
               {stats.trend.confidence} confidence
             </div>
           </div>
@@ -357,19 +371,19 @@ const BrightnessStats = React.memo(function BrightnessStats({
               <div className={`text-2xl font-bold ${getTrendColor(stats.trend.direction)}`}>
                 {stats.trend.direction.toUpperCase()}
               </div>
-              <div className="text-gray-300 text-sm">Current Direction</div>
+              <div className="text-[var(--color-text-secondary)] text-sm">Current Direction</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-200">
+              <div className="text-2xl font-bold text-[var(--color-text-secondary)]">
                 {Math.abs(stats.trend.rate).toFixed(3)}
               </div>
-              <div className="text-gray-300 text-sm">Mag/Day Change Rate</div>
+              <div className="text-[var(--color-text-secondary)] text-sm">Mag/Day Change Rate</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-200">
+              <div className="text-2xl font-bold text-[var(--color-text-secondary)]">
                 {formatMagnitude(stats.average.last30days)}m
               </div>
-              <div className="text-gray-300 text-sm">30-Day Average</div>
+              <div className="text-[var(--color-text-secondary)] text-sm">30-Day Average</div>
             </div>
           </div>
         </div>
@@ -378,8 +392,8 @@ const BrightnessStats = React.memo(function BrightnessStats({
       {/* Additional Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div className="space-y-2">
-          <h5 className="font-semibold text-gray-200">Historical Range</h5>
-          <div className="text-gray-300">
+          <h5 className="font-semibold text-[var(--color-text-secondary)]">Historical Range</h5>
+          <div className="text-[var(--color-text-secondary)]">
             <div>Brightest: {formatMagnitude(stats.extremes.brightest.magnitude)}m</div>
             <div>Dimmest: {formatMagnitude(stats.extremes.dimmest.magnitude)}m</div>
             <div>Range: {formatMagnitude(stats.extremes.dimmest.magnitude - stats.extremes.brightest.magnitude)}m</div>
@@ -387,8 +401,8 @@ const BrightnessStats = React.memo(function BrightnessStats({
         </div>
 
         <div className="space-y-2">
-          <h5 className="font-semibold text-gray-200">Observation Activity</h5>
-          <div className="text-gray-300">
+          <h5 className="font-semibold text-[var(--color-text-secondary)]">Observation Activity</h5>
+          <div className="text-[var(--color-text-secondary)]">
             <div>Recent (7d): {stats.observationCount.last7days} obs</div>
             <div>Month (30d): {stats.observationCount.last30days} obs</div>
             <div>Rate: {(stats.observationCount.last7days / 7).toFixed(1)}/day</div>
@@ -396,7 +410,7 @@ const BrightnessStats = React.memo(function BrightnessStats({
         </div>
       </div>
 
-      <div className="mt-4 text-xs text-gray-400 border-t border-gray-600 pt-3">
+      <div className="mt-4 text-xs text-[var(--color-text-tertiary)] border-t border-[var(--color-border-secondary)] pt-3">
         <p>• Magnitude scale is logarithmic and inverted (lower values = brighter)</p>
         <p>• Trend analysis based on linear regression of recent observations</p>
         <p>• Confidence levels determined by data consistency and observation frequency</p>

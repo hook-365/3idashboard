@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import ExtensionSafeWrapper from '@/components/ExtensionSafeWrapper';
-import DataSourcesSection from '@/components/common/DataSourcesSection';
 import PageNavigation from '@/components/common/PageNavigation';
 import AppHeader from '@/components/common/AppHeader';
+import DataAttribution from '@/components/common/DataAttribution';
+import ScrollHashUpdater from '@/components/common/ScrollHashUpdater';
 
 interface GalleryImage {
   id: string;
@@ -110,26 +111,28 @@ export default function GalleryPage() {
 
   const getSourceColor = (source: string) => {
     switch (source) {
-      case 'NASA': return 'text-blue-400 bg-blue-900/20';
-      case 'ESA/Hubble': return 'text-purple-400 bg-purple-900/20';
-      case 'JWST': return 'text-red-400 bg-red-900/20';
-      case 'NOIRLab/Gemini': return 'text-cyan-400 bg-cyan-900/20';
-      case 'ESO': return 'text-indigo-400 bg-indigo-900/20';
-      case 'Virtual Telescope': return 'text-green-400 bg-green-900/20';
-      case 'Community': return 'text-orange-400 bg-orange-900/20';
-      default: return 'text-gray-400 bg-gray-900/20';
+      case 'NASA': return 'text-[var(--color-chart-primary)] bg-[var(--color-chart-primary)]/20';
+      case 'ESA/Hubble': return 'text-[var(--color-chart-quaternary)] bg-[var(--color-chart-quaternary)]/20';
+      case 'ESA/ExoMars': return 'text-purple-400 bg-purple-400/20';
+      case 'JWST': return 'text-[var(--color-chart-tertiary)] bg-[var(--color-chart-tertiary)]/20';
+      case 'NOIRLab/Gemini': return 'text-[var(--color-chart-senary)] bg-[var(--color-chart-senary)]/20';
+      case 'ESO': return 'text-[var(--color-chart-quinary)] bg-[var(--color-chart-quinary)]/20';
+      case 'Virtual Telescope': return 'text-[var(--color-status-success)] bg-[var(--color-status-success)]/20';
+      case 'Research': return 'text-orange-400 bg-orange-400/20';
+      case 'Community': return 'text-[var(--color-status-warning)] bg-[var(--color-status-warning)]/20';
+      default: return 'text-[var(--color-text-tertiary)] bg-[var(--color-bg-primary)]/20';
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-pulse text-6xl mb-6">📸</div>
           <div className="text-2xl font-semibold mb-2">Loading Photo Gallery</div>
-          <div className="text-gray-400">Fetching 3I/ATLAS images from multiple sources...</div>
+          <div className="text-[var(--color-text-tertiary)]">Fetching 3I/ATLAS images from multiple sources...</div>
           <div className="mt-4">
-            <div className="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent text-blue-400 rounded-full"></div>
+            <div className="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent text-[var(--color-chart-primary)] rounded-full"></div>
           </div>
         </div>
       </div>
@@ -138,104 +141,126 @@ export default function GalleryPage() {
 
   return (
     <ExtensionSafeWrapper>
-      <div className="min-h-screen bg-gray-900 text-white">
+      <div className="min-h-screen bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]">
+        {/* Automatic hash navigation */}
+        <ScrollHashUpdater />
+
         {/* Header */}
         <AppHeader />
 
         {/* Navigation */}
         <PageNavigation />
 
-        <div className="container mx-auto px-6 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Page Header */}
+          <div className="mb-8 text-center">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[var(--color-chart-primary)] via-[var(--color-chart-secondary)] to-[var(--color-chart-tertiary)] bg-clip-text text-transparent mb-3">
+              Photo Gallery
+            </h1>
+            <p className="text-xl text-[var(--color-text-secondary)] max-w-3xl mx-auto">
+              Professional and amateur images of 3I/ATLAS from telescopes worldwide. Hubble, JWST, and ground-based observations.
+            </p>
+          </div>
+
           {/* Filters and Controls */}
-          <div className="bg-gray-800 rounded-lg p-6 mb-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Source</label>
-                  <select
-                    value={filterSource}
-                    onChange={(e) => setFilterSource(e.target.value)}
-                    className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">All Sources</option>
-                    <option value="NASA">NASA</option>
-                    <option value="ESA/Hubble">ESA/Hubble</option>
-                    <option value="JWST">James Webb Space Telescope</option>
-                    <option value="NOIRLab/Gemini">NOIRLab/Gemini Observatory</option>
-                    <option value="ESO">European Southern Observatory</option>
-                    <option value="Virtual Telescope">Virtual Telescope Project</option>
-                    <option value="Community">Community</option>
-                  </select>
+          <section id="gallery-filters" className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8 border border-[var(--color-border-primary)]">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Filter by Source</label>
+                    <select
+                      value={filterSource}
+                      onChange={(e) => setFilterSource(e.target.value)}
+                      className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] focus:ring-2 focus:ring-[var(--color-chart-primary)]"
+                    >
+                      <option value="all">All Sources</option>
+                      <option value="NASA">NASA</option>
+                      <option value="ESA/Hubble">ESA/Hubble</option>
+                      <option value="ESA/ExoMars">ESA/ExoMars</option>
+                      <option value="JWST">James Webb Space Telescope</option>
+                      <option value="NOIRLab/Gemini">NOIRLab/Gemini Observatory</option>
+                      <option value="ESO">European Southern Observatory</option>
+                      <option value="Virtual Telescope">Virtual Telescope Project</option>
+                      <option value="Research">Research Publications (ArXiv)</option>
+                      <option value="Community">Community</option>
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Sort by</label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as 'date' | 'source' | 'title')}
+                      className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] focus:ring-2 focus:ring-[var(--color-chart-primary)]"
+                    >
+                      <option value="date">Date (Newest First)</option>
+                      <option value="source">Source</option>
+                      <option value="title">Title</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Sort by</label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as 'date' | 'source' | 'title')}
-                    className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="date">Date (Newest First)</option>
-                    <option value="source">Source</option>
-                    <option value="title">Title</option>
-                  </select>
+                <div className="text-[var(--color-text-secondary)] text-sm">
+                  Showing {filteredAndSortedImages.length} of {images.length} images
                 </div>
-              </div>
-              <div className="text-gray-300">
-                Showing {filteredAndSortedImages.length} of {images.length} images
               </div>
             </div>
-          </div>
+          </section>
 
           {/* Image Grid */}
           {filteredAndSortedImages.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <section id="image-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
               {filteredAndSortedImages.map((image) => (
-                <div key={image.id} className="bg-gray-800 rounded-lg overflow-hidden hover:transform hover:scale-105 transition-all duration-300 cursor-pointer" onClick={() => openLightbox(image)}>
+                <div
+                  key={image.id}
+                  className="bg-[var(--color-bg-secondary)] rounded-lg overflow-hidden border border-[var(--color-border-primary)] hover:border-[var(--color-chart-primary)] hover:transform hover:scale-[1.02] transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl"
+                  onClick={() => openLightbox(image)}
+                >
                   <div className="relative aspect-square">
                     <Image
                       src={image.thumbnailUrl}
                       alt={image.title}
                       fill
                       className="object-cover"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, (max-width: 1536px) 25vw, 20vw"
                       unoptimized
                     />
                     <div className="absolute top-2 right-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSourceColor(image.source)}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSourceColor(image.source)} shadow-lg`}>
                         {image.source}
                       </span>
                     </div>
                   </div>
                   <div className="p-4">
-                    <h3 className="font-semibold text-white mb-2 line-clamp-2">{image.title}</h3>
-                    <p className="text-gray-400 text-sm mb-2 line-clamp-3">{image.description}</p>
-                    <div className="text-xs text-gray-500">
-                      {new Date(image.date).toLocaleDateString()}
+                    <h3 className="font-semibold text-[var(--color-text-primary)] mb-2 line-clamp-2 min-h-[3rem]">{image.title}</h3>
+                    <p className="text-[var(--color-text-tertiary)] text-sm mb-2 line-clamp-3">{image.description}</p>
+                    <div className="text-xs text-[var(--color-text-tertiary)] flex items-center gap-1">
+                      <span>📅</span>
+                      {new Date(image.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                   </div>
                 </div>
               ))}
-            </div>
+            </section>
           ) : (
-            <div className="bg-gray-800 rounded-lg p-12 text-center">
+            <section id="image-grid" className="bg-[var(--color-bg-secondary)] rounded-lg p-12 text-center">
               <div className="text-6xl mb-4">🔭</div>
-              <h3 className="text-2xl font-semibold text-gray-200 mb-4">
+              <h3 className="text-2xl font-semibold text-[var(--color-text-secondary)] mb-4">
                 {filterSource === 'all' ? 'No Images Available Yet' : `No ${filterSource} Images Found`}
               </h3>
-              <div className="max-w-2xl mx-auto space-y-3 text-gray-300">
+              <div className="max-w-2xl mx-auto space-y-3 text-[var(--color-text-secondary)]">
                 {filterSource === 'all' ? (
                   <>
                     <p>
                       No images are currently available. This may be due to a temporary loading issue.
                     </p>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-[var(--color-text-tertiary)]">
                       The gallery displays official 3I/ATLAS observations from the ATLAS Survey and Hubble Space Telescope.
                       Please refresh the page or check back shortly.
                     </p>
                     <div className="pt-4 flex gap-4 justify-center">
                       <button
                         onClick={() => window.location.reload()}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-chart-primary)] hover:bg-[var(--color-chart-primary)]/80 text-[var(--color-text-primary)] rounded-lg transition-colors"
                       >
                         <span>Refresh Gallery</span>
                       </button>
@@ -243,7 +268,7 @@ export default function GalleryPage() {
                         href="https://science.nasa.gov/solar-system/comets/3i-atlas/comet-3i-atlas-multimedia/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] rounded-lg transition-colors"
                       >
                         <span>View NASA Source</span>
                         <span>→</span>
@@ -255,24 +280,24 @@ export default function GalleryPage() {
                     <p>No images found from {filterSource}. Try selecting &quot;All Sources&quot; to see available content.</p>
                     <button
                       onClick={() => setFilterSource('all')}
-                      className="mt-4 px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                      className="mt-4 px-6 py-2 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] rounded-lg transition-colors"
                     >
                       View All Sources
                     </button>
                   </>
                 )}
               </div>
-            </div>
+            </section>
           )}
 
           {/* Lightbox Modal */}
           {selectedImage && (
             <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4" onClick={closeLightbox}>
-              <div className="max-w-6xl max-h-full bg-gray-800 rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="max-w-6xl max-h-full bg-[var(--color-bg-secondary)] rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <div className="relative">
                   <button
                     onClick={closeLightbox}
-                    className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-opacity-75 transition-all"
+                    className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-[var(--color-text-primary)] rounded-full w-8 h-8 flex items-center justify-center hover:bg-opacity-75 transition-all"
                   >
                     ✕
                   </button>
@@ -289,122 +314,53 @@ export default function GalleryPage() {
                 </div>
                 <div className="p-6 max-h-60 overflow-y-auto">
                   <div className="flex items-start justify-between mb-4">
-                    <h2 className="text-xl font-bold text-white">{selectedImage.title}</h2>
+                    <h2 className="text-xl font-bold text-[var(--color-text-primary)]">{selectedImage.title}</h2>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSourceColor(selectedImage.source)}`}>
                       {selectedImage.source}
                     </span>
                   </div>
-                  <p className="text-gray-300 mb-4">{selectedImage.description}</p>
+                  <p className="text-[var(--color-text-secondary)] mb-4">{selectedImage.description}</p>
 
                   {/* Metadata */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-4 mb-4 text-sm">
                     <div>
-                      <span className="text-gray-400">Date:</span>
-                      <div className="text-white">{new Date(selectedImage.date).toLocaleDateString()}</div>
+                      <span className="text-[var(--color-text-tertiary)]">Date:</span>
+                      <div className="text-[var(--color-text-primary)]">{new Date(selectedImage.date).toLocaleDateString()}</div>
                     </div>
                     {selectedImage.metadata.telescope && (
                       <div>
-                        <span className="text-gray-400">Telescope:</span>
-                        <div className="text-white">{selectedImage.metadata.telescope}</div>
+                        <span className="text-[var(--color-text-tertiary)]">Telescope:</span>
+                        <div className="text-[var(--color-text-primary)]">{selectedImage.metadata.telescope}</div>
                       </div>
                     )}
                     {selectedImage.metadata.instrument && (
                       <div>
-                        <span className="text-gray-400">Instrument:</span>
-                        <div className="text-white">{selectedImage.metadata.instrument}</div>
+                        <span className="text-[var(--color-text-tertiary)]">Instrument:</span>
+                        <div className="text-[var(--color-text-primary)]">{selectedImage.metadata.instrument}</div>
                       </div>
                     )}
                     {selectedImage.metadata.filters && (
                       <div>
-                        <span className="text-gray-400">Filters:</span>
-                        <div className="text-white">{selectedImage.metadata.filters}</div>
+                        <span className="text-[var(--color-text-tertiary)]">Filters:</span>
+                        <div className="text-[var(--color-text-primary)]">{selectedImage.metadata.filters}</div>
                       </div>
                     )}
                   </div>
 
                   {/* Attribution */}
-                  <div className="border-t border-gray-600 pt-4">
-                    <span className="text-gray-400 text-sm">Attribution:</span>
-                    <div className="text-gray-300 text-sm mt-1">{selectedImage.attribution}</div>
+                  <div className="border-t border-[var(--color-border-secondary)] pt-4">
+                    <span className="text-[var(--color-text-tertiary)] text-sm">Attribution:</span>
+                    <div className="text-[var(--color-text-secondary)] text-sm mt-1">{selectedImage.attribution}</div>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Image Sources & Attribution */}
-          <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 mt-8">
-            <h3 className="text-lg font-semibold text-gray-300 mb-4">Image Sources & Attribution</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-400 mb-2">NASA Science</h4>
-                <p className="text-gray-300 mb-2">Official 3I/ATLAS multimedia from NASA&apos;s science portal</p>
-                <a href="https://science.nasa.gov/solar-system/comets/3i-atlas/" className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">
-                  science.nasa.gov
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-purple-400 mb-2">Hubble Space Telescope</h4>
-                <p className="text-gray-300 mb-2">High-resolution optical observations</p>
-                <a href="https://esahubble.org" className="text-purple-400 hover:text-purple-300 underline" target="_blank" rel="noopener noreferrer">
-                  esahubble.org
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-red-400 mb-2">James Webb Space Telescope</h4>
-                <p className="text-gray-300 mb-2">Infrared spectroscopy and composition analysis</p>
-                <a href="https://webbtelescope.org" className="text-red-400 hover:text-red-300 underline" target="_blank" rel="noopener noreferrer">
-                  webbtelescope.org
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-orange-400 mb-2">ATLAS Survey</h4>
-                <p className="text-gray-300 mb-2">Discovery images and initial detection</p>
-                <a href="https://fallingstar.com/" className="text-orange-400 hover:text-orange-300 underline" target="_blank" rel="noopener noreferrer">
-                  ATLAS Project
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-pink-400 mb-2">SPHEREx Mission</h4>
-                <p className="text-gray-300 mb-2">Near-infrared spectroscopy observations</p>
-                <a href="https://www.jpl.nasa.gov/missions/spherex" className="text-pink-400 hover:text-pink-300 underline" target="_blank" rel="noopener noreferrer">
-                  jpl.nasa.gov/spherex
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-cyan-400 mb-2">NASA Eyes</h4>
-                <p className="text-gray-300 mb-2">Solar system trajectory visualizations</p>
-                <a href="https://eyes.nasa.gov/" className="text-cyan-400 hover:text-cyan-300 underline" target="_blank" rel="noopener noreferrer">
-                  eyes.nasa.gov
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-green-400 mb-2">Virtual Telescope Project</h4>
-                <p className="text-gray-300 mb-2">Ground-based observations by Dr. Gianluca Masi</p>
-                <a href="https://www.virtualtelescope.eu" className="text-green-400 hover:text-green-300 underline" target="_blank" rel="noopener noreferrer">
-                  virtualtelescope.eu
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-cyan-400 mb-2">NOIRLab/Gemini Observatory</h4>
-                <p className="text-gray-300 mb-2">Twin 8.1-meter telescopes in Hawaiʻi and Chile providing critical early characterization</p>
-                <a href="https://noirlab.edu" className="text-cyan-400 hover:text-cyan-300 underline" target="_blank" rel="noopener noreferrer">
-                  noirlab.edu
-                </a>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <h4 className="font-semibold text-indigo-400 mb-2">European Southern Observatory</h4>
-                <p className="text-gray-300 mb-2">Very Large Telescope observations from Chile</p>
-                <a href="https://www.eso.org" className="text-indigo-400 hover:text-indigo-300 underline" target="_blank" rel="noopener noreferrer">
-                  eso.org
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {/* Data Sources & Attribution */}
-          <DataSourcesSection />
         </div>
+
+        {/* Data Attribution Footer */}
+        <DataAttribution full={true} />
       </div>
     </ExtensionSafeWrapper>
   );

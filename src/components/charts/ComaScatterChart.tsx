@@ -15,6 +15,7 @@ import {
 } from 'chart.js';
 import { Scatter } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import { getChartColors, getTextColors, getBorderColors, getBackgroundColors, hexToRgba } from '@/utils/chart-theme';
 
 // Flag to track Chart.js registration
 let chartJsRegistered = false;
@@ -40,6 +41,12 @@ export default function ComaScatterChart({
 }: ComaScatterChartProps) {
   const [isClient, setIsClient] = useState(false);
 
+  // Get theme colors
+  const chartColors = getChartColors();
+  const textColors = getTextColors();
+  const borderColors = getBorderColors();
+  const bgColors = getBackgroundColors();
+
   // Register Chart.js components only when this chart loads
   useEffect(() => {
     if (!chartJsRegistered) {
@@ -62,9 +69,9 @@ export default function ComaScatterChart({
 
   if (!isClient || !data || data.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6" style={{ height: '400px' }}>
+      <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6" style={{ height: '400px' }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             {data?.length === 0 ? 'No coma data available' : 'Loading coma scatter plot...'}
           </div>
         </div>
@@ -103,22 +110,22 @@ export default function ComaScatterChart({
     switch (obsType) {
       case 'CCD':
         return {
-          backgroundColor: '#10b981', // Bright green
-          borderColor: '#ffffff',
+          backgroundColor: chartColors.secondary, // Bright green
+          borderColor: textColors.primary,
           pointStyle: 'circle', // Simple circle for now
           radius: 6 // Larger for visibility
         };
       case 'Visual':
         return {
-          backgroundColor: '#6b7280', // Gray
-          borderColor: '#ffffff',
+          backgroundColor: textColors.tertiary, // Gray
+          borderColor: textColors.primary,
           pointStyle: 'circle',
           radius: 6
         };
       default:
         return {
-          backgroundColor: '#ef4444', // Red
-          borderColor: '#ffffff',
+          backgroundColor: chartColors.tertiary, // Red
+          borderColor: textColors.primary,
           pointStyle: 'circle',
           radius: 6
         };
@@ -149,8 +156,8 @@ export default function ComaScatterChart({
         ...getPointStyle('CCD'),
         borderWidth: 1,
         pointHoverRadius: 6,
-        pointHoverBackgroundColor: '#34d399',
-        pointHoverBorderColor: '#ffffff',
+        pointHoverBackgroundColor: chartColors.secondary,
+        pointHoverBorderColor: textColors.primary,
         pointHoverBorderWidth: 2,
       },
       // Visual observations
@@ -163,8 +170,8 @@ export default function ComaScatterChart({
         ...getPointStyle('Visual'),
         borderWidth: 1,
         pointHoverRadius: 6,
-        pointHoverBackgroundColor: '#6c757d',
-        pointHoverBorderColor: '#ffffff',
+        pointHoverBackgroundColor: textColors.tertiary,
+        pointHoverBorderColor: textColors.primary,
         pointHoverBorderWidth: 2,
       }
     ]
@@ -187,7 +194,7 @@ export default function ComaScatterChart({
       legend: {
         display: true,
         labels: {
-          color: '#9ca3af',
+          color: textColors.tertiary,
           usePointStyle: true,
           pointStyle: 'circle'
         }
@@ -195,17 +202,17 @@ export default function ComaScatterChart({
       title: {
         display: true,
         text: title,
-        color: '#ffffff',
+        color: textColors.heading,
         font: {
           size: 16,
           weight: 'bold'
         }
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#ffffff',
-        borderColor: '#10b981',
+        backgroundColor: bgColors.tertiary,
+        titleColor: textColors.primary,
+        bodyColor: textColors.secondary,
+        borderColor: borderColors.secondary,
         borderWidth: 1,
         callbacks: {
           title: (context) => {
@@ -237,26 +244,26 @@ export default function ComaScatterChart({
         title: {
           display: true,
           text: 'Observation Date',
-          color: '#9ca3af'
+          color: textColors.tertiary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: hexToRgba(borderColors.primary, 0.2)
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary
         }
       },
       y: {
         title: {
           display: true,
           text: 'Coma Diameter (arcminutes)',
-          color: '#9ca3af'
+          color: textColors.tertiary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: hexToRgba(borderColors.primary, 0.2)
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary
         },
         beginAtZero: true,
         max: 6.5 // Match COBS range showing 0-6+ arcminutes
@@ -269,25 +276,25 @@ export default function ComaScatterChart({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
+    <div className="bg-[var(--color-bg-secondary)] rounded-lg p-4">
       <div style={{ height: '400px', width: '100%' }}>
         <Scatter data={chartData} options={options} />
       </div>
 
       {/* Scatter plot stats */}
-      <div className="mt-3 pt-3 border-t border-gray-700">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-400">
+      <div className="mt-3 pt-3 border-t border-[var(--color-border-primary)]">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-[var(--color-text-tertiary)]">
           <div>
-            <span className="text-white font-semibold">Range:</span> {Math.min(...data.map(d => d.comaSize)).toFixed(1)} - {Math.max(...data.map(d => d.comaSize)).toFixed(1)} arcminutes
+            <span className="text-[var(--color-text-primary)] font-semibold">Range:</span> {Math.min(...data.map(d => d.comaSize)).toFixed(1)} - {Math.max(...data.map(d => d.comaSize)).toFixed(1)} arcminutes
           </div>
           <div>
-            <span className="text-white font-semibold">Total:</span> {data.length} observations
+            <span className="text-[var(--color-text-primary)] font-semibold">Total:</span> {data.length} observations
           </div>
           <div>
-            <span className="text-white font-semibold">CCD:</span> {ccdData.length} points
+            <span className="text-[var(--color-text-primary)] font-semibold">CCD:</span> {ccdData.length} points
           </div>
           <div>
-            <span className="text-white font-semibold">Visual:</span> {visualData.length} points
+            <span className="text-[var(--color-text-primary)] font-semibold">Visual:</span> {visualData.length} points
           </div>
         </div>
       </div>

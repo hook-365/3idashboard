@@ -1,25 +1,169 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import MissionStatusWidget, { MissionStatusData } from '../components/charts/MissionStatusWidget';
 import ExtensionSafeWrapper from '../components/ExtensionSafeWrapper';
-import DataSourcesSection from '../components/common/DataSourcesSection';
 import PageNavigation from '../components/common/PageNavigation';
 import AppHeader from '../components/common/AppHeader';
+import DataAttribution from '../components/common/DataAttribution';
 import { calculateActivityFromAPIData } from '../utils/activity-calculator';
-import { APIErrorBoundary, ChartErrorBoundary } from '../components/common/ErrorBoundary';
+import { APIErrorBoundary, VisualizationErrorBoundary } from '../components/common/ErrorBoundary';
 import { MissionStatusSkeleton } from '../components/common/CardSkeleton';
 import { CollaborationStatsSkeleton } from '../components/common/StatsSkeleton';
 import TableSkeleton, { TableSkeletonMobile } from '../components/common/TableSkeleton';
+import WhereToLookCard from '../components/common/WhereToLookCard';
+import CanISeeItBanner from '../components/common/CanISeeItBanner';
+import EquipmentGuide from '../components/common/EquipmentGuide';
+import { calculateObservability } from '../utils/formatCoordinates';
 import ChartSkeleton from '../components/common/ChartSkeleton';
+import { useCometData } from '@/hooks';
 
-// Dynamically import Chart.js components to reduce initial bundle size (~150KB saved)
-const LightCurve = dynamic(() => import('../components/charts/LightCurve'), {
-  loading: () => <ChartSkeleton height={384} showLegend={true} />,
+// Dynamically import 3D visualization
+const ModernSolarSystem = dynamic(() => import('../components/visualization/ModernSolarSystem'), {
+  loading: () => <ChartSkeleton height={600} showLegend={true} />,
   ssr: false
 });
 
+// Enhanced Latest Observations Component with rich visual display
+function LatestObservationsCollapsible({ observations }: { observations: any[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const displayedObservations = isExpanded ? observations.slice(0, 5) : observations.slice(0, 1);
+
+  const getQualityBadge = (quality?: string) => {
+    if (!quality) return null;
+    const colors = {
+      excellent: 'bg-green-500/20 text-green-400 border-green-500/30',
+      good: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      fair: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+      poor: 'bg-red-500/20 text-red-400 border-red-500/30'
+    };
+    return (
+      <span className={`px-2 py-0.5 text-xs rounded border ${colors[quality as keyof typeof colors] || colors.fair}`}>
+        {quality}
+      </span>
+    );
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+
+    if (diffHours < 1) return '< 1 hour ago';
+    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+
+    return date.toLocaleDateString('en-US', {
+      timeZone: 'UTC',
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
+  };
+
+  return (
+    <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-bold text-[var(--color-text-heading)] flex items-center gap-2">
+          <span>🔭</span> Latest Observations
+        </h3>
+        <a
+          href="/observations"
+          className="text-sm text-[var(--color-chart-primary)] hover:opacity-80 transition-opacity"
+        >
+          View all observations →
+        </a>
+      </div>
+
+      {/* Rich card-based layout */}
+      <div className="space-y-3">
+        {displayedObservations.map((obs, idx) => (
+          <div
+            key={obs.id}
+            className={`bg-[var(--color-bg-tertiary)] rounded-lg p-4 border border-[var(--color-border-primary)] hover:border-[var(--color-chart-primary)] transition-all ${idx === 0 ? 'ring-2 ring-[var(--color-chart-primary)]/30' : ''}`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              {/* Left: Observer Info */}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-chart-primary)] to-[var(--color-chart-secondary)] flex items-center justify-center text-white font-bold text-sm">
+                    {obs.observer.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-[var(--color-text-primary)]">{obs.observer.name}</div>
+                    <div className="text-xs text-[var(--color-text-tertiary)]">{obs.observer.location?.name || 'Unknown location'}</div>
+                  </div>
+                </div>
+
+                {/* Observation Details */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-text-secondary)] ml-10">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[var(--color-text-tertiary)]">📅</span>
+                    <span>{formatDate(obs.date)}</span>
+                  </div>
+                  {obs.aperture && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[var(--color-text-tertiary)]">🔭</span>
+                      <span>{obs.aperture}mm aperture</span>
+                    </div>
+                  )}
+                  {obs.coma && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[var(--color-text-tertiary)]">☁️</span>
+                      <span>Coma: {obs.coma.toFixed(1)}'</span>
+                    </div>
+                  )}
+                  {obs.filter && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[var(--color-text-tertiary)]">🎨</span>
+                      <span>Filter: {obs.filter}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Magnitude & Quality */}
+              <div className="text-right flex flex-col items-end gap-2">
+                <div>
+                  <div className="text-2xl font-bold font-mono text-[var(--color-status-success)]">
+                    {obs.magnitude.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-[var(--color-text-tertiary)]">mag</div>
+                </div>
+                {obs.quality && getQualityBadge(obs.quality)}
+                {idx === 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-chart-primary)]/20 text-[var(--color-chart-primary)] border border-[var(--color-chart-primary)]/30">
+                    Latest
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Expand/Collapse Button */}
+      {observations.length > 1 && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-4 w-full py-2 px-4 rounded bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-primary)] border border-[var(--color-border-primary)] text-sm text-[var(--color-chart-primary)] hover:opacity-80 transition-all flex items-center justify-center gap-2"
+        >
+          {isExpanded ? (
+            <>
+              <span>▲</span> Show less
+            </>
+          ) : (
+            <>
+              <span>▼</span> Show {Math.min(4, observations.length - 1)} more recent observation{observations.length - 1 === 1 ? '' : 's'}
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
 
 interface ObserverInfo {
   id: string;
@@ -83,126 +227,137 @@ interface CometData {
     theskylive?: { active: boolean; last_updated: string; error?: string };
     mpc?: { active: boolean; last_updated: string; error?: string };
   };
+  jpl_ephemeris?: {
+    current_position?: {
+      ra: number;
+      dec: number;
+      magnitude: number;
+      last_updated: string;
+    };
+    time_series?: Array<{
+      date: string;
+      ra: number;
+      dec: number;
+      delta: number;
+      r: number;
+      magnitude: number;
+    }>;
+  };
 }
 
 export default function Home() {
-  const [data, setData] = useState<CometData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [missionStatus, setMissionStatus] = useState<MissionStatusData | null>(null);
+  // 🚀 SWR automatically caches, deduplicates, and revalidates data
+  const { data, isLoading, error } = useCometData({
+    smooth: true,
+    predict: true,
+    limit: 200,
+    trendDays: 30,
+  });
 
-  // Memoize recent observations calculation to avoid recalculating on every render
-  const recentObservations = useMemo(() => {
-    if (!data?.comet?.observations) return 0;
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    return data.comet.observations.filter(obs =>
-      new Date(obs.date) >= oneWeekAgo
-    ).length;
-  }, [data?.comet?.observations]);
+  // Calculate mission status from SWR data (memoized for performance)
+  const missionStatus = useMemo(() => {
+    if (!data) return null;
 
-  // Memoize light curve data transformation to avoid recreating on every render
-  const lightCurveData = useMemo(() => {
-    if (!data?.comet?.observations) return [];
-    return data.comet.observations.map(obs => ({
-      date: obs.date,
-      magnitude: obs.magnitude,
-      filter: 'Community',
-      observer: 'Observer Network',
-      quality: 'good' as const
-    }));
-  }, [data?.comet?.observations]);
+    // Check if we have enhanced data with orbital_mechanics
+    const hasEnhancedData = !!data.orbital_mechanics;
 
-  // Removed real-time hooks for Chart.js demo
+    // Validate that we have minimum required data
+    // For COBS-only mode: need magnitude and basic stats
+    // For enhanced mode: need orbital_mechanics + magnitude
+    // Note: magnitude of 0 means no real data available (mock/fallback)
+    const hasMinimumData = data.comet?.currentMagnitude !== undefined &&
+                          data.comet.currentMagnitude > 0;
 
-  // Fetch comet data
-  useEffect(() => {
-    // Fetch basic data - use limit=200 for full light curve history
-    fetch('/api/comet-data?smooth=true&predict=true&limit=200&trendDays=30')
-      .then(res => res.json())
-      .then((cometResult) => {
-        if (cometResult.success) {
-          setData(cometResult.data);
-
-          // Validate that we have real data before setting mission status
-          const hasRealData = cometResult.data?.orbital_mechanics?.current_distance?.heliocentric &&
-                             cometResult.data?.orbital_mechanics?.current_velocity?.heliocentric &&
-                             cometResult.data?.comet?.currentMagnitude;
-
-          if (hasRealData) {
-            // Create mission status data from real enhanced sources
-            const missionStatusData: MissionStatusData = {
-              current_distance_au: cometResult.data.orbital_mechanics.current_distance.heliocentric,
-              days_to_perihelion: Math.floor(
-                (new Date('2025-10-30').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-              ),
-              current_velocity_km_s: cometResult.data.orbital_mechanics.current_velocity.heliocentric,
-              // Calculate velocity trend from acceleration data
-              velocity_trend: (() => {
-                const acceleration = cometResult.data.orbital_mechanics?.velocity_changes?.acceleration || 0;
-                // Use 0.00001 km/s² threshold (0.864 km/s per day)
-                if (acceleration > 0.00001) return 'accelerating';
-                if (acceleration < -0.00001) return 'decelerating';
-                return 'constant';
-              })(),
-              // Calculate brightness trend from trend analysis
-              brightness_trend: (() => {
-                const trendAnalysis = cometResult.data.stats?.trendAnalysis;
-                if (!trendAnalysis) return undefined;
-                return trendAnalysis.trend === 'brightening' ? 'brightening' :
-                       trendAnalysis.trend === 'dimming' ? 'dimming' : 'stable';
-              })(),
-              activity_level: (() => {
-                // Calculate real activity level from observational data
-                const observations = cometResult.data.comet.observations || [];
-                const heliocentric_distance = cometResult.data.orbital_mechanics.current_distance.heliocentric;
-
-                // Use latest observation for activity calculation (same as simple-activity API)
-                if (observations.length === 0) {
-                  return 'INSUFFICIENT_DATA';
-                }
-
-                const latestObservation = observations[0]; // Observations are sorted newest first
-                const realActivity = calculateActivityFromAPIData(
-                  [latestObservation], // Pass single latest observation, not entire array
-                  { ephemeris: { r: heliocentric_distance } }
-                );
-                return realActivity.level;
-              })(),
-              source_health: {
-                cobs: cometResult.data.source_status?.cobs?.active || false,
-                jpl: cometResult.data.source_status?.jpl_horizons?.active || false,
-                theskylive: cometResult.data.source_status?.theskylive?.active || false,
-              },
-              last_update: new Date().toISOString(),
-              brightness_magnitude: cometResult.data.comet.currentMagnitude,
-              geocentric_distance_au: cometResult.data.orbital_mechanics.current_distance.geocentric,
-            };
-            setMissionStatus(missionStatusData);
-          } else {
-            console.warn('Insufficient real data available - mission status not set');
-          }
-
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Error fetching data:', err);
-        setLoading(false);
+    if (!hasMinimumData) {
+      console.warn('Insufficient data - no valid magnitude available for mission status', {
+        magnitude: data.comet?.currentMagnitude
       });
-  }, []);
+      return null;
+    }
 
+    // If we don't have enhanced orbital mechanics data, we can't show mission status
+    // (need distance, velocity, etc. for the widget)
+    if (!hasEnhancedData) {
+      console.warn('Enhanced orbital mechanics data unavailable - mission status not set (COBS-only fallback mode)');
+      return null;
+    }
 
-  if (loading) {
+    // Validate enhanced data completeness
+    const hasCompleteEnhancedData = data.orbital_mechanics?.current_distance?.heliocentric &&
+                                     data.orbital_mechanics?.current_velocity?.heliocentric;
+
+    if (!hasCompleteEnhancedData) {
+      console.warn('Incomplete enhanced data - mission status not set', {
+        has_distance: !!data.orbital_mechanics?.current_distance?.heliocentric,
+        has_velocity: !!data.orbital_mechanics?.current_velocity?.heliocentric,
+        has_magnitude: !!data.comet?.currentMagnitude,
+      });
+      return null;
+    }
+
+    // Create mission status data from real enhanced sources
+    return {
+      current_distance_au: data.orbital_mechanics.current_distance.heliocentric,
+      days_to_perihelion: Math.floor(
+        (new Date('2025-10-30').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      ),
+      current_velocity_km_s: data.orbital_mechanics.current_velocity.heliocentric,
+      // Calculate velocity trend from acceleration data
+      velocity_trend: (() => {
+        const acceleration = data.orbital_mechanics?.velocity_changes?.acceleration || 0;
+        // Use 0.00001 km/s² threshold (0.864 km/s per day)
+        if (acceleration > 0.00001) return 'accelerating' as const;
+        if (acceleration < -0.00001) return 'decelerating' as const;
+        return 'constant' as const;
+      })(),
+      // Calculate brightness trend from trend analysis
+      brightness_trend: (() => {
+        const trendAnalysis = data.stats?.trendAnalysis;
+        if (!trendAnalysis) return undefined;
+        return trendAnalysis.trend === 'brightening' ? 'brightening' as const :
+               trendAnalysis.trend === 'dimming' ? 'dimming' as const : 'stable' as const;
+      })(),
+      activity_level: (() => {
+        // Calculate real activity level from observational data
+        const observations = data.comet.observations || [];
+        const heliocentric_distance = data.orbital_mechanics.current_distance.heliocentric;
+
+        // Use latest observation for activity calculation (same as simple-activity API)
+        if (observations.length === 0) {
+          return 'INSUFFICIENT_DATA' as const;
+        }
+
+        const latestObservation = observations[0]; // Observations are sorted newest first
+        const realActivity = calculateActivityFromAPIData(
+          [latestObservation], // Pass single latest observation, not entire array
+          { ephemeris: { r: heliocentric_distance } }
+        );
+        return realActivity.level;
+      })(),
+      source_health: {
+        cobs: data.source_status?.cobs?.active || false,
+        jpl: data.source_status?.jpl_horizons?.active || false,
+        theskylive: data.source_status?.theskylive?.active || false,
+      },
+      last_update: new Date().toISOString(),
+      brightness_magnitude: data.comet.currentMagnitude,
+      geocentric_distance_au: data.orbital_mechanics.current_distance.geocentric,
+      // Add ephemeris data if available
+      jpl_ephemeris: data.jpl_ephemeris,
+    } as MissionStatusData;
+  }, [data]);
+
+  if (isLoading) {
     return (
       <ExtensionSafeWrapper>
-        <div className="min-h-screen bg-gray-900 text-white">
+        <div className="min-h-screen bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]">
           {/* Header */}
           <AppHeader sourceStatus={undefined} />
 
           {/* Navigation */}
           <PageNavigation />
 
-          <div className="container mx-auto px-6 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Mission Status Widget Skeleton */}
             <MissionStatusSkeleton className="mb-8" />
 
@@ -226,236 +381,165 @@ export default function Home() {
 
   return (
     <ExtensionSafeWrapper>
-      <div className="min-h-screen bg-gray-900 text-white">
+      <div className="min-h-screen bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]">
       {/* Header */}
       <AppHeader sourceStatus={data?.source_status} />
 
       {/* Navigation */}
       <PageNavigation />
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Mission Control Dashboard */}
+        {/* Hero Section */}
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[var(--color-chart-primary)] via-[var(--color-chart-secondary)] to-[var(--color-chart-tertiary)] bg-clip-text text-transparent mb-3">
+            3I/ATLAS Mission Control
+          </h1>
+          <p className="text-xl text-[var(--color-text-secondary)] max-w-3xl mx-auto">
+            Following humanity&apos;s third-ever interstellar visitor on its journey through our solar system
+          </p>
+        </div>
+
+        {/* Mission Status - TOP PRIORITY */}
         <APIErrorBoundary>
-          <div className="mb-8">
+          <section id="mission-status" className="mb-8">
             <MissionStatusWidget
               data={missionStatus || undefined}
-              loading={loading}
+              loading={isLoading}
+              simplified={true}
+              visibilityData={data?.jpl_ephemeris?.current_position && data?.comet?.currentMagnitude ? {
+                isVisible: calculateObservability(
+                  data.jpl_ephemeris.current_position.ra,
+                  data.jpl_ephemeris.current_position.dec,
+                  new Date(data.jpl_ephemeris.current_position.last_updated)
+                ).visible,
+                magnitude: data.comet.currentMagnitude,
+                nextVisibleDate: "November 20-25, 2025",
+                reason: calculateObservability(
+                  data.jpl_ephemeris.current_position.ra,
+                  data.jpl_ephemeris.current_position.dec,
+                  new Date(data.jpl_ephemeris.current_position.last_updated)
+                ).reason
+              } : undefined}
             />
-          </div>
+          </section>
         </APIErrorBoundary>
 
-        {/* Global Collaboration Stats */}
-        {data?.stats && (
-          <div className="bg-gray-800 rounded-lg p-6 mb-8">
-            <h3 className="text-xl font-bold mb-2 text-cyan-400">🌍 Global Collaboration</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Amateur and professional astronomers worldwide contributing observations to track this interstellar visitor
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-400">{data.stats.totalObservations}</div>
-                <div className="text-sm text-gray-300">Brightness Measurements</div>
-                <div className="text-xs text-gray-500">Total recorded</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">{data.stats.activeObservers}</div>
-                <div className="text-sm text-gray-300">Contributing Astronomers</div>
-                <div className="text-xs text-gray-500">Worldwide network</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-400">
-                  {recentObservations}
-                </div>
-                <div className="text-sm text-gray-300">New Reports</div>
-                <div className="text-xs text-gray-500">Last 7 days</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-cyan-400">COBS</div>
-                <div className="text-sm text-gray-300">Data Network</div>
-                <div className="text-xs text-gray-500">Global database</div>
-              </div>
+        {/* Solar System Position - Boxed */}
+        <section id="3d-position" className="mb-8 bg-[var(--color-bg-secondary)] rounded-lg p-6 border border-[var(--color-border-secondary)]">
+          <h2 className="text-2xl font-bold text-[var(--color-text-heading)] mb-4 flex items-center gap-3">
+            <span>🌌</span> 3D View of 3I/ATLAS Current Position
+          </h2>
+          <VisualizationErrorBoundary>
+            <div className="rounded-lg overflow-hidden border border-[var(--color-border-primary)]">
+              <ModernSolarSystem
+                centerMode="default"
+                autoPlay={false}
+                showControls={true}
+                followComet={true}
+              />
             </div>
+          </VisualizationErrorBoundary>
+        </section>
 
-            {/* Brightness Observations Graph */}
-            <ExtensionSafeWrapper
-              className="mt-6"
-              suppressWarnings={process.env.NODE_ENV === 'production'}
-            >
-              <ChartErrorBoundary>
-                {data?.comet.observations && (
-                  <LightCurve
-                    data={lightCurveData}
-                  />
-                )}
-              </ChartErrorBoundary>
-            </ExtensionSafeWrapper>
-          </div>
+        {/* Where to Look Card - Only show when actually visible */}
+        {data?.jpl_ephemeris?.current_position && calculateObservability(
+          data.jpl_ephemeris.current_position.ra,
+          data.jpl_ephemeris.current_position.dec,
+          new Date(data.jpl_ephemeris.current_position.last_updated)
+        ).visible && (
+          <section id="where-to-look" className="mb-8">
+            <WhereToLookCard
+              position={{
+                ra: data.jpl_ephemeris.current_position.ra,
+                dec: data.jpl_ephemeris.current_position.dec,
+                lastUpdated: data.jpl_ephemeris.current_position.last_updated,
+              }}
+            />
+          </section>
         )}
 
-        {/* Recent Observations Table - Desktop */}
-        <ExtensionSafeWrapper className="hidden md:block bg-gray-800 rounded-lg p-6 mb-8">
-          <h3 className="text-xl font-bold mb-4">Recent Community Observations</h3>
-          {data?.comet?.observations && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-600">
-                    <th className="text-left py-3 px-2">Date</th>
-                    <th className="text-left py-3 px-2">Observer</th>
-                    <th className="text-left py-3 px-2 hidden lg:table-cell">Location</th>
-                    <th className="text-left py-3 px-2">Filter</th>
-                    <th className="text-right py-3 px-2">Magnitude</th>
-                    <th className="text-center py-3 px-2 hidden xl:table-cell">Aperture</th>
-                    <th className="text-center py-3 px-2 hidden xl:table-cell">Coma</th>
-                    <th className="text-center py-3 px-2">Quality</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.comet.observations.slice(0, 8).map((obs) => (
-                    <tr key={obs.id} className="border-b border-gray-700 hover:bg-gray-700 transition-colors">
-                      <td className="py-3 px-2 text-gray-300">
-                        {new Date(obs.date).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}
-                      </td>
-                      <td className="py-3 px-2 font-medium">{obs.observer.name}</td>
-                      <td className="py-3 px-2 text-gray-400 hidden lg:table-cell">{obs.observer.location.name}</td>
-                      <td className="py-3 px-2 text-gray-400 text-xs">{obs.filter || 'V'}</td>
-                      <td className="py-3 px-2 text-right font-mono text-lg text-green-400">
-                        {obs.magnitude.toFixed(2)}
-                      </td>
-                      <td className="py-3 px-2 text-center text-xs text-gray-400 hidden xl:table-cell">
-                        {obs.aperture ? `${obs.aperture}"` : '-'}
-                      </td>
-                      <td className="py-3 px-2 text-center text-xs text-gray-400 hidden xl:table-cell">
-                        {obs.coma ? `${obs.coma}'` : '-'}
-                      </td>
-                      <td className="py-3 px-2 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${obs.quality === 'excellent' ? 'bg-green-800 text-green-200' : obs.quality === 'good' ? 'bg-blue-800 text-blue-200' : obs.quality === 'fair' ? 'bg-yellow-800 text-yellow-200' : obs.quality === 'poor' ? 'bg-red-800 text-red-200' : 'bg-gray-800 text-gray-200'}`}>
-                          {obs.quality || 'N/A'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Combined Observer Network Section */}
+        {data?.stats && data?.comet?.observations && (
+          <section id="observer-network" className="bg-[var(--color-bg-secondary)] rounded-lg p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-[var(--color-text-heading)]">🌍 Global Observer Network - 3I/ATLAS</h3>
+              <a
+                href="/observations"
+                className="text-sm text-[var(--color-chart-primary)] hover:opacity-80 transition-opacity"
+              >
+                All observations →
+              </a>
             </div>
-          )}
 
-          {/* Filter Key Explanation - Desktop */}
-          {data?.comet?.observations && (
-            <div className="mt-4 text-xs text-gray-400">
-              <h4 className="font-semibold text-gray-300 mb-2">Filter Types:</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                <div><strong>Visual:</strong> Visual observation</div>
-                <div><strong>V:</strong> Johnson V-band filter</div>
-                <div><strong>CCD:</strong> Unfiltered CCD</div>
-                <div><strong>R:</strong> Red filter</div>
-                <div><strong>B:</strong> Blue filter</div>
-                <div><strong>g:</strong> Sloan g-band (green)</div>
-                <div><strong>z:</strong> Sloan z-band (near-IR)</div>
-                <div><strong>K:</strong> Infrared K-band</div>
+            {/* Stats Grid - 4 boxes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Total Observations */}
+              <div className="bg-gradient-to-br from-blue-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-4 text-center border border-blue-500/30 hover:scale-105 transition-transform">
+                <div className="text-3xl mb-1">📊</div>
+                <div className="text-2xl font-bold text-blue-400 mb-1">{data.stats.totalObservations}</div>
+                <div className="text-xs text-[var(--color-text-secondary)]">Total Observations</div>
               </div>
-              <div className="mt-2 space-y-2">
-                <div>
-                  <h4 className="font-semibold text-gray-300 mb-1">Additional Data:</h4>
-                  <div className="text-xs space-y-1">
-                    <div><strong>Aperture:</strong> Telescope aperture size in inches (&quot;)</div>
-                    <div><strong>Coma:</strong> Visible coma size in arcminutes (&apos;)</div>
-                  </div>
+
+              {/* Active Observers */}
+              <div className="bg-gradient-to-br from-green-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-4 text-center border border-green-500/30 hover:scale-105 transition-transform">
+                <div className="text-3xl mb-1">👥</div>
+                <div className="text-2xl font-bold text-green-400 mb-1">{data.stats.activeObservers}</div>
+                <div className="text-xs text-[var(--color-text-secondary)]">Active Observers</div>
+              </div>
+
+              {/* Latest Observation - Centered like others */}
+              <div className="bg-gradient-to-br from-purple-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-4 text-center border border-purple-500/30 hover:scale-105 transition-transform">
+                <div className="text-3xl mb-1">🔭</div>
+                <div className="text-2xl font-bold text-purple-400 mb-1">
+                  {data.comet.observations[0].magnitude.toFixed(2)}
                 </div>
-                <div>
-                  <h4 className="font-semibold text-gray-300 mb-1">Quality Ratings:</h4>
-                  <span className="text-green-400">Excellent</span> (&lt;0.1 mag) •{' '}
-                  <span className="text-blue-400">Good</span> (&lt;0.2 mag) •{' '}
-                  <span className="text-yellow-400">Fair</span> (&lt;0.4 mag) •{' '}
-                  <span className="text-red-400">Poor</span> (≥0.4 mag)
+                <div className="text-xs text-[var(--color-text-secondary)] mb-1">Most Recent Magnitude</div>
+                <div className="text-xs text-[var(--color-text-tertiary)] truncate">
+                  {data.comet.observations[0].observer.name}
+                </div>
+                <div className="text-xs text-[var(--color-text-tertiary)]">
+                  {new Date(data.comet.observations[0].date).toLocaleDateString('en-US', {
+                    timeZone: 'UTC',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
                 </div>
               </div>
-            </div>
-          )}
-        </ExtensionSafeWrapper>
 
-        {/* Recent Observations Cards - Mobile */}
-        <ExtensionSafeWrapper className="md:hidden bg-gray-800 rounded-lg p-6 mb-8">
-          <h3 className="text-xl font-bold mb-4">Recent Community Observations</h3>
-          {data?.comet?.observations && (
-            <div className="space-y-3">
-              {data.comet.observations.slice(0, 8).map((obs) => (
-                <div key={obs.id} className="bg-gray-700 rounded-lg p-4 space-y-2">
-                  {/* Header */}
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="text-2xl font-mono text-green-400 font-bold">
-                        {obs.magnitude.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(obs.date).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-800 text-blue-200">
-                        {obs.filter || 'V'}
-                      </span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${obs.quality === 'excellent' ? 'bg-green-800 text-green-200' : obs.quality === 'good' ? 'bg-blue-800 text-blue-200' : obs.quality === 'fair' ? 'bg-yellow-800 text-yellow-200' : obs.quality === 'poor' ? 'bg-red-800 text-red-200' : 'bg-gray-800 text-gray-200'}`}>
-                        {obs.quality || 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Observer Info */}
-                  <div className="border-t border-gray-600 pt-2">
-                    <div className="text-sm font-medium text-white">{obs.observer.name}</div>
-                    <div className="text-xs text-gray-400">{obs.observer.location.name}</div>
-                  </div>
-
-                  {/* Additional Details */}
-                  {(obs.aperture || obs.coma) && (
-                    <div className="flex gap-4 text-xs border-t border-gray-600 pt-2">
-                      {obs.aperture && (
-                        <div>
-                          <span className="text-gray-400">Aperture:</span>
-                          <span className="ml-1 text-white">{obs.aperture}&quot;</span>
-                        </div>
-                      )}
-                      {obs.coma && (
-                        <div>
-                          <span className="text-gray-400">Coma:</span>
-                          <span className="ml-1 text-white">{obs.coma}&apos;</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              {/* Join the Network */}
+              <a
+                href="https://cobs.si/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-gradient-to-br from-orange-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-4 border border-orange-500/30 hover:scale-105 transition-transform text-center group cursor-pointer"
+              >
+                <div className="text-3xl mb-1">🚀</div>
+                <div className="text-lg font-bold text-orange-400 mb-1 group-hover:text-orange-300 transition-colors">
+                  Join Network
                 </div>
-              ))}
+                <div className="text-xs text-[var(--color-text-secondary)]">Contribute Observations</div>
+              </a>
             </div>
-          )}
+          </section>
+        )}
 
-          {/* Filter Key Explanation - Mobile */}
-          {data?.comet?.observations && (
-            <div className="mt-4 text-xs text-gray-400">
-              <h4 className="font-semibold text-gray-300 mb-2">Filter Types:</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div><strong>Visual:</strong> Visual observation</div>
-                <div><strong>V:</strong> Johnson V-band filter</div>
-                <div><strong>CCD:</strong> Unfiltered CCD</div>
-                <div><strong>R:</strong> Red filter</div>
-              </div>
-              <div className="mt-2">
-                <h4 className="font-semibold text-gray-300 mb-1">Quality Ratings:</h4>
-                <div className="space-y-1">
-                  <div><span className="text-green-400">Excellent</span> (&lt;0.1 mag)</div>
-                  <div><span className="text-blue-400">Good</span> (&lt;0.2 mag)</div>
-                  <div><span className="text-yellow-400">Fair</span> (&lt;0.4 mag)</div>
-                  <div><span className="text-red-400">Poor</span> (≥0.4 mag)</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </ExtensionSafeWrapper>
+        {/* Equipment Guide - What Will You See? */}
+        {data?.comet?.currentMagnitude && (
+          <section id="equipment-guide" className="mb-8">
+            <EquipmentGuide
+              magnitude={data.comet.currentMagnitude}
+              isVisible={data?.jpl_ephemeris?.current_position ? calculateObservability(
+                data.jpl_ephemeris.current_position.ra,
+                data.jpl_ephemeris.current_position.dec,
+                new Date(data.jpl_ephemeris.current_position.last_updated)
+              ).visible : true}
+            />
+          </section>
+        )}
 
-
-            {/* Data Sources & Attribution */}
-            <DataSourcesSection />
+        {/* Data Attribution Footer */}
+        <DataAttribution full={true} />
           </div>
         </div>
       </ExtensionSafeWrapper>

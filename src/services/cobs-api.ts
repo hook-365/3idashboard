@@ -158,12 +158,45 @@ class RateLimiter {
   }
 }
 
+/**
+ * Map common designations to COBS-compatible format
+ * COBS requires specific designation formats for queries
+ */
+const DESIGNATION_MAP: Record<string, string> = {
+  '3I/ATLAS': '3I',           // COBS ID 2643
+  'C/2025 N1': '3I',          // Alternate designation
+  'C/2025 R2 (SWAN)': 'C/2025 R2', // COBS ID 2659
+  'C/2025 A6 (Lemmon)': 'C/2025 A6', // COBS ID 2606
+  'C/2025 K1 (ATLAS)': 'C/2025 K1', // COBS ID 2630
+};
+
+/**
+ * Normalize comet designation to COBS-compatible format
+ */
+function normalizeCOBSDesignation(designation: string): string {
+  // Check if we have a known mapping
+  if (DESIGNATION_MAP[designation]) {
+    return DESIGNATION_MAP[designation];
+  }
+
+  // Otherwise return as-is (user might provide correct format)
+  return designation;
+}
+
 export class COBSApiClient {
   private baseUrl = 'https://cobs.si/api/obs_list.api';
   private cache = new MemoryCache();
   private rateLimiter = new RateLimiter();
   private retryAttempts = 3;
   private retryDelay = 1000; // 1 second
+  private cometDesignation: string; // Normalized COBS designation
+
+  constructor(designation: string = '3I/ATLAS') {
+    // Normalize designation to COBS format
+    // Default: '3I/ATLAS' → '3I' (COBS database ID: 2643)
+    this.cometDesignation = normalizeCOBSDesignation(designation);
+    console.log(`[COBSApiClient] Initialized with designation: ${designation} → normalized: ${this.cometDesignation}`);
+  }
 
   // Known observer locations (can be expanded)
   private observerLocations: Record<string, { lat: number; lng: number }> = {
@@ -184,7 +217,93 @@ export class COBSApiClient {
   };
 
   /**
+   * Parse COBS JSON observation object
+   * COBS API v1.5 JSON format is much more reliable than ICQ fixed-width format
+   */
+  private parseJSONObservation(jsonObj: any): COBSObservation | null {
+    try {
+      // Validate required fields
+      if (!jsonObj.obs_date || !jsonObj.magnitude || !jsonObj.observer) {
+        return null;
+      }
+
+      const magnitude = parseFloat(jsonObj.magnitude);
+      if (isNaN(magnitude) || magnitude < 5 || magnitude > 20) {
+        return null; // Invalid magnitude range
+      }
+
+      // Parse observation date (ISO format from JSON)
+      const observationDate = new Date(jsonObj.obs_date);
+
+      // Validate date is reasonable
+      const now = new Date();
+      const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
+      if (observationDate > now || observationDate < twoYearsAgo) {
+        return null;
+      }
+
+      // Extract observer information
+      const observer = jsonObj.observer;
+      const observerName = `${observer.first_name || ''} ${observer.last_name || ''}`.trim();
+      const observerICQ = observer.icq_name || 'UNKNOWN';
+      const location = jsonObj.location || '';
+
+      // Extract coma and tail measurements
+      const coma = jsonObj.coma_diameter ? parseFloat(jsonObj.coma_diameter) : undefined;
+      const tailLength = jsonObj.tail_length ? parseFloat(jsonObj.tail_length) : undefined;
+
+      // Convert tail units if needed (m = arcminutes, d = degrees)
+      let tail: number | undefined = undefined;
+      if (tailLength !== undefined && !isNaN(tailLength)) {
+        if (jsonObj.tail_length_unit === 'm') {
+          // Convert arcminutes to degrees
+          tail = tailLength / 60;
+        } else if (jsonObj.tail_length_unit === 'd') {
+          tail = tailLength;
+        }
+      }
+
+      // Extract uncertainty from magnitude_error field
+      const uncertainty = jsonObj.magnitude_error ? parseFloat(jsonObj.magnitude_error) : undefined;
+
+      // Extract aperture and instrument info
+      const aperture = jsonObj.instrument_aperture ? parseFloat(jsonObj.instrument_aperture) : 0;
+      const telescope = jsonObj.instrument_type?.name || '';
+      const filter = jsonObj.obs_method?.key || jsonObj.ref_catalog?.key || 'V';
+
+      // Generate unique ID
+      const dateStr = observationDate.toISOString().split('T')[0].replace(/-/g, '');
+      const cometName = jsonObj.comet?.name || this.cometDesignation;
+      const id = `${cometName}-${dateStr}-${observerICQ}`;
+
+      return {
+        id,
+        designation: jsonObj.comet?.fullname || cometName,
+        date: observationDate.toISOString().split('T')[0], // Store as YYYY-MM-DD
+        filter,
+        magnitude,
+        uncertainty,
+        aperture,
+        observer: {
+          id: observerICQ.toLowerCase(),
+          name: observerName,
+          location,
+        },
+        telescope,
+        notes: jsonObj.obs_comment || '',
+        source: 'COBS',
+        coma,
+        tail,
+      };
+    } catch (error) {
+      console.error('Error parsing JSON observation:', error);
+      return null;
+    }
+  }
+
+  /**
    * Parse COBS fixed-width format data with enhanced error handling
+   * DEPRECATED: JSON format is preferred, but kept for backward compatibility
    */
   private parseObservationLine(line: string): COBSObservation | null {
     if (!line.trim() || line.length < 50) return null;
@@ -195,7 +314,12 @@ export class COBSApiClient {
       if (segments.length < 10) return null;
 
       const designation = segments[0].trim();
-      if (!designation.includes('3I')) return null;
+      // Check if designation matches expected comet (flexible matching)
+      const expectedPrefix = this.cometDesignation.replace(/\s+/g, '').toUpperCase();
+      const actualPrefix = designation.replace(/\s+/g, '').toUpperCase();
+      if (!actualPrefix.includes(expectedPrefix.substring(0, Math.min(4, expectedPrefix.length)))) {
+        return null;
+      }
 
       // Parse date: YYYY MM DD.dd format
       const year = segments[1];
@@ -381,18 +505,19 @@ export class COBSApiClient {
 
   /**
    * Fetch raw observations from COBS API with enhanced error handling and retries
+   * Uses JSON format (format=json) which is much more reliable than ICQ fixed-width
    * @param forceRefresh - If true, bypass cache and fetch fresh data
    */
   private async fetchRawObservations(forceRefresh: boolean = false): Promise<COBSObservation[]> {
-    const cacheKey = 'raw_observations';
+    const cacheKey = `raw_observations_${this.cometDesignation}`;
     const cached = this.cache.get<COBSObservation[]>(cacheKey);
     if (cached && !forceRefresh) {
-      console.log(`Cache hit: returning ${cached.length} observations`);
+      console.log(`[${this.cometDesignation}] Cache hit: returning ${cached.length} observations`);
       return cached;
     }
 
     if (forceRefresh) {
-      console.log('Force refresh: bypassing cache');
+      console.log(`[${this.cometDesignation}] Force refresh: bypassing cache`);
     }
 
     let lastError: Error | null = null;
@@ -401,13 +526,14 @@ export class COBSApiClient {
       try {
         await this.rateLimiter.waitForSlot();
 
-        console.log(`Fetching COBS data (attempt ${attempt}/${this.retryAttempts})...`);
+        console.log(`[${this.cometDesignation}] Fetching COBS data (attempt ${attempt}/${this.retryAttempts})...`);
 
-        // Query for 3I comet observations with date range for better filtering
+        // Query for comet observations in JSON format (much more reliable than ICQ)
         const params = new URLSearchParams({
-          des: '3I', // Using designation still works better than comet ID
-          from: '2025-07-01', // Start of observation period
-          limit: '500', // Reduced limit to avoid API errors
+          des: this.cometDesignation, // Normalized COBS designation
+          from_date: '2024-01-01', // Broader date range
+          format: 'json', // Use JSON format instead of ICQ fixed-width
+          page: '1',
         });
 
         const controller = new AbortController();
@@ -416,7 +542,7 @@ export class COBSApiClient {
         const response = await fetch(`${this.baseUrl}?${params}`, {
           headers: {
             'User-Agent': '3I-ATLAS-Dashboard/1.0 (Educational/Research)',
-            'Accept': 'text/plain',
+            'Accept': 'application/json',
           },
           signal: controller.signal,
         });
@@ -432,16 +558,30 @@ export class COBSApiClient {
           throw new Error('COBS API returned empty response');
         }
 
-        const lines = text.split('\n').filter(line => line.trim().length > 0);
-        console.log(`Received ${lines.length} lines from COBS API`);
+        // Parse JSON response
+        let jsonData: any;
+        try {
+          jsonData = JSON.parse(text);
+        } catch (parseError) {
+          throw new Error(`Failed to parse COBS JSON response: ${parseError}`);
+        }
+
+        // Check for API error response
+        if (jsonData.code && jsonData.code !== '200') {
+          throw new Error(`COBS API error: ${jsonData.code} - ${jsonData.message || 'Unknown error'}`);
+        }
+
+        // Extract observations from JSON response
+        const objects = jsonData.objects || [];
+        console.log(`Received ${objects.length} observations from COBS API (JSON format)`);
 
         const observations: COBSObservation[] = [];
         let parsedCount = 0;
         let errorCount = 0;
 
-        for (const line of lines) {
+        for (const obj of objects) {
           try {
-            const obs = this.parseObservationLine(line);
+            const obs = this.parseJSONObservation(obj);
             if (obs) {
               observations.push(obs);
               parsedCount++;
@@ -449,7 +589,7 @@ export class COBSApiClient {
           } catch (parseError) {
             errorCount++;
             if (errorCount < 5) { // Log first few parse errors
-              console.warn('Parse error for line:', line.substring(0, 50), parseError);
+              console.warn('Parse error for observation:', parseError);
             }
           }
         }
@@ -457,13 +597,13 @@ export class COBSApiClient {
         console.log(`Parsed ${parsedCount} valid observations, ${errorCount} parse errors`);
 
         if (observations.length === 0) {
-          throw new Error('No valid observations found in COBS response');
+          throw new Error(`No valid observations found in COBS response for designation: ${this.cometDesignation}`);
         }
 
         // Cache for 5 minutes (300000ms)
         this.cache.set(cacheKey, observations, 300000);
 
-        console.log(`Successfully cached ${observations.length} observations`);
+        console.log(`Successfully cached ${observations.length} observations for ${this.cometDesignation}`);
         return observations;
 
       } catch (error) {
@@ -530,9 +670,25 @@ export class COBSApiClient {
 
   /**
    * Parse COBS date format to ISO string
-   * IMPORTANT: COBS dates are in UTC, so we must use Date.UTC()
+   * Handles both:
+   * - JSON format: YYYY-MM-DD HH:MM:SS (already ISO)
+   * - ICQ format: YYYY MM DD.dd (space-separated with decimal days)
+   * IMPORTANT: COBS dates are in UTC
    */
   private parseObservationDate(dateStr: string): string {
+    // If already in ISO format (YYYY-MM-DD or ISO timestamp), use directly
+    if (dateStr.includes('-') || dateStr.includes('T')) {
+      try {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString();
+        }
+      } catch {
+        // Fall through to ICQ parsing
+      }
+    }
+
+    // Parse ICQ format: "YYYY MM DD.dd"
     const dateParts = dateStr.trim().split(' ');
     if (dateParts.length !== 3) return new Date().toISOString();
 

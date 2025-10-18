@@ -9,7 +9,10 @@
  * - Kepler orbital mechanics for hyperbolic orbits
  * - Numerical integration for trajectory calculation
  * - Backward/forward orbital trail generation
+ * - RA/DEC calculation from orbital elements
  */
+
+import * as Astronomy from 'astronomy-engine';
 
 /**
  * Convert equatorial coordinates to ecliptic coordinates
@@ -248,4 +251,206 @@ export function calculateAtlasTrailFromOrbit(
   }
   console.log(`Input position: (${currentPos[0].toFixed(3)}, ${currentPos[1].toFixed(3)})`);
   return trail;
+}
+
+/**
+ * Calculate RA/DEC from 3I/ATLAS orbital elements
+ * Uses our known orbital elements to compute observer-centric sky position
+ *
+ * @param date - Date to calculate position for (defaults to now)
+ * @returns Object with RA (degrees), DEC (degrees), and last_updated timestamp
+ */
+export function calculateAtlasRADEC(date: Date = new Date()): { ra: number; dec: number; last_updated: string } {
+  // 3I/ATLAS orbital elements from Minor Planet Center MPEC 2025-N12 (Official)
+  // IMPORTANT: Must match values in /src/lib/jsorrery/scenario/scenarios/bodies/atlas3i.js
+  // Source: https://minorplanetcenter.net/mpec/K25/K25N12.html
+  const q = 1.3745928;  // Perihelion distance (AU) - official MPC value
+  const e = 6.2769203;  // Eccentricity (highly hyperbolic - fastest interstellar object known)
+  const a = q / (1 - e); // Semi-major axis: a = q/(1-e) = -0.26044 AU (negative for hyperbolic)
+
+  const elements = {
+    e: e,             // Eccentricity (hyperbolic)
+    q: q,             // Perihelion distance (AU)
+    i: 175.11669,     // Inclination (degrees) - retrograde, ~5° from ecliptic plane
+    omega: 127.79317, // Argument of periapsis (degrees)
+    node: 322.27219,  // Longitude of ascending node (degrees)
+  };
+
+  // Perihelion date: October 29, 2025 05:03:46 UTC (2025 Oct. 29.21095 TT from MPC)
+  const perihelion = new Date('2025-10-29T05:03:46.000Z');
+  const daysFromPerihelion = (date.getTime() - perihelion.getTime()) / (1000 * 60 * 60 * 24);
+
+  // Calculate comet's heliocentric ecliptic position
+  const cometPos = calculatePositionFromElements(daysFromPerihelion, elements);
+
+  // Get Earth's heliocentric equatorial position
+  const earthVec = Astronomy.HelioVector(Astronomy.Body.Earth, date);
+
+  // Convert comet position from ecliptic to equatorial
+  const obliquity = 23.4392811 * Math.PI / 180; // J2000 obliquity
+  const cos_obl = Math.cos(obliquity);
+  const sin_obl = Math.sin(obliquity);
+
+  const comet_eq = {
+    x: cometPos.x,
+    y: cometPos.y * cos_obl - cometPos.z * sin_obl,
+    z: cometPos.y * sin_obl + cometPos.z * cos_obl
+  };
+
+  // Calculate geocentric position (comet - Earth)
+  const geo_x = comet_eq.x - earthVec.x;
+  const geo_y = comet_eq.y - earthVec.y;
+  const geo_z = comet_eq.z - earthVec.z;
+
+  // Convert geocentric XYZ to RA/DEC
+  const distance = Math.sqrt(geo_x * geo_x + geo_y * geo_y + geo_z * geo_z);
+
+  // RA = atan2(y, x) converted to degrees
+  let ra = Math.atan2(geo_y, geo_x) * 180 / Math.PI;
+  if (ra < 0) ra += 360; // Normalize to 0-360
+
+  // DEC = asin(z / distance) converted to degrees
+  const dec = Math.asin(geo_z / distance) * 180 / Math.PI;
+
+  return {
+    ra,
+    dec,
+    last_updated: date.toISOString()
+  };
+}
+
+/**
+ * Calculate angular separation between two celestial coordinates
+ * Uses the spherical law of cosines for accurate separation calculation
+ *
+ * @param ra1 Right Ascension 1 (degrees)
+ * @param dec1 Declination 1 (degrees)
+ * @param ra2 Right Ascension 2 (degrees)
+ * @param dec2 Declination 2 (degrees)
+ * @returns Angular separation in arcseconds
+ */
+export function calculateAngularSeparation(
+  ra1: number,
+  dec1: number,
+  ra2: number,
+  dec2: number
+): number {
+  // Convert degrees to radians
+  const ra1_rad = ra1 * Math.PI / 180;
+  const dec1_rad = dec1 * Math.PI / 180;
+  const ra2_rad = ra2 * Math.PI / 180;
+  const dec2_rad = dec2 * Math.PI / 180;
+
+  // Spherical law of cosines:
+  // cos(angle) = sin(dec1)*sin(dec2) + cos(dec1)*cos(dec2)*cos(ra1-ra2)
+  const cos_angle = Math.sin(dec1_rad) * Math.sin(dec2_rad) +
+                    Math.cos(dec1_rad) * Math.cos(dec2_rad) * Math.cos(ra1_rad - ra2_rad);
+
+  // Clamp to [-1, 1] to avoid numerical errors with acos
+  const clamped = Math.max(-1, Math.min(1, cos_angle));
+
+  // Angular separation in radians
+  const angle_rad = Math.acos(clamped);
+
+  // Convert to arcseconds (1 radian = 206265 arcseconds)
+  const angle_arcsec = angle_rad * 206264.806247;
+
+  return angle_arcsec;
+}
+
+/**
+ * Convert angular separation to linear distance
+ *
+ * @param angularSeparation Angular separation in arcseconds
+ * @param distance Distance to object in AU
+ * @returns Linear distance in AU
+ */
+export function angularToLinearDistance(
+  angularSeparation: number,
+  distance: number
+): number {
+  // Convert arcseconds to radians
+  const angle_rad = angularSeparation / 206264.806247;
+
+  // For small angles, linear distance ≈ distance × angle (in radians)
+  // This is the small-angle approximation
+  const linear_distance_au = distance * angle_rad;
+
+  return linear_distance_au;
+}
+
+/**
+ * Convert RA/Dec (equatorial coordinates) + distance to heliocentric XYZ
+ *
+ * This function converts sky coordinates (what observers see) into 3D heliocentric
+ * coordinates (position relative to the Sun in solar system space).
+ *
+ * Steps:
+ * 1. Convert RA/Dec to geocentric unit vector (from Earth to comet)
+ * 2. Scale by geocentric distance to get geocentric position
+ * 3. Get Earth's heliocentric position from astronomy-engine
+ * 4. Add geocentric vector to Earth's position to get heliocentric comet position
+ * 5. Convert from equatorial to ecliptic coordinates (for consistency with JPL data)
+ *
+ * @param ra - Right Ascension in degrees (0-360)
+ * @param dec - Declination in degrees (-90 to +90)
+ * @param geocentricDistance - Distance from Earth in AU
+ * @param date - Date for Earth position calculation (defaults to now)
+ * @returns Heliocentric position in ecliptic coordinates (x, y, z) in AU
+ */
+export function raDecToHeliocentric(
+  ra: number,
+  dec: number,
+  geocentricDistance: number,
+  date: Date = new Date()
+): { x: number; y: number; z: number; distance_from_sun: number } {
+  // Convert RA/Dec from degrees to radians
+  const ra_rad = ra * Math.PI / 180;
+  const dec_rad = dec * Math.PI / 180;
+
+  // Convert RA/Dec to geocentric equatorial unit vector
+  // RA is measured eastward from vernal equinox (x-axis)
+  // Dec is measured north from celestial equator
+  const geocentric_equatorial = {
+    x: Math.cos(dec_rad) * Math.cos(ra_rad),
+    y: Math.cos(dec_rad) * Math.sin(ra_rad),
+    z: Math.sin(dec_rad)
+  };
+
+  // Scale by geocentric distance to get position relative to Earth
+  const geocentric_pos = {
+    x: geocentric_equatorial.x * geocentricDistance,
+    y: geocentric_equatorial.y * geocentricDistance,
+    z: geocentric_equatorial.z * geocentricDistance
+  };
+
+  // Get Earth's heliocentric position in equatorial coordinates
+  const earthVec = Astronomy.HelioVector(Astronomy.Body.Earth, date);
+
+  // Add geocentric position to Earth's position to get heliocentric position
+  const heliocentric_equatorial = {
+    x: earthVec.x + geocentric_pos.x,
+    y: earthVec.y + geocentric_pos.y,
+    z: earthVec.z + geocentric_pos.z
+  };
+
+  // Convert from equatorial to ecliptic coordinates for consistency with JPL data
+  // (astronomy-engine returns equatorial, JPL uses ecliptic)
+  const heliocentric_ecliptic = equatorialToEcliptic(
+    heliocentric_equatorial.x,
+    heliocentric_equatorial.y,
+    heliocentric_equatorial.z
+  );
+
+  // Calculate heliocentric distance
+  const distance_from_sun = Math.sqrt(
+    heliocentric_ecliptic.x ** 2 +
+    heliocentric_ecliptic.y ** 2 +
+    heliocentric_ecliptic.z ** 2
+  );
+
+  return {
+    ...heliocentric_ecliptic,
+    distance_from_sun
+  };
 }

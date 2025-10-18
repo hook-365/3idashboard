@@ -132,11 +132,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   <summary className="cursor-pointer text-red-400 hover:text-red-300 mb-2">
                     Error Details
                   </summary>
-                  <pre className="bg-gray-900/50 p-3 rounded overflow-x-auto text-red-200">
+                  <pre className="bg-[var(--color-bg-primary)]/50 p-3 rounded overflow-x-auto text-red-200">
                     {this.state.error.stack}
                   </pre>
                   {this.state.errorInfo && (
-                    <pre className="bg-gray-900/50 p-3 rounded overflow-x-auto text-red-200 mt-2">
+                    <pre className="bg-[var(--color-bg-primary)]/50 p-3 rounded overflow-x-auto text-red-200 mt-2">
                       {this.state.errorInfo.componentStack}
                     </pre>
                   )}
@@ -146,7 +146,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               {showRetry && (
                 <button
                   onClick={this.handleRetry}
-                  className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white font-medium transition-colors"
+                  className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-[var(--color-text-primary)] font-medium transition-colors"
                 >
                   Retry
                 </button>
@@ -209,7 +209,7 @@ export class APIErrorBoundary extends ErrorBoundary {
               </p>
               <button
                 onClick={this.handleRetry}
-                className="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded text-white font-medium transition-colors"
+                className="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded text-[var(--color-text-primary)] font-medium transition-colors"
               >
                 Retry Loading Data
               </button>
@@ -268,14 +268,14 @@ export class ChartErrorBoundary extends ErrorBoundary {
                   <summary className="cursor-pointer text-yellow-400 hover:text-yellow-300 mb-2">
                     Error Details
                   </summary>
-                  <pre className="bg-gray-900/50 p-3 rounded overflow-x-auto text-yellow-200">
+                  <pre className="bg-[var(--color-bg-primary)]/50 p-3 rounded overflow-x-auto text-yellow-200">
                     {this.state.error.message}
                   </pre>
                 </details>
               )}
               <button
                 onClick={this.handleRetry}
-                className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded text-white font-medium transition-colors"
+                className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded text-[var(--color-text-primary)] font-medium transition-colors"
               >
                 Retry Chart Rendering
               </button>
@@ -343,7 +343,7 @@ export class VisualizationErrorBoundary extends ErrorBoundary {
             )}
             <button
               onClick={this.handleRetry}
-              className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-white font-medium transition-colors"
+              className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-[var(--color-text-primary)] font-medium transition-colors"
             >
               Retry Visualization
             </button>

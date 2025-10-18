@@ -15,6 +15,15 @@ npm run build && npm run start
 docker-compose up -d --build
 ```
 
+## Working with Claude
+
+**IMPORTANT - Context Window Management:**
+- **DO NOT** automatically start/restart the dev server using Bash commands
+- **ALWAYS** prompt the user to manually start/restart the server instead
+- This saves significant context window usage (dev server output is verbose)
+- User will manage the server and confirm when it's running
+- Only check server status if explicitly requested by user
+
 ## Tech Stack
 
 - **Frontend**: Next.js 15.5 App Router, TypeScript, Tailwind CSS

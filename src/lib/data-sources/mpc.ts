@@ -21,8 +21,9 @@ import type { MPCOrbitalElements, MPCSourceData } from '@/types/enhanced-comet-d
 
 // MPC API configuration
 const MPC_COMET_ELEMENTS_URL = 'https://www.minorplanetcenter.net/Extended_Files/cometels.json.gz';
-const TARGET_DESIGNATION = '3I'; // Looking for 3I/ATLAS
-const TARGET_NAME_PARTIAL = 'ATLAS'; // Name should contain ATLAS
+// Reserved for future use - explicit search criteria for 3I/ATLAS
+// const TARGET_DESIGNATION = '3I'; // Looking for 3I/ATLAS
+// const TARGET_NAME_PARTIAL = 'ATLAS'; // Name should contain ATLAS
 
 // Cache implementation (following established codebase pattern)
 interface CacheEntry<T> {

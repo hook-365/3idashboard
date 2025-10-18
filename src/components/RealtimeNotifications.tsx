@@ -57,7 +57,7 @@ export default function RealtimeNotifications() {
       {notifications.map(notification => (
         <div
           key={notification.id}
-          className={`pointer-events-auto bg-gray-800 border border-gray-600 rounded-lg p-4 shadow-lg transition-all duration-500 transform max-w-sm ${
+          className={`pointer-events-auto bg-[var(--color-bg-secondary)] border border-[var(--color-border-secondary)] rounded-lg p-4 shadow-lg transition-all duration-500 transform max-w-sm ${
             notification.isVisible
               ? 'translate-x-0 opacity-100'
               : 'translate-x-full opacity-0'
@@ -69,17 +69,17 @@ export default function RealtimeNotifications() {
             )}
 
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-100 font-medium">
+              <p className="text-sm text-[var(--color-text-primary)] font-medium">
                 {notification.message}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
                 {notification.timestamp.toLocaleTimeString()}
               </p>
             </div>
 
             <button
               onClick={() => dismissNotification(notification.id)}
-              className="text-gray-400 hover:text-gray-200 transition-colors flex-shrink-0"
+              className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors flex-shrink-0"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

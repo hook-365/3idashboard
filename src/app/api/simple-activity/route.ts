@@ -305,8 +305,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        // Tier 2: Derived analytics - 15 minutes (physics-based activity calculations from observations)
-        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
+        // Browser + CDN cache for 10 minutes (activity calculations are stable)
+        'Cache-Control': 'public, max-age=600, s-maxage=600, stale-while-revalidate=1200',
         'X-Processing-Time': processingTime.toString(),
         'X-Activity-Points': activityData.length.toString(),
         'X-Current-Activity': currentActivity.level,

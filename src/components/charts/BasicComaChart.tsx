@@ -16,6 +16,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import { getTextColors, getBackgroundColors, getBorderColors, getChartColors, hexToRgba } from '@/utils/chart-theme';
 
 // Flag to track Chart.js registration
 let chartJsRegistered = false;
@@ -61,9 +62,9 @@ export default function BasicComaChart({
 
   if (!isClient || !data || data.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6" style={{ height: '400px' }}>
+      <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6" style={{ height: '400px' }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             {data?.length === 0 ? 'No coma data available' : 'Loading coma chart...'}
           </div>
         </div>
@@ -71,18 +72,23 @@ export default function BasicComaChart({
     );
   }
 
+  const textColors = getTextColors();
+  const bgColors = getBackgroundColors();
+  const borderColors = getBorderColors();
+  const chartColors = getChartColors();
+
   const chartData: ChartData<'line'> = {
     datasets: [
       {
         label: 'Coma Size (arcminutes)',
         data: data.map(point => ({
-          x: point.date,
+          x: new Date(point.date).getTime(),
           y: point.comaSize
         })),
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        pointBackgroundColor: '#10b981',
-        pointBorderColor: '#ffffff',
+        borderColor: chartColors.secondary,
+        backgroundColor: hexToRgba(chartColors.secondary, 0.1),
+        pointBackgroundColor: chartColors.secondary,
+        pointBorderColor: textColors.primary,
         pointBorderWidth: 1,
         pointRadius: 4,
         pointHoverRadius: 6,
@@ -95,6 +101,9 @@ export default function BasicComaChart({
   const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 300
+    },
     elements: {
       point: {
         radius: typeof window !== 'undefined' && window.innerWidth < 768 ? 5 : 4,
@@ -106,23 +115,26 @@ export default function BasicComaChart({
       legend: {
         display: true,
         labels: {
-          color: '#9ca3af'
+          color: textColors.secondary,
+          font: {
+            size: 12
+          }
         }
       },
       title: {
         display: true,
         text: title,
-        color: '#ffffff',
+        color: textColors.heading,
         font: {
           size: 16,
           weight: 'bold'
         }
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#ffffff',
-        borderColor: '#10b981',
+        backgroundColor: bgColors.tertiary,
+        titleColor: textColors.primary,
+        bodyColor: textColors.secondary,
+        borderColor: borderColors.secondary,
         borderWidth: 1,
         callbacks: {
           label: (context) => {
@@ -144,26 +156,26 @@ export default function BasicComaChart({
         title: {
           display: true,
           text: 'Date',
-          color: '#9ca3af'
+          color: textColors.secondary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: borderColors.primary
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary
         }
       },
       y: {
         title: {
           display: true,
           text: 'Coma Size (arcminutes)',
-          color: '#9ca3af'
+          color: textColors.secondary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: borderColors.primary
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary
         },
         beginAtZero: true
       }
@@ -175,14 +187,14 @@ export default function BasicComaChart({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div style={{ height: '400px', width: '100%' }}>
+    <div className="bg-[var(--color-bg-secondary)] rounded-lg p-4">
+      <div style={{ height: '400px', width: '100%' }} aria-label={`${title} coma size evolution chart`}>
         <Line data={chartData} options={options} />
       </div>
 
       {/* Simple stats */}
-      <div className="mt-3 pt-3 border-t border-gray-700">
-        <div className="flex justify-between text-sm text-gray-400">
+      <div className="mt-3 pt-3 border-t border-[var(--color-border-primary)]">
+        <div className="flex justify-between text-sm text-[var(--color-text-tertiary)]">
           <span>
             Range: {Math.min(...data.map(d => d.comaSize)).toFixed(1)} - {Math.max(...data.map(d => d.comaSize)).toFixed(1)} arcminutes
           </span>

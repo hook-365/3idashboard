@@ -28,6 +28,28 @@ export interface TheSkyLiveData {
   heliocentric_distance: number; // AU (distance from Sun)
   geocentric_distance: number;   // AU (distance from Earth)
   magnitude_estimate: number;    // visual magnitude
+  // Orbital elements (from TheSkyLive orbital elements table)
+  eccentricity?: number;         // Orbital eccentricity
+  perihelion_distance?: number;  // Perihelion distance in AU
+  calculated_velocity?: number;  // Calculated velocity from vis-viva equation (km/s)
+}
+
+// TypeScript interface for ephemeris point
+export interface EphemerisPoint {
+  date: string;              // ISO format: "2025-10-09"
+  ra: number;                // decimal degrees
+  dec: number;               // decimal degrees
+  magnitude?: number;        // predicted magnitude
+  constellation?: string;    // constellation name
+  prediction_date: string;   // ISO timestamp when this prediction was made
+  data_source: 'TheSkyLive';
+}
+
+// TypeScript interface for ephemeris table
+export interface EphemerisTable {
+  predictions: EphemerisPoint[];
+  captured_at: string;       // ISO timestamp
+  epoch: string;             // Orbital element epoch
 }
 
 // URLs for TheSkyLive.com data sources
@@ -119,9 +141,11 @@ function parseRA(raString: string): number {
 
 /**
  * Convert Dec degrees/minutes/seconds to decimal degrees
+ * Handles both regular characters and HTML entities (&deg; &rsquo; &rdquo;)
  */
 function parseDec(decString: string): number {
-  const match = decString.match(/([+-]?)(\d+)°\s*(\d+)'\s*(\d+(?:\.\d+)?)"/);
+  // Match format: -10° 22' 15" or -10&deg; 22&rsquo; 15&rdquo;
+  const match = decString.match(/([+-]?)(\d+)(?:°|&deg;)\s*(\d+)(?:'|&rsquo;)\s*(\d+(?:\.\d+)?)(?:"|&rdquo;)/);
   if (!match) return 0;
 
   const sign = match[1] === '-' ? -1 : 1;
@@ -134,8 +158,71 @@ function parseDec(decString: string): number {
 
 
 /**
+ * Calculate heliocentric velocity from orbital elements using vis-viva equation
+ *
+ * Vis-viva equation: v = sqrt(μ * (2/r - 1/a))
+ * Where:
+ *   μ = Sun's gravitational parameter = 1.327124e11 km³/s²
+ *   r = current heliocentric distance (km)
+ *   a = semi-major axis (km), calculated from eccentricity and perihelion distance
+ *
+ * For hyperbolic orbits (e > 1):
+ *   a = q / (1 - e) where e > 1 makes a negative
+ *   The 1/a term becomes negative, increasing velocity (as expected for interstellar objects)
+ *
+ * @param heliocentric_distance - Current distance from Sun in AU
+ * @param eccentricity - Orbital eccentricity (>1 for hyperbolic/interstellar)
+ * @param perihelion_distance - Perihelion distance in AU
+ * @returns Heliocentric velocity in km/s
+ */
+function calculateVelocityFromOrbitalElements(
+  heliocentric_distance: number,
+  eccentricity: number,
+  perihelion_distance: number
+): number {
+  // Validate inputs
+  if (heliocentric_distance <= 0 || perihelion_distance <= 0) {
+    console.warn('Invalid distances for velocity calculation:', {
+      heliocentric_distance,
+      perihelion_distance
+    });
+    return 0;
+  }
+
+  // Constants
+  const GM_SUN = 1.32712440018e11; // km³/s² (Sun's gravitational parameter)
+  const AU_TO_KM = 149597870.7; // km per AU
+
+  // Convert distances from AU to km
+  const r_km = heliocentric_distance * AU_TO_KM;
+  const q_km = perihelion_distance * AU_TO_KM;
+
+  // Calculate semi-major axis from eccentricity and perihelion distance
+  // For hyperbolic orbits (e > 1), a is negative
+  // a = q / (1 - e)
+  const a_km = q_km / (1 - eccentricity);
+
+  console.log('Velocity calculation inputs:', {
+    heliocentric_distance_au: heliocentric_distance,
+    heliocentric_distance_km: r_km,
+    eccentricity,
+    perihelion_distance_au: perihelion_distance,
+    perihelion_distance_km: q_km,
+    semi_major_axis_km: a_km,
+    orbit_type: eccentricity > 1 ? 'hyperbolic' : eccentricity === 1 ? 'parabolic' : 'elliptical'
+  });
+
+  // Apply vis-viva equation: v = sqrt(μ * (2/r - 1/a))
+  const velocity_km_s = Math.sqrt(GM_SUN * (2 / r_km - 1 / a_km));
+
+  console.log(`Calculated heliocentric velocity: ${velocity_km_s.toFixed(2)} km/s`);
+
+  return velocity_km_s;
+}
+
+/**
  * Calculate orbital velocity from distance and orbital period (simplified)
- * This is an approximation using Kepler's laws
+ * This is an approximation using Kepler's laws - DEPRECATED, use calculateVelocityFromOrbitalElements instead
  */
 function calculateOrbitalVelocity(_heliocentrieDistance: number): number {
   // Simplified calculation: v = sqrt(GM/r) where GM ≈ 1.327e20 m³/s² for Sun
@@ -179,6 +266,9 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
   let heliocentric_distance = 0;
   let geocentric_distance = 0;
   let magnitude_estimate = 0; // Use real data only - no fabricated fallback
+  let eccentricity: number | undefined;
+  let perihelion_distance: number | undefined;
+  let calculated_velocity: number | undefined;
 
   try {
     // Extract Right Ascension from TheSkyLive format (apparent coordinates)
@@ -209,12 +299,37 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
       console.log(`Extracted magnitude: ${magnitude_estimate}`);
     }
 
+    // Extract orbital elements from TheSkyLive orbital elements table
+    // Eccentricity: <td class="left">Orbit eccentricity</td>...<td class="right value">6.13941774</td>
+    const eccentricityMatch = html.match(/Orbit eccentricity[\s\S]*?<td class="right value">([0-9.]+)<\/td>/i);
+    if (eccentricityMatch) {
+      eccentricity = parseFloat(eccentricityMatch[1]);
+      console.log(`Extracted eccentricity: ${eccentricity}`);
+    }
+
+    // Perihelion distance: <td class="left">Perihelion distance</td>...<td class="right value">1.35638454 AU
+    const perihelionMatch = html.match(/Perihelion distance[\s\S]*?<td class="right value">([0-9.]+)\s*AU/i);
+    if (perihelionMatch) {
+      perihelion_distance = parseFloat(perihelionMatch[1]);
+      console.log(`Extracted perihelion distance: ${perihelion_distance} AU`);
+    }
+
     // For heliocentric distance, we'll estimate from geocentric + Earth-Sun distance
     // This is an approximation since we don't have direct heliocentric distance from TheSkyLive
     if (geocentric_distance > 0) {
       // Rough approximation: assuming Earth is ~1 AU from Sun
       heliocentric_distance = Math.max(0.5, geocentric_distance - 1.0); // rough estimate
       console.log(`Estimated heliocentric distance: ${heliocentric_distance} AU (approximation)`);
+    }
+
+    // Calculate velocity from orbital elements if we have them
+    if (eccentricity && perihelion_distance && heliocentric_distance > 0) {
+      calculated_velocity = calculateVelocityFromOrbitalElements(
+        heliocentric_distance,
+        eccentricity,
+        perihelion_distance
+      );
+      console.log(`Calculated velocity from orbital elements: ${calculated_velocity.toFixed(2)} km/s`);
     }
 
   } catch (error) {
@@ -243,6 +358,9 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
     heliocentric_distance,
     geocentric_distance,
     magnitude_estimate,
+    eccentricity,
+    perihelion_distance,
+    calculated_velocity,
   };
 }
 
@@ -405,4 +523,180 @@ export function getTheSkyLiveCacheInfo(): {
     cacheAge,
     nextRefreshIn: Math.max(0, nextRefreshIn),
   };
+}
+
+/**
+ * Parse TheSkyLive 15-day ephemeris table from HTML
+ * Extracts predicted positions, magnitudes, and constellations
+ */
+export function parseEphemerisTable(html: string): EphemerisTable {
+  console.log('Parsing TheSkyLive ephemeris table...');
+
+  const predictions: EphemerisPoint[] = [];
+  const capturedAt = new Date().toISOString();
+
+  // Extract epoch from orbital elements section (if available)
+  let epoch = capturedAt;
+  const epochMatch = html.match(/Epoch:\s*(\d{4}-\w{3}-\d{2})/i);
+  if (epochMatch) {
+    try {
+      epoch = new Date(epochMatch[1]).toISOString();
+    } catch (e) {
+      console.warn('Failed to parse epoch date:', epochMatch[1]);
+    }
+  }
+
+  try {
+    // Match ephemeris table rows
+    // Format: "Oct 03 2025" or similar, followed by RA, Dec, magnitude, constellation
+    // The HTML structure has nested <a> tags inside <td> elements
+
+    // Split HTML into table rows
+    const rows = html.split(/<tr[^>]*>/i);
+
+    for (const row of rows) {
+      // Skip header rows and non-data rows
+      if (!row.includes('<td')) continue;
+
+      // Extract table cells - use lazy matching to handle nested tags
+      const cells = row.match(/<td[^>]*>[\s\S]*?<\/td>/gi);
+      if (!cells || cells.length < 4) continue;
+
+      // Remove ALL HTML tags from cells (including nested <a>, <span>, etc.)
+      const cellValues = cells.map(cell =>
+        cell.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+      );
+
+      // Parse date (cell 0): "Oct 03 2025" or "Oct 3 2025"
+      const dateStr = cellValues[0];
+      const dateMatch = dateStr.match(/(\w{3})\s+(\d{1,2})\s+(\d{4})/);
+      if (!dateMatch) continue;
+
+      try {
+        // Convert "Oct 03 2025" to ISO date "2025-10-03"
+        const dateObj = new Date(`${dateMatch[1]} ${dateMatch[2]}, ${dateMatch[3]}`);
+        if (isNaN(dateObj.getTime())) continue;
+
+        const isoDate = dateObj.toISOString().split('T')[0];
+
+        // Parse RA (cell 1): "14h 23m 00s"
+        const raStr = cellValues[1];
+        const ra = parseRA(raStr);
+        if (ra === 0 && !raStr.startsWith('0')) continue; // Skip if parsing failed
+
+        // Parse Dec (cell 2): "-10° 46' 02"" or with HTML entities
+        const decStr = cellValues[2];
+        const dec = parseDec(decStr);
+
+        // Parse magnitude (cell 3): "15.28" - optional
+        let magnitude: number | undefined;
+        const magStr = cellValues[3];
+        const magFloat = parseFloat(magStr);
+        if (!isNaN(magFloat)) {
+          magnitude = magFloat;
+        }
+
+        // Parse constellation (cell 4): "Virgo" - optional
+        let constellation: string | undefined;
+        if (cellValues.length >= 5 && cellValues[4].length > 0) {
+          constellation = cellValues[4];
+        }
+
+        predictions.push({
+          date: isoDate,
+          ra,
+          dec,
+          magnitude,
+          constellation,
+          prediction_date: capturedAt,
+          data_source: 'TheSkyLive'
+        });
+
+      } catch (error) {
+        console.warn(`Failed to parse ephemeris row: ${dateStr}`, error);
+      }
+    }
+
+    console.log(`Parsed ${predictions.length} ephemeris predictions from TheSkyLive`);
+
+    if (predictions.length > 0) {
+      console.log(`Date range: ${predictions[0].date} to ${predictions[predictions.length - 1].date}`);
+      console.log(`Sample prediction: ${predictions[0].date} - RA ${predictions[0].ra.toFixed(2)}° Dec ${predictions[0].dec.toFixed(2)}° Mag ${predictions[0].magnitude}`);
+    }
+
+  } catch (error) {
+    console.error('Error parsing ephemeris table:', error);
+  }
+
+  return {
+    predictions,
+    captured_at: capturedAt,
+    epoch
+  };
+}
+
+/**
+ * Fetch and parse full ephemeris table from TheSkyLive
+ */
+export async function fetchEphemerisTable(): Promise<EphemerisTable | null> {
+  const cacheKey = 'theskylive_ephemeris_table';
+
+  // Check cache first
+  const cached = cache.get<EphemerisTable>(cacheKey);
+  if (cached) {
+    console.log('TheSkyLive ephemeris cache hit - returning cached table');
+    return cached;
+  }
+
+  try {
+    await rateLimiter.waitForSlot();
+
+    console.log('Fetching TheSkyLive ephemeris table...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+    const response = await fetch(COMET_INFO_URL, {
+      headers: {
+        'User-Agent': '3I-ATLAS-Dashboard/1.0 (Educational/Research)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`TheSkyLive HTTP error: ${response.status} ${response.statusText}`);
+    }
+
+    const html = await response.text();
+
+    if (!html || html.trim().length === 0) {
+      throw new Error('TheSkyLive returned empty response');
+    }
+
+    // Parse the ephemeris table
+    const ephemerisTable = parseEphemerisTable(html);
+
+    // Validate the parsed data
+    if (ephemerisTable.predictions.length === 0) {
+      throw new Error('No ephemeris predictions found in TheSkyLive data');
+    }
+
+    // Cache successful result for 6 hours (ephemeris doesn't change often)
+    cache.set(cacheKey, ephemerisTable, 6 * 60 * 60 * 1000);
+
+    console.log('Successfully fetched and parsed TheSkyLive ephemeris table');
+    return ephemerisTable;
+
+  } catch (error) {
+    console.error('Failed to fetch TheSkyLive ephemeris table:', error);
+    return null;
+  }
 }

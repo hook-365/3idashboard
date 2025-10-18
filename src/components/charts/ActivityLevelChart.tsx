@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRef, useEffect, useState, useMemo, memo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,9 +16,11 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import annotationPlugin from 'chartjs-plugin-annotation';
 import { ExtensionSafeChartContainer } from '../ExtensionSafeComponents';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
-import { createPerihelionLineDataset, calculateYAxisRange } from '@/utils/chart-helpers';
+import { createPerihelionAnnotation } from '@/utils/chart-annotations';
+import { getTextColors, getBackgroundColors, getBorderColors, getChartColors, getStatusColors, getActivityLevelColor, hexToRgba } from '@/utils/chart-theme';
 
 // Flag to track Chart.js registration
 let chartJsRegistered = false;
@@ -70,34 +72,38 @@ interface ActivityLevelChartProps {
   peakPeriods?: ActivityPeriod[];
 }
 
-const DEFAULT_ACTIVITY_LEVELS: ActivityLevel[] = [
-  {
-    level: 'low',
-    threshold: 25,
-    description: 'Minimal cometary activity - stable coma and brightness',
-    color: '#10b981' // Green
-  },
-  {
-    level: 'moderate',
-    threshold: 50,
-    description: 'Moderate activity - noticeable coma growth or brightness changes',
-    color: '#f59e0b' // Yellow
-  },
-  {
-    level: 'high',
-    threshold: 75,
-    description: 'High activity - rapid coma expansion and significant brightening',
-    color: '#ef4444' // Red
-  },
-  {
-    level: 'extreme',
-    threshold: 100,
-    description: 'Extreme activity - dramatic outbursts and rapid evolution',
-    color: '#8b5cf6' // Purple
-  }
-];
+const getDefaultActivityLevels = (): ActivityLevel[] => {
+  const chartColors = getChartColors();
 
-export default function ActivityLevelChart({
+  return [
+    {
+      level: 'low',
+      threshold: 25,
+      description: 'Minimal cometary activity - stable coma and brightness',
+      color: chartColors.secondary // Green
+    },
+    {
+      level: 'moderate',
+      threshold: 50,
+      description: 'Moderate activity - noticeable coma growth or brightness changes',
+      color: chartColors.quinary // Yellow
+    },
+    {
+      level: 'high',
+      threshold: 75,
+      description: 'High activity - rapid coma expansion and significant brightening',
+      color: chartColors.tertiary // Red
+    },
+    {
+      level: 'extreme',
+      threshold: 100,
+      description: 'Extreme activity - dramatic outbursts and rapid evolution',
+      color: chartColors.quaternary // Purple
+    }
+  ];
+};
+
+const ActivityLevelChart = memo(function ActivityLevelChart({
   data,
   className = '',
   showComponents = false,
@@ -105,8 +111,13 @@ export default function ActivityLevelChart({
   onDataPointClick,
   enableZoom = true,
   showLegend = true,
-  activityLevels = DEFAULT_ACTIVITY_LEVELS,
+  activityLevels = getDefaultActivityLevels(),
 }: ActivityLevelChartProps) {
+  const chartColors = getChartColors();
+  const statusColors = getStatusColors();
+  const textColors = getTextColors();
+  const bgColors = getBackgroundColors();
+  const borderColors = getBorderColors();
   const chartRef = useRef<ChartJS<'line'>>(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -122,7 +133,8 @@ export default function ActivityLevelChart({
         Tooltip,
         Legend,
         TimeScale,
-        Filler
+        Filler,
+        annotationPlugin
       );
       chartJsRegistered = true;
     }
@@ -163,12 +175,6 @@ export default function ActivityLevelChart({
     return activityLevels.find(l => l.level === 'low') || activityLevels[0];
   }, [stats, activityLevels]);
 
-  // Calculate y-axis range for perihelion line - Memoized
-  const yAxisRange = useMemo(() => {
-    const allActivityValues = data.map(point => point.activityIndex);
-    return calculateYAxisRange(allActivityValues, 0.1);
-  }, [data]);
-
   // Prepare chart data - Memoized to prevent recalculation
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartData: any = useMemo(() => {
@@ -188,14 +194,14 @@ export default function ActivityLevelChart({
           x: point.date,
           y: point.activityIndex,
         })),
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-        borderColor: '#8b5cf6',
+        backgroundColor: hexToRgba(chartColors.quaternary, 0.1),
+        borderColor: chartColors.quaternary,
         fill: true,
         tension: 0.3,
         pointRadius: 4,
         pointHoverRadius: 8,
         pointBackgroundColor: data.map(point => getPointActivityLevel(point.activityIndex).color),
-        pointBorderColor: '#ffffff',
+        pointBorderColor: textColors.primary,
         pointBorderWidth: 2,
         yAxisID: 'y'
       },
@@ -206,8 +212,8 @@ export default function ActivityLevelChart({
             x: point.date,
             y: point.comaContribution,
           })),
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          borderColor: '#10b981',
+          backgroundColor: hexToRgba(chartColors.secondary, 0.1),
+          borderColor: chartColors.secondary,
           fill: false,
           tension: 0.2,
           pointRadius: 2,
@@ -220,8 +226,8 @@ export default function ActivityLevelChart({
             x: point.date,
             y: point.brightnessContribution,
           })),
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          borderColor: '#ef4444',
+          backgroundColor: hexToRgba(chartColors.tertiary, 0.1),
+          borderColor: chartColors.tertiary,
           fill: false,
           tension: 0.2,
           pointRadius: 2,
@@ -234,31 +240,24 @@ export default function ActivityLevelChart({
             x: point.date,
             y: point.confidence * 100, // Convert to 0-100 scale
           })),
-          backgroundColor: 'rgba(156, 163, 175, 0.1)',
-          borderColor: '#9ca3af',
+          backgroundColor: hexToRgba(textColors.tertiary, 0.1),
+          borderColor: textColors.tertiary,
           fill: false,
           tension: 0.1,
           pointRadius: 1,
           pointHoverRadius: 3,
           yAxisID: 'y1'
         }
-      ] : []),
-      // Add perihelion vertical line
-      createPerihelionLineDataset({
-        yMin: yAxisRange.yMin - yAxisRange.yPadding,
-        yMax: yAxisRange.yMax + yAxisRange.yPadding,
-        yAxisID: 'y'
-      })
+      ] : [])
     ],
   };
-  }, [data, showComponents, yAxisRange, activityLevels]);
+  }, [data, showComponents, activityLevels, chartColors, textColors]);
 
-  // Chart options
   const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     animation: {
-      duration: isAnimating ? 0 : 750,
+      duration: isAnimating ? 0 : 300,
       easing: 'easeInOutQuart',
     },
     elements: {
@@ -272,7 +271,7 @@ export default function ActivityLevelChart({
       title: {
         display: true,
         text: 'Combined Activity Index',
-        color: '#ffffff',
+        color: textColors.heading,
         font: {
           size: 16,
           weight: 'bold',
@@ -281,17 +280,20 @@ export default function ActivityLevelChart({
       legend: {
         display: showLegend,
         labels: {
-          color: '#d1d5db',
+          color: textColors.secondary,
+          font: {
+            size: 12
+          },
           filter: function(item) {
             return item.text !== undefined;
           },
         },
       },
       tooltip: {
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-        titleColor: '#ffffff',
-        bodyColor: '#d1d5db',
-        borderColor: '#374151',
+        backgroundColor: bgColors.tertiary,
+        titleColor: textColors.primary,
+        bodyColor: textColors.secondary,
+        borderColor: borderColors.secondary,
         borderWidth: 1,
         callbacks: {
           title: function(context) {
@@ -320,6 +322,32 @@ export default function ActivityLevelChart({
           },
         },
       },
+      annotation: {
+        annotations: {
+          perihelion: createPerihelionAnnotation(),
+          currentTime: {
+            type: 'line',
+            xMin: new Date().toISOString(),
+            xMax: new Date().toISOString(),
+            borderColor: statusColors.success,
+            borderWidth: 2,
+            borderDash: [8, 4],
+            label: {
+              display: true,
+              content: 'NOW',
+              position: 'start',
+              backgroundColor: hexToRgba(statusColors.success, 0.9),
+              color: textColors.primary,
+              font: {
+                size: 12,
+                weight: 'bold'
+              },
+              padding: 6,
+              yAdjust: -10
+            }
+          }
+        }
+      }
     },
     scales: {
       x: {
@@ -332,11 +360,11 @@ export default function ActivityLevelChart({
           },
         },
         ticks: {
-          color: '#9ca3af',
+          color: textColors.tertiary,
           maxTicksLimit: 8,
         },
         grid: {
-          color: 'rgba(75, 85, 99, 0.3)',
+          color: borderColors.primary,
         },
         min: ANALYTICS_DATE_CONFIG.START_DATE,
         max: ANALYTICS_DATE_CONFIG.END_DATE
@@ -346,18 +374,18 @@ export default function ActivityLevelChart({
         title: {
           display: true,
           text: 'Activity Index (0-100)',
-          color: '#d1d5db',
+          color: textColors.secondary,
         },
         min: 0,
         max: 100,
         ticks: {
-          color: '#9ca3af',
+          color: textColors.tertiary,
           callback: function(value) {
             return value + '';
           },
         },
         grid: {
-          color: 'rgba(75, 85, 99, 0.3)',
+          color: borderColors.primary,
         },
       },
       ...(showComponents ? {
@@ -367,12 +395,12 @@ export default function ActivityLevelChart({
           title: {
             display: true,
             text: 'Component Contributions (%)',
-            color: '#d1d5db',
+            color: textColors.secondary,
           },
           min: 0,
           max: 100,
           ticks: {
-            color: '#9ca3af',
+            color: textColors.tertiary,
           },
           grid: {
             drawOnChartArea: false,
@@ -423,8 +451,8 @@ export default function ActivityLevelChart({
 
   if (data.length === 0) {
     return (
-      <ExtensionSafeChartContainer className={`bg-gray-800 rounded-lg p-6 ${className}`}>
-        <div className="text-center text-gray-400">
+      <ExtensionSafeChartContainer className={`bg-[var(--color-bg-secondary)] rounded-lg p-6 ${className}`}>
+        <div className="text-center text-[var(--color-text-tertiary)]">
           <div className="text-xl mb-2">📊</div>
           <div>No Activity Data Available</div>
           <div className="text-sm mt-1">Waiting for coma and brightness correlation data</div>
@@ -434,7 +462,7 @@ export default function ActivityLevelChart({
   }
 
   return (
-    <ExtensionSafeChartContainer className={`bg-gray-800 rounded-lg p-6 space-y-4 ${className}`}>
+    <ExtensionSafeChartContainer className={`bg-[var(--color-bg-secondary)] rounded-lg p-6 space-y-4 ${className}`}>
       {/* Activity level indicators */}
       <div className="flex flex-wrap justify-center gap-2 mb-4">
         {activityLevels.map((level) => (
@@ -458,40 +486,40 @@ export default function ActivityLevelChart({
 
       {/* Current status */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4">
-        <div className="bg-gray-700 rounded-lg p-3 text-center">
-          <div className="text-sm text-gray-400">Current Activity</div>
+        <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-3 text-center">
+          <div className="text-sm text-[var(--color-text-tertiary)]">Current Activity</div>
           <div className="text-xl font-bold" style={{ color: currentLevel.color }}>
             {stats.current.toFixed(1)}
           </div>
-          <div className="text-xs text-gray-500">{currentLevel.level.toUpperCase()}</div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">{currentLevel.level.toUpperCase()}</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-3 text-center">
-          <div className="text-sm text-gray-400">Average</div>
-          <div className="text-xl font-bold text-blue-400">
+        <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-3 text-center">
+          <div className="text-sm text-[var(--color-text-tertiary)]">Average</div>
+          <div className="text-xl font-bold text-[var(--color-status-info)]">
             {stats.average.toFixed(1)}
           </div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-3 text-center">
-          <div className="text-sm text-gray-400">Peak Activity</div>
+        <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-3 text-center">
+          <div className="text-sm text-[var(--color-text-tertiary)]">Peak Activity</div>
           <div className="text-xl font-bold" style={{ color: peakLevel.color }}>
             {stats.peak.toFixed(1)}
           </div>
-          <div className="text-xs text-gray-500">{peakLevel.level.toUpperCase()}</div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">{peakLevel.level.toUpperCase()}</div>
         </div>
-        <div className="bg-gray-700 rounded-lg p-3 text-center">
-          <div className="text-sm text-gray-400">Trend</div>
+        <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-3 text-center">
+          <div className="text-sm text-[var(--color-text-tertiary)]">Trend</div>
           <div className={`text-xl font-bold ${
-            stats.trend === 'increasing' ? 'text-green-400' :
-            stats.trend === 'decreasing' ? 'text-red-400' : 'text-yellow-400'
+            stats.trend === 'increasing' ? 'text-[var(--color-status-success)]' :
+            stats.trend === 'decreasing' ? 'text-[var(--color-status-error)]' : 'text-[var(--color-status-warning)]'
           }`}>
             {stats.trend === 'increasing' ? '↗' : stats.trend === 'decreasing' ? '↘' : '→'}
           </div>
-          <div className="text-xs text-gray-500 capitalize">{stats.trend}</div>
+          <div className="text-xs text-[var(--color-text-tertiary)] capitalize">{stats.trend}</div>
         </div>
       </div>
 
       {/* Chart */}
-      <div style={{ height: '400px' }}>
+      <div style={{ height: '400px' }} aria-label="Combined activity index chart showing coma and brightness activity levels">
         <Line
           ref={chartRef}
           data={chartData}
@@ -501,11 +529,13 @@ export default function ActivityLevelChart({
 
       {/* Real-time indicator */}
       {realTimeUpdates && (
-        <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+        <div className="flex items-center justify-center gap-2 text-xs text-[var(--color-text-tertiary)]">
+          <div className="w-2 h-2 bg-[var(--color-status-success)] rounded-full animate-pulse"></div>
           Real-time activity monitoring active
         </div>
       )}
     </ExtensionSafeChartContainer>
   );
-}
+});
+
+export default ActivityLevelChart;

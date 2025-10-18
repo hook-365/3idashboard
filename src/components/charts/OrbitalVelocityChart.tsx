@@ -1,26 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale,
-  ChartOptions,
-  ChartData,
-} from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import 'chartjs-adapter-date-fns';
+import type { ChartOptions, ChartData } from 'chart.js';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
-import { createPerihelionLineDataset } from '@/utils/chart-helpers';
+import { createPerihelionAnnotation } from '@/utils/chart-annotations';
+import { getTextColors, getBackgroundColors, getBorderColors, getChartColors, getStatusColors, hexToRgba } from '@/utils/chart-theme';
 
-// Flag to track Chart.js registration
-let chartJsRegistered = false;
+// Import global Chart.js setup (registers all components once)
+import '@/lib/chartjs-setup';
 
 export interface OrbitalVelocityDataPoint {
   date: string;
@@ -45,22 +33,12 @@ export default function OrbitalVelocityChart({
 }: OrbitalVelocityChartProps) {
   const [isClient, setIsClient] = useState(false);
 
-  // Register Chart.js components only when this chart loads
-  useEffect(() => {
-    if (!chartJsRegistered) {
-      ChartJS.register(
-        CategoryScale,
-        LinearScale,
-        PointElement,
-        LineElement,
-        Title,
-        Tooltip,
-        Legend,
-        TimeScale
-      );
-      chartJsRegistered = true;
-    }
-  }, []);
+  // Get theme colors
+  const chartColors = getChartColors();
+  const statusColors = getStatusColors();
+  const textColors = getTextColors();
+  const bgColors = getBackgroundColors();
+  const borderColors = getBorderColors();
 
   useEffect(() => {
     setIsClient(true);
@@ -68,9 +46,9 @@ export default function OrbitalVelocityChart({
 
   if (!isClient || !data || data.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6" style={{ height: '400px' }}>
+      <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6" style={{ height: '400px' }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             {data?.length === 0 ? 'No orbital velocity data available' : 'Loading orbital velocity chart...'}
           </div>
         </div>
@@ -104,7 +82,7 @@ export default function OrbitalVelocityChart({
       const theoretical_velocity = calculateKeplerianVelocity(estimated_distance);
 
       return {
-        x: point.date,
+        x: new Date(point.date).getTime(),
         y: theoretical_velocity
       };
     });
@@ -112,90 +90,80 @@ export default function OrbitalVelocityChart({
 
   const datasets = [];
 
-  // Split data at discovery date (July 1, 2025)
-  const DISCOVERY_DATE = new Date('2025-07-01T00:00:00.000Z');
-  const preDiscoveryData = data.filter(point => new Date(point.date) < DISCOVERY_DATE);
-  const postDiscoveryData = data.filter(point => new Date(point.date) >= DISCOVERY_DATE);
+  // Split data by source type: JPL/Real observations vs Calculated/Predicted
+  const realObservationsData = data.filter(point =>
+    point.source?.includes('JPL') ||
+    point.source?.includes('Real observations') ||
+    point.source?.includes('Real-time')
+  );
+  const calculatedData = data.filter(point =>
+    point.source?.includes('Calculated') ||
+    point.source?.includes('Predicted') ||
+    point.source?.includes('orbital mechanics')
+  );
 
-  // Pre-discovery heliocentric velocity (dashed - simulated)
-  if (preDiscoveryData.length > 0) {
+  // If no source filtering matched, use all data as real observations
+  const dataToUse = realObservationsData.length > 0 || calculatedData.length > 0
+    ? realObservationsData
+    : data;
+
+  // Real observations heliocentric velocity (JPL Horizons data)
+  if (dataToUse.length > 0) {
     datasets.push({
-      label: 'Heliocentric (Pre-discovery simulation)',
-      data: preDiscoveryData.map(point => ({
-        x: point.date,
+      label: 'Heliocentric Velocity',
+      data: dataToUse.map(point => ({
+        x: new Date(point.date).getTime(),
         y: point.heliocentric_velocity
       })),
-      borderColor: '#3b82f6',
-      backgroundColor: 'rgba(59, 130, 246, 0.05)',
-      pointBackgroundColor: '#3b82f6',
-      pointBorderColor: '#ffffff',
+      borderColor: chartColors.primary,
+      backgroundColor: hexToRgba(chartColors.primary, 0.1),
+      pointBackgroundColor: chartColors.primary,
+      pointBorderColor: textColors.primary,
       pointBorderWidth: 1,
-      pointRadius: 2,
-      pointHoverRadius: 4,
-      fill: false,
-      tension: 0.2,
-      borderDash: [8, 4], // Dashed line for simulated data
-      borderWidth: 1.5,
-    });
-  }
-
-  // Post-discovery heliocentric velocity (solid - real data)
-  if (postDiscoveryData.length > 0) {
-    datasets.push({
-      label: 'Heliocentric Velocity (km/s)',
-      data: postDiscoveryData.map(point => ({
-        x: point.date,
-        y: point.heliocentric_velocity
-      })),
-      borderColor: '#3b82f6',
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-      pointBackgroundColor: '#3b82f6',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 1,
-      pointRadius: 4,
-      pointHoverRadius: 6,
+      pointRadius: 3,
+      pointHoverRadius: 5,
       fill: false,
       tension: 0.2,
       borderWidth: 2,
     });
   }
 
+  // Calculated/Predicted heliocentric velocity (if available)
+  if (calculatedData.length > 0) {
+    datasets.push({
+      label: 'Heliocentric (Predicted)',
+      data: calculatedData.map(point => ({
+        x: new Date(point.date).getTime(),
+        y: point.heliocentric_velocity
+      })),
+      borderColor: chartColors.quaternary,
+      backgroundColor: hexToRgba(chartColors.quaternary, 0.1),
+      pointBackgroundColor: chartColors.quaternary,
+      pointBorderColor: textColors.primary,
+      pointBorderWidth: 1,
+      pointRadius: 2,
+      pointHoverRadius: 4,
+      fill: false,
+      tension: 0.2,
+      borderWidth: 2,
+      borderDash: [5, 5],
+    });
+  }
+
   // Geocentric velocity (if available and requested)
   if (showMultipleVelocities && data.some(d => d.geocentric_velocity)) {
-    // Pre-discovery geocentric (dashed)
-    if (preDiscoveryData.length > 0) {
+    // Real observations geocentric
+    if (dataToUse.length > 0) {
       datasets.push({
-        label: 'Geocentric (Pre-discovery simulation)',
-        data: preDiscoveryData.map(point => ({
-          x: point.date,
+        label: 'Geocentric Velocity',
+        data: dataToUse.map(point => ({
+          x: new Date(point.date).getTime(),
           y: point.geocentric_velocity || 0
         })).filter(point => point.y > 0),
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.05)',
-        pointBackgroundColor: '#10b981',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 1,
-        pointRadius: 2,
-        pointHoverRadius: 4,
-        fill: false,
-        tension: 0.2,
-        borderDash: [8, 4],
-        borderWidth: 1.5,
-      });
-    }
-
-    // Post-discovery geocentric (solid)
-    if (postDiscoveryData.length > 0) {
-      datasets.push({
-        label: 'Geocentric Velocity (km/s)',
-        data: postDiscoveryData.map(point => ({
-          x: point.date,
-          y: point.geocentric_velocity || 0
-        })).filter(point => point.y > 0),
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        pointBackgroundColor: '#10b981',
-        pointBorderColor: '#ffffff',
+        borderColor: chartColors.secondary,
+        backgroundColor: hexToRgba(chartColors.secondary, 0.1),
+        pointBackgroundColor: chartColors.secondary,
+        pointBorderColor: textColors.primary,
         pointBorderWidth: 1,
         pointRadius: 3,
         pointHoverRadius: 5,
@@ -204,27 +172,37 @@ export default function OrbitalVelocityChart({
         borderWidth: 2,
       });
     }
+
+    // Calculated geocentric (if available)
+    if (calculatedData.length > 0 && calculatedData.some(d => d.geocentric_velocity)) {
+      datasets.push({
+        label: 'Geocentric (Predicted)',
+        data: calculatedData.map(point => ({
+          x: new Date(point.date).getTime(),
+          y: point.geocentric_velocity || 0
+        })).filter(point => point.y > 0),
+        borderColor: chartColors.quaternary,
+        backgroundColor: hexToRgba(chartColors.quaternary, 0.1),
+        pointBackgroundColor: chartColors.quaternary,
+        pointBorderColor: textColors.primary,
+        pointBorderWidth: 1,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        fill: false,
+        tension: 0.2,
+        borderWidth: 2,
+        borderDash: [5, 5],
+      });
+    }
   }
-
-
-  // Calculate y-axis range for perihelion line
-  const allVelocities = data.flatMap(point => [
-    point.heliocentric_velocity,
-    ...(point.geocentric_velocity ? [point.geocentric_velocity] : [])
-  ]);
-  const yMin = Math.min(...allVelocities);
-  const yMax = Math.max(...allVelocities);
-
-  // Add perihelion vertical line
-  datasets.push(createPerihelionLineDataset({ yMin, yMax }));
 
   // Theoretical Keplerian curve
   if (showTrendLine) {
     datasets.push({
       label: 'Keplerian Model',
       data: generateTheoreticalCurve(),
-      borderColor: '#f59e0b',
-      backgroundColor: 'rgba(245, 158, 11, 0.05)',
+      borderColor: chartColors.quinary,
+      backgroundColor: hexToRgba(chartColors.quinary, 0.05),
       pointRadius: 0,
       pointHoverRadius: 0,
       fill: false,
@@ -239,6 +217,9 @@ export default function OrbitalVelocityChart({
   const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 300
+    },
     elements: {
       point: {
         radius: typeof window !== 'undefined' && window.innerWidth < 768 ? 5 : 4,
@@ -250,25 +231,28 @@ export default function OrbitalVelocityChart({
       legend: {
         display: true,
         labels: {
-          color: '#9ca3af',
+          color: textColors.secondary,
           usePointStyle: true,
           padding: 15,
+          font: {
+            size: 12
+          }
         }
       },
       title: {
         display: true,
         text: title,
-        color: '#ffffff',
+        color: textColors.heading,
         font: {
           size: 16,
           weight: 'bold'
         }
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#ffffff',
-        borderColor: '#3b82f6',
+        backgroundColor: bgColors.tertiary,
+        titleColor: textColors.primary,
+        bodyColor: textColors.secondary,
+        borderColor: borderColors.secondary,
         borderWidth: 1,
         callbacks: {
           label: (context) => {
@@ -287,6 +271,32 @@ export default function OrbitalVelocityChart({
             return extras;
           }
         }
+      },
+      annotation: {
+        annotations: {
+          perihelion: createPerihelionAnnotation(),
+          currentTime: {
+            type: 'line',
+            xMin: new Date().toISOString(),
+            xMax: new Date().toISOString(),
+            borderColor: statusColors.success,
+            borderWidth: 2,
+            borderDash: [8, 4],
+            label: {
+              display: true,
+              content: 'NOW',
+              position: 'start',
+              backgroundColor: hexToRgba(statusColors.success, 0.9),
+              color: textColors.primary,
+              font: {
+                size: 12,
+                weight: 'bold'
+              },
+              padding: 6,
+              yAdjust: -10
+            }
+          }
+        }
       }
     },
     scales: {
@@ -301,13 +311,13 @@ export default function OrbitalVelocityChart({
         title: {
           display: true,
           text: 'Date',
-          color: '#9ca3af'
+          color: textColors.secondary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: borderColors.primary
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary
         },
         min: ANALYTICS_DATE_CONFIG.START_DATE,
         max: ANALYTICS_DATE_CONFIG.END_DATE
@@ -316,13 +326,13 @@ export default function OrbitalVelocityChart({
         title: {
           display: true,
           text: 'Velocity (km/s)',
-          color: '#9ca3af'
+          color: textColors.secondary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: borderColors.primary
         },
         ticks: {
-          color: '#9ca3af',
+          color: textColors.tertiary,
           callback: function(value) {
             return `${value} km/s`;
           }
@@ -343,30 +353,44 @@ export default function OrbitalVelocityChart({
   const avgVelocity = velocities.reduce((a, b) => a + b, 0) / velocities.length;
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div style={{ height: '400px', width: '100%' }}>
+    <div className="bg-[var(--color-bg-secondary)] rounded-lg p-4">
+      <div style={{ height: '400px', width: '100%' }} aria-label={`${title} orbital velocity chart`}>
         <Line data={chartData} options={options} />
       </div>
 
       {/* Velocity statistics */}
-      <div className="mt-3 pt-3 border-t border-gray-700">
+      <div className="mt-3 pt-3 border-t border-[var(--color-border-primary)]">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             <span className="text-blue-400 font-medium">Range:</span> {minVelocity.toFixed(1)} - {maxVelocity.toFixed(1)} km/s
           </div>
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             <span className="text-green-400 font-medium">Average:</span> {avgVelocity.toFixed(1)} km/s
           </div>
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             <span className="text-purple-400 font-medium">Data points:</span> {data.length}
           </div>
         </div>
 
         {/* Physical interpretation */}
-        <div className="mt-2 text-xs text-gray-500">
-          <strong>Physical Context:</strong> Interstellar comet 3I/ATLAS accelerates as it approaches perihelion (Oct 30, 2025).
+        <div className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+          <strong>Physical Context:</strong> Interstellar object 3I/ATLAS accelerates as it approaches perihelion (Oct 30, 2025).
           Heliocentric velocity increases due to Sun&apos;s gravitational acceleration following Kepler&apos;s laws.
         </div>
+      </div>
+
+      {/* Data Source Disclaimer */}
+      <div className="mt-4 p-3 bg-blue-500/10 border-l-4 border-blue-500 rounded text-sm">
+        <p className="font-semibold text-[var(--color-text-primary)] mb-1">
+          📊 Data Source Information
+        </p>
+        <p className="text-[var(--color-text-secondary)]">
+          <span className="font-medium">Latest point:</span> Real-time calculation using current position from TheSkyLive
+          <br />
+          <span className="font-medium">Historical points:</span> Calculated daily using Kepler&apos;s laws of orbital mechanics and published 3I/ATLAS orbital elements
+          <br />
+          <span className="text-xs text-[var(--color-text-tertiary)]">Note: NASA/JPL Horizons does not currently track 3I/ATLAS. All velocities calculated using vis-viva equation with IAU/MPC orbital elements.</span>
+        </p>
       </div>
     </div>
   );

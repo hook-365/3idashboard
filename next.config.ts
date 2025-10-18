@@ -10,6 +10,16 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'chart.js', 'three'],
   },
+  webpack: (config, { isServer }) => {
+    // Handle astronomy-engine worker threads
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'astronomy-engine': 'commonjs astronomy-engine'
+      });
+    }
+    return config;
+  },
   typescript: {
     // Ignore type errors during build (for Chart.js compatibility)
     ignoreBuildErrors: true,

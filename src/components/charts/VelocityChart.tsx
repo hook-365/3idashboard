@@ -1,26 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  TimeScale,
-  ChartOptions,
-  ChartData,
-} from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import 'chartjs-adapter-date-fns';
+import type { ChartOptions, ChartData } from 'chart.js';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
-import { createPerihelionLineDataset } from '@/utils/chart-helpers';
+import { createPerihelionAnnotation } from '@/utils/chart-annotations';
+import { getTextColors, getBackgroundColors, getBorderColors, getStatusColors, hexToRgba } from '@/utils/chart-theme';
 
-// Flag to track Chart.js registration
-let chartJsRegistered = false;
+// Import global Chart.js setup (registers all components once)
+import '@/lib/chartjs-setup';
 
 export interface VelocityDataPoint {
   date: string;
@@ -51,32 +39,15 @@ export default function VelocityChart({
 }: VelocityChartProps) {
   const [isClient, setIsClient] = useState(false);
 
-  // Register Chart.js components only when this chart loads
-  useEffect(() => {
-    if (!chartJsRegistered) {
-      ChartJS.register(
-        CategoryScale,
-        LinearScale,
-        PointElement,
-        LineElement,
-        Title,
-        Tooltip,
-        Legend,
-        TimeScale
-      );
-      chartJsRegistered = true;
-    }
-  }, []);
-
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   if (!isClient || !data || data.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6" style={{ height: `${height}px` }}>
+      <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6" style={{ height: `${height}px` }}>
         <div className="flex items-center justify-center h-full">
-          <div className="text-gray-400">
+          <div className="text-[var(--color-text-tertiary)]">
             {data?.length === 0 ? 'No velocity data available' : 'Loading velocity chart...'}
           </div>
         </div>
@@ -84,23 +55,12 @@ export default function VelocityChart({
     );
   }
 
-  // Calculate y-axis range for perihelion line
-  const yValues = data.map(point => point.value);
-  let yMin = Math.min(...yValues);
-  let yMax = Math.max(...yValues);
-
-  // Use smart scaling bounds for acceleration data
-  if (yAxisLabel.toLowerCase().includes('acceleration')) {
-    yMin = Math.max(0, Math.min(...data.map(d => d.value)) - 0.01);
-    yMax = Math.max(...data.map(d => d.value)) + 0.01;
-  }
-
   const chartData: ChartData<'line'> = {
     datasets: [
       {
         label: yAxisLabel,
         data: data.map(point => ({
-          x: point.date,
+          x: new Date(point.date).getTime(),
           y: point.value
         })),
         borderColor: color,
@@ -115,9 +75,6 @@ export default function VelocityChart({
       }
     ]
   };
-
-  // Add perihelion vertical line
-  chartData.datasets.push(createPerihelionLineDataset({ yMin, yMax }));
 
   // Add trend line if requested and enough data
   if (showTrend && data.length > 3) {
@@ -135,9 +92,16 @@ export default function VelocityChart({
     });
   }
 
+  const textColors = getTextColors();
+  const bgColors = getBackgroundColors();
+  const borderColors = getBorderColors();
+
   const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 300
+    },
     elements: {
       point: {
         radius: typeof window !== 'undefined' && window.innerWidth < 768 ? 4 : 3,
@@ -149,29 +113,36 @@ export default function VelocityChart({
       legend: {
         display: true,
         labels: {
-          color: '#9ca3af'
+          color: textColors.secondary,
+          font: {
+            size: 12
+          }
         }
       },
       title: {
         display: true,
         text: title,
-        color: '#ffffff',
+        color: textColors.heading,
         font: {
           size: 16,
           weight: 'bold'
         }
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        titleColor: '#ffffff',
-        bodyColor: '#ffffff',
-        borderColor: color,
+        backgroundColor: bgColors.tertiary,
+        titleColor: textColors.primary,
+        bodyColor: textColors.secondary,
+        borderColor: borderColors.secondary,
         borderWidth: 1,
         callbacks: {
           label: (context) => {
             const value = context.parsed.y;
             const point = data[context.dataIndex];
-            const lines = [`${value.toFixed(3)} ${unit}`];
+            // Use scientific notation for very small values
+            const formattedValue = Math.abs(value) < 0.001
+              ? value.toExponential(3)
+              : value.toFixed(3);
+            const lines = [`${formattedValue} ${unit}`];
             if (point?.confidence) {
               lines.push(`Confidence: ${(point.confidence * 100).toFixed(1)}%`);
             }
@@ -179,6 +150,32 @@ export default function VelocityChart({
               lines.push(`Data points: ${point.dataPoints}`);
             }
             return lines;
+          }
+        }
+      },
+      annotation: {
+        annotations: {
+          perihelion: createPerihelionAnnotation(),
+          currentTime: {
+            type: 'line',
+            xMin: new Date().toISOString(),
+            xMax: new Date().toISOString(),
+            borderColor: getStatusColors().success,
+            borderWidth: 2,
+            borderDash: [8, 4],
+            label: {
+              display: true,
+              content: 'NOW',
+              position: 'start',
+              backgroundColor: hexToRgba(getStatusColors().success, 0.9),
+              color: getTextColors().primary,
+              font: {
+                size: 12,
+                weight: 'bold'
+              },
+              padding: 6,
+              yAdjust: -10
+            }
           }
         }
       }
@@ -195,13 +192,13 @@ export default function VelocityChart({
         title: {
           display: true,
           text: 'Date',
-          color: '#9ca3af'
+          color: textColors.secondary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: borderColors.primary
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary
         },
         min: ANALYTICS_DATE_CONFIG.START_DATE,
         max: ANALYTICS_DATE_CONFIG.END_DATE
@@ -210,22 +207,39 @@ export default function VelocityChart({
         title: {
           display: true,
           text: `${yAxisLabel} (${unit})`,
-          color: '#9ca3af'
+          color: textColors.secondary
         },
         grid: {
-          color: 'rgba(156, 163, 175, 0.2)'
+          color: borderColors.primary
         },
         ticks: {
-          color: '#9ca3af'
+          color: textColors.tertiary,
+          // Use scientific notation for very small values
+          callback: function(value) {
+            if (yAxisLabel.toLowerCase().includes('acceleration')) {
+              // For acceleration, use scientific notation if values are < 0.001
+              const numValue = typeof value === 'number' ? value : 0;
+              if (Math.abs(numValue) < 0.001) {
+                return numValue.toExponential(2);
+              }
+            }
+            return typeof value === 'number' ? value.toFixed(3) : value;
+          }
         },
         // Smart scaling for acceleration data
         ...(yAxisLabel.toLowerCase().includes('acceleration') && {
-          min: Math.max(0, Math.min(...data.map(d => d.value)) - 0.01),
-          max: Math.max(...data.map(d => d.value)) + 0.01,
-          ticks: {
-            color: '#9ca3af',
-            stepSize: 0.005
-          }
+          // Calculate dynamic padding based on value magnitude
+          min: (() => {
+            const minVal = Math.min(...data.map(d => d.value));
+            const range = Math.max(...data.map(d => d.value)) - minVal;
+            return Math.max(0, minVal - range * 0.1); // 10% padding below minimum
+          })(),
+          max: (() => {
+            const maxVal = Math.max(...data.map(d => d.value));
+            const minVal = Math.min(...data.map(d => d.value));
+            const range = maxVal - minVal;
+            return maxVal + range * 0.1; // 10% padding above maximum
+          })()
         })
       }
     },
@@ -236,21 +250,42 @@ export default function VelocityChart({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div style={{ height: `${height}px`, width: '100%' }}>
+    <div className="bg-[var(--color-bg-secondary)] rounded-lg p-4">
+      <div style={{ height: `${height}px`, width: '100%' }} aria-label={`${title} velocity chart`}>
         <Line data={chartData} options={options} />
       </div>
 
-      <div className="mt-3 pt-3 border-t border-gray-700">
-        <div className="flex justify-between text-sm text-gray-400">
+      <div className="mt-3 pt-3 border-t border-[var(--color-border-primary)]">
+        <div className="flex justify-between text-sm text-[var(--color-text-tertiary)]">
           <span>
-            Range: {Math.min(...data.map(d => d.value)).toFixed(3)} - {Math.max(...data.map(d => d.value)).toFixed(3)} {unit}
+            Range: {(() => {
+              const min = Math.min(...data.map(d => d.value));
+              const max = Math.max(...data.map(d => d.value));
+              const minStr = Math.abs(min) < 0.001 ? min.toExponential(2) : min.toFixed(3);
+              const maxStr = Math.abs(max) < 0.001 ? max.toExponential(2) : max.toFixed(3);
+              return `${minStr} - ${maxStr} ${unit}`;
+            })()}
           </span>
           <span>
             Data points: {data.length}
           </span>
         </div>
       </div>
+
+      {/* Acceleration Data Source Disclaimer */}
+      {yAxisLabel.toLowerCase().includes('acceleration') && (
+        <div className="mt-4 p-3 bg-orange-500/10 border-l-4 border-orange-500 rounded text-sm">
+          <p className="font-semibold text-[var(--color-text-primary)] mb-1">
+            📊 Acceleration Data Source
+          </p>
+          <p className="text-[var(--color-text-secondary)]">
+            Calculated using gravitational physics: a = GM/r² where r is the heliocentric distance.
+            Shows the magnitude of gravitational acceleration from the Sun. As 3I/ATLAS gets closer to the Sun (smaller r), acceleration increases following inverse-square law.
+            <br />
+            <span className="text-xs text-[var(--color-text-tertiary)] mt-1 block">Units: km/s² (kilometers per second squared - standard SI-derived acceleration units)</span>
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -273,7 +308,7 @@ function calculateTrendLine(data: VelocityDataPoint[]): Array<{ x: string; y: nu
   const intercept = (sumY - slope * sumX) / n;
 
   return [
-    { x: data[0].date, y: intercept },
-    { x: data[data.length - 1].date, y: slope * (n - 1) + intercept }
+    { x: new Date(data[0].date).getTime(), y: intercept },
+    { x: new Date(data[data.length - 1].date).getTime(), y: slope * (n - 1) + intercept }
   ];
 }

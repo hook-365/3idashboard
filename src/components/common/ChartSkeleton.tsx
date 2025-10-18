@@ -18,11 +18,11 @@ export default function ChartSkeleton({
   showLegend = true
 }: ChartSkeletonProps) {
   return (
-    <div className={`bg-gray-800 rounded-lg p-6 ${className}`}>
+    <div className={`bg-[var(--color-bg-secondary)] rounded-lg p-6 ${className}`}>
       {/* Chart Title */}
       {title && (
         <div className="mb-4">
-          <div className="h-6 w-48 bg-gray-700 rounded animate-pulse"></div>
+          <div className="h-6 w-48 bg-[var(--color-bg-tertiary)] rounded animate-pulse"></div>
         </div>
       )}
 
@@ -30,12 +30,12 @@ export default function ChartSkeleton({
       {showLegend && (
         <div className="flex gap-4 mb-4 justify-center">
           <div className="flex items-center gap-2 animate-pulse">
-            <div className="h-3 w-3 bg-gray-700 rounded"></div>
-            <div className="h-3 w-20 bg-gray-700 rounded"></div>
+            <div className="h-3 w-3 bg-[var(--color-bg-tertiary)] rounded"></div>
+            <div className="h-3 w-20 bg-[var(--color-bg-tertiary)] rounded"></div>
           </div>
           <div className="flex items-center gap-2 animate-pulse">
-            <div className="h-3 w-3 bg-gray-700 rounded"></div>
-            <div className="h-3 w-24 bg-gray-700 rounded"></div>
+            <div className="h-3 w-3 bg-[var(--color-bg-tertiary)] rounded"></div>
+            <div className="h-3 w-24 bg-[var(--color-bg-tertiary)] rounded"></div>
           </div>
         </div>
       )}
@@ -45,17 +45,17 @@ export default function ChartSkeleton({
         {/* Y-axis labels */}
         <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between py-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-3 w-8 bg-gray-700 rounded"></div>
+            <div key={i} className="h-3 w-8 bg-[var(--color-bg-tertiary)] rounded"></div>
           ))}
         </div>
 
         {/* Chart background with grid lines */}
-        <div className="ml-14 mr-4 h-full border-l border-b border-gray-700 relative">
+        <div className="ml-14 mr-4 h-full border-l border-b border-[var(--color-border-primary)] relative">
           {/* Horizontal grid lines */}
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="absolute left-0 right-0 border-t border-gray-700/50"
+              className="absolute left-0 right-0 border-t border-[var(--color-border-primary)]/50"
               style={{ top: `${(i + 1) * 16.67}%` }}
             ></div>
           ))}
@@ -67,7 +67,7 @@ export default function ChartSkeleton({
               stroke="currentColor"
               strokeWidth="2"
               fill="none"
-              className="text-gray-700"
+              className="text-[var(--color-text-secondary)]"
             />
           </svg>
         </div>
@@ -75,7 +75,7 @@ export default function ChartSkeleton({
         {/* X-axis labels */}
         <div className="ml-14 mr-4 flex justify-between mt-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-3 w-16 bg-gray-700 rounded"></div>
+            <div key={i} className="h-3 w-16 bg-[var(--color-bg-tertiary)] rounded"></div>
           ))}
         </div>
       </div>
@@ -88,12 +88,12 @@ export default function ChartSkeleton({
  */
 export function ChartSkeletonCompact({ className = '' }: { className?: string }) {
   return (
-    <div className={`bg-gray-800 rounded-lg p-4 ${className}`}>
+    <div className={`bg-[var(--color-bg-secondary)] rounded-lg p-4 ${className}`}>
       <div className="h-48 flex items-end justify-between gap-1 animate-pulse">
         {Array.from({ length: 20 }).map((_, i) => (
           <div
             key={i}
-            className="flex-1 bg-gray-700 rounded-t"
+            className="flex-1 bg-[var(--color-bg-tertiary)] rounded-t"
             style={{ height: `${30 + Math.random() * 70}%` }}
           ></div>
         ))}

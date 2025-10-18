@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { additionalComets } from '@/lib/celestial-bodies';
+import ThreeDInteractiveOverlay from '@/components/common/ThreeDInteractiveOverlay';
+import { calculateAllPlanetPositions } from '@/lib/planet-positions';
 
 // Scale factor for visualization (1 AU = this many pixels)
 const SCALE_FACTOR = 100;
@@ -54,6 +56,15 @@ interface ApiData {
   };
 }
 
+// Dual trajectory types
+interface TrajectoryPoint {
+  date: string;
+  x: number;
+  y: number;
+  z: number;
+  distance_from_sun: number;
+}
+
 // Planet colors and sizes (compromise scale for visibility)
 // Colors chosen for scientific accuracy and visual distinction
 // Maintains correct ordering: Sun > Jupiter > Saturn > ... > Pluto
@@ -68,7 +79,7 @@ const BODY_CONFIG: Record<string, { color: string; size: number; emissive?: numb
   Uranus: { color: '#4FD8EB', size: 8 },                   // Cyan/ice blue - methane atmosphere
   Neptune: { color: '#4169E1', size: 7.5 },                // Deep cobalt - outer ice giant
   Pluto: { color: '#C19A6B', size: 2 },                    // Caramel brown - nitrogen ice plains
-  '3I/ATLAS': { color: '#FFFFFF', size: 8, emissive: 0.8 } // Bright white glow - interstellar visitor
+  '3I/ATLAS': { color: '#FFFFFF', size: 8, emissive: 0.8 } // White/black (theme-dependent) - interstellar visitor
 };
 
 // Type for Three.js scene reference
@@ -81,11 +92,100 @@ interface SceneRef {
   gridHelper: THREE.Mesh; // Shader-based infinite grid
   bodies: Map<string, THREE.Mesh | THREE.Group>;
   animationId?: number;
+  orbitalAnimationId?: number; // Separate animation frame for orbital movement
 }
 
 type CenterTarget = 'sun' | 'earth' | 'atlas';
+type CenterMode = 'default' | 'sun';
 
-export default function ModernSolarSystem() {
+// Props interface for component
+interface ModernSolarSystemProps {
+  centerMode?: CenterMode;
+  autoPlay?: boolean;
+  showControls?: boolean;
+  initialDate?: Date;
+  followComet?: boolean; // Camera tracks comet during animation
+}
+
+// Helper function to get theme-aware colors
+function getThemeAwareColor(type: 'atlas' | 'label' | 'hud-text'): string {
+  const theme = document.documentElement.getAttribute('data-theme');
+
+  if (type === 'atlas') {
+    // ATLAS comet color: black in light mode, white in dark mode
+    return theme === 'light' ? '#000000' : '#FFFFFF';
+  } else if (type === 'label') {
+    // Label text color: dark in light mode, light in dark mode
+    return theme === 'light' ? '#1f2937' : '#ffffff';
+  } else if (type === 'hud-text') {
+    // HUD secondary text color: dark gray in light mode, light gray in dark mode
+    return theme === 'light' ? '#4b5563' : '#9ca3af';
+  }
+
+  return '#ffffff'; // Default fallback
+}
+
+// Helper function to interpolate position from orbital trail data
+function interpolatePosition(
+  date: Date,
+  orbitalPath: OrbitalPoint[] | undefined
+): THREE.Vector3 | null {
+  if (!orbitalPath || orbitalPath.length < 2) return null;
+
+  const targetTime = date.getTime();
+
+  // Find the two points to interpolate between
+  let beforeIndex = -1;
+  let afterIndex = -1;
+
+  for (let i = 0; i < orbitalPath.length - 1; i++) {
+    const currentDate = new Date(orbitalPath[i].date || '').getTime();
+    const nextDate = new Date(orbitalPath[i + 1].date || '').getTime();
+
+    if (targetTime >= currentDate && targetTime <= nextDate) {
+      beforeIndex = i;
+      afterIndex = i + 1;
+      break;
+    }
+  }
+
+  // If date is before start or after end, return edge positions
+  if (beforeIndex === -1) {
+    if (targetTime < new Date(orbitalPath[0].date || '').getTime()) {
+      const p = orbitalPath[0];
+      return new THREE.Vector3(p.x * SCALE_FACTOR, p.z * SCALE_FACTOR, -p.y * SCALE_FACTOR);
+    } else {
+      const p = orbitalPath[orbitalPath.length - 1];
+      return new THREE.Vector3(p.x * SCALE_FACTOR, p.z * SCALE_FACTOR, -p.y * SCALE_FACTOR);
+    }
+  }
+
+  // Linear interpolation between the two points
+  const before = orbitalPath[beforeIndex];
+  const after = orbitalPath[afterIndex];
+  const beforeTime = new Date(before.date || '').getTime();
+  const afterTime = new Date(after.date || '').getTime();
+  const t = (targetTime - beforeTime) / (afterTime - beforeTime);
+
+  const x = THREE.MathUtils.lerp(before.x, after.x, t) * SCALE_FACTOR;
+  const y = THREE.MathUtils.lerp(before.z, after.z, t) * SCALE_FACTOR;
+  const z = THREE.MathUtils.lerp(-before.y, -after.y, t) * SCALE_FACTOR;
+
+  return new THREE.Vector3(x, y, z);
+}
+
+// Helper function for easing (ease-out cubic)
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+const ModernSolarSystem = memo(function ModernSolarSystem({
+  centerMode = 'default',
+  autoPlay = false,
+  showControls = true,
+  initialDate,
+  followComet = false
+}: ModernSolarSystemProps = {}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +203,28 @@ export default function ModernSolarSystem() {
   const logTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [containerHeight, setContainerHeight] = useState(600);
 
+  // Animation states
+  const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [currentDate, setCurrentDate] = useState<Date>(initialDate || new Date());
+  const [timelineRange, setTimelineRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [animationSpeed] = useState(5); // days per second (5 days per second for faster animation)
+  const [orbitalData, setOrbitalData] = useState<ApiData | null>(null);
+  const [cameraFlyInComplete, setCameraFlyInComplete] = useState(false);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(Date.now());
+  const currentDateRef = useRef<Date>(currentDate); // Ref to avoid re-triggering effect
+  const lastStateUpdateRef = useRef<number>(Date.now()); // For throttling state updates
+  const isPlayingRef = useRef<boolean>(isPlaying); // Ref for playing state
+
+  // Sync refs with state when state changes externally
+  useEffect(() => {
+    currentDateRef.current = currentDate;
+  }, [currentDate]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
   // HUD state
   const [hudData, setHudData] = useState<{
     velocity: number;
@@ -116,8 +238,6 @@ export default function ModernSolarSystem() {
     dataSource: string;
     lastUpdate: string;
   } | null>(null);
-
-  const currentDate = new Date();
 
   // Handle responsive height based on viewport
   useEffect(() => {
@@ -155,6 +275,30 @@ export default function ModernSolarSystem() {
         console.log('Solar system data received:', positionResponse.data);
         console.log('Activity data received:', activityResponse.data?.currentActivity);
 
+        // Store orbital data for animation
+        const apiData = positionResponse.data;
+        setOrbitalData(apiData);
+
+        // Extract timeline range from orbital trail and projection data
+        const allDates: Date[] = [];
+        if (apiData.orbital_trail) {
+          apiData.orbital_trail.forEach((p: OrbitalPoint) => {
+            if (p.date) allDates.push(new Date(p.date));
+          });
+        }
+        if (apiData.orbital_projection) {
+          apiData.orbital_projection.forEach((p: OrbitalPoint) => {
+            if (p.date) allDates.push(new Date(p.date));
+          });
+        }
+
+        if (allDates.length > 0) {
+          const startDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+          const endDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+          setTimelineRange({ start: startDate, end: endDate });
+          console.log(`Timeline range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        }
+
         // Check if response has cache warning
         if (positionResponse.warning) {
           console.warn('⚠️  Using cached data:', positionResponse.warning);
@@ -163,7 +307,7 @@ export default function ModernSolarSystem() {
           setCacheWarning(null);
         }
 
-        initScene(positionResponse.data, activityResponse.data?.currentActivity);
+        initScene(apiData, activityResponse.data?.currentActivity);
       })
       .catch(err => {
         console.error('Error fetching solar system data:', err);
@@ -181,7 +325,19 @@ export default function ModernSolarSystem() {
       try {
         // Setup scene
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x000510);
+
+        // Get theme-aware background color
+        const getSceneBackground = () => {
+          const theme = document.documentElement.getAttribute('data-theme');
+          switch(theme) {
+            case 'light': return 0xf5f1e8;  // Warm cream
+            case 'dark': return 0x0f172a;   // Slate-900
+            case 'high-contrast': return 0x000000;  // Pure black
+            default: return 0x0f172a;       // Default to dark
+          }
+        };
+
+        scene.background = new THREE.Color(getSceneBackground());
 
         const width = container.clientWidth || 800;
         const height = containerHeight;
@@ -306,19 +462,32 @@ export default function ModernSolarSystem() {
         const labels = new Map<string, CSS2DObject>();
 
         // Helper function to create a label
-        function createLabel(text: string, color: string): CSS2DObject {
+        function createLabel(text: string, color: string, isAtlas = false): CSS2DObject {
           const div = document.createElement('div');
           div.textContent = text;
-          div.style.color = color;
+
+          // Use theme-aware color for labels
+          div.style.color = isAtlas ? getThemeAwareColor('label') : color;
           div.style.fontSize = '12px';
           div.style.fontWeight = 'bold';
           div.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-          div.style.textShadow = '0 0 4px rgba(0,0,0,0.8)';
+
+          // Theme-aware text shadow and background
+          const theme = document.documentElement.getAttribute('data-theme');
+          if (theme === 'light') {
+            div.style.textShadow = '0 0 4px rgba(255,255,255,0.9)';
+            div.style.backgroundColor = 'rgba(255,255,255,0.85)';
+          } else {
+            div.style.textShadow = '0 0 4px rgba(0,0,0,0.8)';
+            div.style.backgroundColor = 'rgba(0,0,0,0.7)';
+          }
+
           div.style.padding = '2px 6px';
           div.style.borderRadius = '3px';
-          div.style.backgroundColor = 'rgba(0,0,0,0.7)';
           div.style.whiteSpace = 'nowrap';
           div.style.pointerEvents = 'none';
+          div.className = 'css2d-label'; // Add class for later theme updates
+
           return new CSS2DObject(div);
         }
 
@@ -346,7 +515,7 @@ export default function ModernSolarSystem() {
         );
 
         const sunMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(sunConfig.size, 64, 64),
+          new THREE.SphereGeometry(sunConfig.size, 24, 24), // Optimized: 64x64 → 24x24 segments
           sunMaterial
         );
         sunMesh.position.set(0, 0, 0);
@@ -404,7 +573,7 @@ export default function ModernSolarSystem() {
           );
 
           const mesh = new THREE.Mesh(
-            new THREE.SphereGeometry(config.size, 64, 64),
+            new THREE.SphereGeometry(config.size, 16, 16), // Optimized: 64x64 → 16x16 segments
             material
           );
 
@@ -474,7 +643,12 @@ export default function ModernSolarSystem() {
           // Draw accurate 3D orbital path from API data
           console.log(`${planet.name} has orbital_path?`, !!planet.orbital_path, planet.orbital_path?.length);
           if (planet.orbital_path && planet.orbital_path.length > 0) {
-            const orbitPoints = planet.orbital_path.map((point: OrbitalPoint) => {
+            // Optimize: Reduce point density for better performance
+            // Keep every Nth point based on total count (more decimation for longer paths)
+            const step = Math.max(1, Math.floor(planet.orbital_path.length / 120)); // Max 120 points per orbit
+            const optimizedPath = planet.orbital_path.filter((_, idx) => idx % step === 0);
+
+            const orbitPoints = optimizedPath.map((point: OrbitalPoint) => {
               // Convert from heliocentric ecliptic to Three.js coordinates
               const px = point.x * SCALE_FACTOR;
               const py = point.z * SCALE_FACTOR;
@@ -492,7 +666,7 @@ export default function ModernSolarSystem() {
               })
             );
             scene.add(orbitLine);
-            console.log(`✓ Added orbital path for ${planet.name} with ${orbitPoints.length} points, color: ${config.color}`);
+            console.log(`✓ Added orbital path for ${planet.name} with ${orbitPoints.length} points (optimized from ${planet.orbital_path.length}), color: ${config.color}`);
           } else {
             console.warn(`✗ No orbital path for ${planet.name}`);
           }
@@ -504,18 +678,23 @@ export default function ModernSolarSystem() {
         // Create comet group
         const cometGroup = new THREE.Group();
 
+        // Get theme-aware color for ATLAS (black in light mode, white in dark mode)
+        const atlasColorHex = getThemeAwareColor('atlas');
+        const atlasColorNum = parseInt(atlasColorHex.replace('#', '0x'));
+
         // Create smaller bright nucleus at center
         const nucleusSize = 1.5; // Reduced from 2
         const nucleusMesh = new THREE.Mesh(
           new THREE.SphereGeometry(nucleusSize, 16, 16),
           new THREE.MeshPhongMaterial({
-            color: cometConfig.color, // Use white from config
-            emissive: cometConfig.color, // Bright white glow
+            color: atlasColorNum, // Theme-aware: black in light, white in dark
+            emissive: atlasColorNum, // Bright glow matching color
             emissiveIntensity: 1.0,
             shininess: 100
           })
         );
         nucleusMesh.position.set(0, 0, 0); // Centered in group
+        nucleusMesh.userData.isAtlas = true; // Mark for theme updates
         cometGroup.add(nucleusMesh);
 
         // Create glowing coma around nucleus (same center)
@@ -523,13 +702,14 @@ export default function ModernSolarSystem() {
         const comaMesh = new THREE.Mesh(
           new THREE.SphereGeometry(comaSize, 16, 16),
           new THREE.MeshBasicMaterial({
-            color: cometConfig.color, // Use white from config
+            color: atlasColorNum, // Theme-aware: black in light, white in dark
             transparent: true,
             opacity: 0.2, // Slightly more transparent
             depthWrite: false
           })
         );
         comaMesh.position.set(0, 0, 0); // Centered in group
+        comaMesh.userData.isAtlas = true; // Mark for theme updates
         cometGroup.add(comaMesh);
 
         const cometX = apiData.comet_position.x * SCALE_FACTOR;
@@ -539,8 +719,8 @@ export default function ModernSolarSystem() {
         scene.add(cometGroup);
         bodies.set('3I/ATLAS', cometGroup);
 
-        // Add simple CSS2D label that follows the comet
-        const cometLabel = createLabel('3I/ATLAS', cometConfig.color);
+        // Add simple CSS2D label that follows the comet (theme-aware)
+        const cometLabel = createLabel('3I/ATLAS', cometConfig.color, true);
         cometLabel.userData.mesh = cometGroup;
         cometLabel.userData.offset = comaSize + 3;
         scene.add(cometLabel);
@@ -665,105 +845,113 @@ export default function ModernSolarSystem() {
           }
         }
 
-        // Create 3I/ATLAS trail from API data with gradient fade
+        // Create 3I/ATLAS past trail (observations) - solid red line
         if (apiData.orbital_trail && apiData.orbital_trail.length > 1) {
-          const trailPoints: THREE.Vector3[] = [];
-          apiData.orbital_trail.forEach((point: OrbitalPoint) => {
-            const x = point.x * SCALE_FACTOR;
-            const y = point.z * SCALE_FACTOR;
-            const z = -point.y * SCALE_FACTOR;
-            trailPoints.push(new THREE.Vector3(x, y, z));
+          // Filter to only show PAST points (before or equal to current date) to avoid overlap with projection
+          const currentDate = new Date();
+          const pastTrail = apiData.orbital_trail.filter(point => {
+            const pointDate = new Date(point.date || '');
+            return pointDate <= currentDate;
           });
 
-          // Add current position as the final point to connect with projection
-          const currentPos = apiData.comet_position;
-          trailPoints.push(new THREE.Vector3(
-            currentPos.x * SCALE_FACTOR,
-            currentPos.z * SCALE_FACTOR,
-            -currentPos.y * SCALE_FACTOR
-          ));
+          console.log(`Orbital trail: ${apiData.orbital_trail.length} total points → ${pastTrail.length} past points (filtering future)`);
 
-          // Create positions and colors for gradient fade
-          const trailPositions = new Float32Array(trailPoints.length * 3);
-          const trailColors = new Float32Array(trailPoints.length * 3);
+          if (pastTrail.length > 0) {
+            // Optimize: Reduce trail point density for better performance (max 150 points)
+            const step = Math.max(1, Math.floor(pastTrail.length / 150));
+            const optimizedTrail = pastTrail.filter((_, idx) => idx % step === 0);
 
-          trailPoints.forEach((p, i) => {
-            // Position
-            trailPositions[i * 3] = p.x;
-            trailPositions[i * 3 + 1] = p.y;
-            trailPositions[i * 3 + 2] = p.z;
+            const trailPoints: THREE.Vector3[] = [];
+            optimizedTrail.forEach((point: OrbitalPoint) => {
+              const x = point.x * SCALE_FACTOR;
+              const y = point.z * SCALE_FACTOR;
+              const z = -point.y * SCALE_FACTOR;
+              trailPoints.push(new THREE.Vector3(x, y, z));
+            });
 
-            // Color fade: dim at start (old) to bright at end (current)
-            // Use exponential fade for more dramatic effect
-            const t = i / (trailPoints.length - 1); // 0 to 1
-            const intensity = Math.pow(t, 0.5); // Square root for smoother fade
+            const trailPositions = new Float32Array(trailPoints.length * 3);
+            trailPoints.forEach((p, i) => {
+              trailPositions[i * 3] = p.x;
+              trailPositions[i * 3 + 1] = p.y;
+              trailPositions[i * 3 + 2] = p.z;
+            });
 
-            // Red to bright red gradient
-            trailColors[i * 3] = 1.0; // R
-            trailColors[i * 3 + 1] = intensity * 0.2; // G (slight orange tint when bright)
-            trailColors[i * 3 + 2] = 0.0; // B
-          });
+            const trailGeometry = new THREE.BufferGeometry();
+            trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
 
-          const trailGeometry = new THREE.BufferGeometry();
-          trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-          trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
-
-          const trailLine = new THREE.Line(
-            trailGeometry,
-            new THREE.LineBasicMaterial({
-              vertexColors: true,
-              opacity: 0.8,
-              transparent: true,
-              linewidth: 2
-            })
-          );
-          scene.add(trailLine);
-          console.log(`Created 3I/ATLAS trail with ${trailPoints.length} points and gradient fade (old→current)`);
-          console.log(`  Trail start: (${trailPoints[0].x.toFixed(1)}, ${trailPoints[0].y.toFixed(1)}, ${trailPoints[0].z.toFixed(1)})`);
-          console.log(`  Trail end: (${trailPoints[trailPoints.length-1].x.toFixed(1)}, ${trailPoints[trailPoints.length-1].y.toFixed(1)}, ${trailPoints[trailPoints.length-1].z.toFixed(1)})`);
+            const trailLine = new THREE.Line(
+              trailGeometry,
+              new THREE.LineBasicMaterial({
+                color: 0xFF3333,  // Solid red for past observations
+                opacity: 0.9,
+                transparent: true,
+                linewidth: 2
+              })
+            );
+            scene.add(trailLine);
+            console.log(`✓ Created 3I/ATLAS past trail with ${trailPoints.length} points (solid red, optimized from ${pastTrail.length} past points)`);
+            console.log(`  Trail start: (${trailPoints[0].x.toFixed(1)}, ${trailPoints[0].y.toFixed(1)}, ${trailPoints[0].z.toFixed(1)})`);
+            console.log(`  Trail end: (${trailPoints[trailPoints.length-1].x.toFixed(1)}, ${trailPoints[trailPoints.length-1].y.toFixed(1)}, ${trailPoints[trailPoints.length-1].z.toFixed(1)})`);
+          }
         }
 
-        // Create projected path using Kepler mechanics from API
+        // Create projected path using Kepler mechanics from API (future only)
         console.log('Checking for orbital_projection:', !!apiData.orbital_projection, 'length:', apiData.orbital_projection?.length);
         if (apiData.orbital_projection && apiData.orbital_projection.length > 0) {
-          const futurePoints: THREE.Vector3[] = [];
-          console.log('Starting projection rendering with', apiData.orbital_projection.length, 'points');
-
-          // Convert projection points to Three.js coordinates
-          for (const point of apiData.orbital_projection) {
-            // Convert from heliocentric ecliptic to Three.js coordinates
-            const px = point.x * SCALE_FACTOR;
-            const py = point.z * SCALE_FACTOR;  // Z becomes Y (up)
-            const pz = -point.y * SCALE_FACTOR; // Y becomes -Z
-            futurePoints.push(new THREE.Vector3(px, py, pz));
-          }
-
-          const futurePositions = new Float32Array(futurePoints.length * 3);
-          futurePoints.forEach((p, i) => {
-            futurePositions[i * 3] = p.x;
-            futurePositions[i * 3 + 1] = p.y;
-            futurePositions[i * 3 + 2] = p.z;
+          // Filter to only show FUTURE points (strictly after current date) to avoid overlap with past trail
+          const currentDate = new Date();
+          const futureProjection = apiData.orbital_projection.filter(point => {
+            const pointDate = new Date(point.date || '');
+            return pointDate > currentDate; // Strictly greater than (not equal) to avoid overlap
           });
 
-          const futureGeometry = new THREE.BufferGeometry();
-          futureGeometry.setAttribute('position', new THREE.BufferAttribute(futurePositions, 3));
+          console.log(`Orbital projection: ${apiData.orbital_projection.length} total points → ${futureProjection.length} future points (filtering past/current)`);
 
-          // Use dashed line for future projection
-          const futureLine = new THREE.Line(
-            futureGeometry,
-            new THREE.LineDashedMaterial({
-              color: '#FF6600',  // Orange to distinguish from trail
-              opacity: 0.8,
-              transparent: true,
-              dashSize: 8,
-              gapSize: 4
-            })
-          );
-          futureLine.computeLineDistances(); // Required for dashed lines
-          scene.add(futureLine);
-          console.log(`Created 3I/ATLAS projected path with ${futurePoints.length} points`);
-          console.log(`  Projection start: (${futurePoints[0].x.toFixed(1)}, ${futurePoints[0].y.toFixed(1)}, ${futurePoints[0].z.toFixed(1)})`);
-          console.log(`  Projection end: (${futurePoints[futurePoints.length-1].x.toFixed(1)}, ${futurePoints[futurePoints.length-1].y.toFixed(1)}, ${futurePoints[futurePoints.length-1].z.toFixed(1)})`);
+          if (futureProjection.length > 0) {
+            // Optimize: Reduce projection point density for better performance (max 150 points)
+            const step = Math.max(1, Math.floor(futureProjection.length / 150));
+            const optimizedProjection = futureProjection.filter((_, idx) => idx % step === 0);
+
+            const futurePoints: THREE.Vector3[] = [];
+
+            // Convert projection points to Three.js coordinates
+            for (const point of optimizedProjection) {
+              // Convert from heliocentric ecliptic to Three.js coordinates
+              const px = point.x * SCALE_FACTOR;
+              const py = point.z * SCALE_FACTOR;  // Z becomes Y (up)
+              const pz = -point.y * SCALE_FACTOR; // Y becomes -Z
+              futurePoints.push(new THREE.Vector3(px, py, pz));
+            }
+
+            const futurePositions = new Float32Array(futurePoints.length * 3);
+            futurePoints.forEach((p, i) => {
+              futurePositions[i * 3] = p.x;
+              futurePositions[i * 3 + 1] = p.y;
+              futurePositions[i * 3 + 2] = p.z;
+            });
+
+            const futureGeometry = new THREE.BufferGeometry();
+            futureGeometry.setAttribute('position', new THREE.BufferAttribute(futurePositions, 3));
+
+            // Use dashed line for future projection
+            const futureLine = new THREE.Line(
+              futureGeometry,
+              new THREE.LineDashedMaterial({
+                color: '#FF6600',  // Orange to distinguish from trail
+                opacity: 0.8,
+                transparent: true,
+                dashSize: 8,
+                gapSize: 4
+              })
+            );
+            futureLine.computeLineDistances(); // Required for dashed lines
+            scene.add(futureLine);
+            console.log(`✓ Created 3I/ATLAS projected path with ${futurePoints.length} points (orange dashed, optimized from ${futureProjection.length} future points)`);
+            console.log(`  Projection start: (${futurePoints[0].x.toFixed(1)}, ${futurePoints[0].y.toFixed(1)}, ${futurePoints[0].z.toFixed(1)})`);
+            console.log(`  Projection end: (${futurePoints[futurePoints.length-1].x.toFixed(1)}, ${futurePoints[futurePoints.length-1].y.toFixed(1)}, ${futurePoints[futurePoints.length-1].z.toFixed(1)})`);
+          } else {
+            console.warn('No future projection points available (all projection data is in the past)');
+          }
 
           // Add perihelion marker - find the point closest to perihelion date
           const perihelionDate = new Date('2025-10-30T00:00:00Z');
@@ -782,11 +970,14 @@ export default function ModernSolarSystem() {
             // Create reticle marker for perihelion (crosshair)
             const reticleLength = 8; // 1/6 of original size, all arms equal length
 
+            // Theme-aware perihelion line color: bright orange in both themes
+            const perihelionColor = 0xFF6600; // Bright orange - visible in all themes
+
             const reticleMaterial = new THREE.LineBasicMaterial({
-              color: '#FFFF00',
-              linewidth: 1,
-              opacity: 0.9,
-              transparent: true
+              color: perihelionColor,
+              linewidth: 2,
+              opacity: 1.0,
+              transparent: false
             });
 
             // Vertical line
@@ -824,8 +1015,8 @@ export default function ModernSolarSystem() {
             perihelionMarker.position.set(perihelionX, perihelionY, perihelionZ);
             scene.add(perihelionMarker);
 
-            // Add CSS2D label that follows perihelion marker
-            const perihelionLabel = createLabel('Perihelion', '#FFFF00');
+            // Add CSS2D label that follows perihelion marker (bright orange to match line)
+            const perihelionLabel = createLabel('Perihelion', '#FF6600');
             perihelionLabel.userData.mesh = perihelionMarker;
             perihelionLabel.userData.offset = reticleLength + 3;
             scene.add(perihelionLabel);
@@ -856,12 +1047,26 @@ export default function ModernSolarSystem() {
 
         // Initial camera setup - specific position for optimal comet view
         // Target the comet position (centerTarget default is 'atlas')
-        const viewCenter = getCenterPosition(centerTarget);
+        let viewCenter = getCenterPosition(centerTarget);
 
-        // Set specific camera position for ideal viewing angle
-        camera.position.set(-162.4, 58.3, 170.2);
+        // Sun-centered mode: adjust camera for solar system overview
+        if (centerMode === 'sun') {
+          viewCenter = new THREE.Vector3(0, 0, 0);
+          // Position camera for solar system view (higher and further back)
+          camera.position.set(-300, 200, 300);
+        } else {
+          // Default mode: Set specific camera position for ideal comet viewing angle
+          camera.position.set(-162.4, 58.3, 170.2);
+        }
 
-        console.log(`Camera positioned: position=(${camera.position.x.toFixed(1)}, ${camera.position.y.toFixed(1)}, ${camera.position.z.toFixed(1)}), target=(${viewCenter.x.toFixed(1)}, ${viewCenter.y.toFixed(1)}, ${viewCenter.z.toFixed(1)})`);
+        // Store final camera position for fly-in animation
+        const targetCameraPosition = camera.position.clone();
+
+        // Set camera to far-away start position for fly-in
+        const startPosition = new THREE.Vector3(-500, 300, 500);
+        camera.position.copy(startPosition);
+
+        console.log(`Camera fly-in: start=(${startPosition.x.toFixed(1)}, ${startPosition.y.toFixed(1)}, ${startPosition.z.toFixed(1)}), target=(${viewCenter.x.toFixed(1)}, ${viewCenter.y.toFixed(1)}, ${viewCenter.z.toFixed(1)}), end=(${targetCameraPosition.x.toFixed(1)}, ${targetCameraPosition.y.toFixed(1)}, ${targetCameraPosition.z.toFixed(1)})`);
 
         // Setup OrbitControls
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -870,10 +1075,34 @@ export default function ModernSolarSystem() {
         controls.dampingFactor = 0.05;
         controls.minDistance = 20;
         controls.maxDistance = 3000;
+        controls.enabled = false; // Disable during fly-in
         controls.update();
 
-        // Point camera at center after controls are set up
-        camera.lookAt(viewCenter);
+        // Camera fly-in animation (2.5 seconds)
+        const flyInDuration = 2500;
+        const flyInStartTime = Date.now();
+
+        const performFlyIn = () => {
+          const elapsed = Date.now() - flyInStartTime;
+          const progress = Math.min(elapsed / flyInDuration, 1);
+          const easedProgress = easeOutCubic(progress);
+
+          // Interpolate camera position
+          camera.position.lerpVectors(startPosition, targetCameraPosition, easedProgress);
+          camera.lookAt(viewCenter);
+
+          if (progress < 1) {
+            requestAnimationFrame(performFlyIn);
+          } else {
+            // Fly-in complete - enable controls
+            controls.enabled = true;
+            setCameraFlyInComplete(true);
+            console.log('Camera fly-in complete');
+          }
+        };
+
+        // Start fly-in animation
+        performFlyIn();
 
         // Log camera position when user moves it (throttled to avoid spam)
         controls.addEventListener('change', () => {
@@ -921,10 +1150,19 @@ export default function ModernSolarSystem() {
       // Clear any pending timeouts
       if (logTimeoutRef.current) clearTimeout(logTimeoutRef.current);
 
+      // Cancel orbital animation loop
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
       if (sceneRef.current) {
-        // Cancel animation loop
+        // Cancel main animation loop
         if (sceneRef.current.animationId) {
           cancelAnimationFrame(sceneRef.current.animationId);
+        }
+        // Cancel orbital animation loop
+        if (sceneRef.current.orbitalAnimationId) {
+          cancelAnimationFrame(sceneRef.current.orbitalAnimationId);
         }
 
         // Dispose scene objects (geometries, materials, textures)
@@ -1014,6 +1252,194 @@ export default function ModernSolarSystem() {
     renderer.setSize(width, height);
     labelRenderer.setSize(width, height);
   }, [containerHeight]);
+
+  // Orbital animation loop - updates positions based on timeline
+  useEffect(() => {
+    if (!sceneRef.current || !orbitalData || !timelineRange) return;
+
+    const animate = () => {
+      if (!sceneRef.current || !orbitalData) return;
+
+      // Calculate time delta for smooth animation
+      const now = Date.now();
+      const deltaTime = (now - lastFrameTimeRef.current) / 1000; // seconds
+      lastFrameTimeRef.current = now;
+
+      // Update current date if playing (using ref to avoid re-triggering effect)
+      if (isPlayingRef.current) {
+        const newDate = new Date(currentDateRef.current.getTime() + (deltaTime * animationSpeed * 24 * 60 * 60 * 1000));
+
+        // Stop at end of timeline
+        if (newDate > timelineRange.end) {
+          currentDateRef.current = timelineRange.end;
+          isPlayingRef.current = false;
+          setCurrentDate(timelineRange.end);
+          setIsPlaying(false);
+        } else {
+          currentDateRef.current = newDate;
+
+          // Throttle state updates to every 50ms for smoother performance
+          if (now - lastStateUpdateRef.current > 50) {
+            setCurrentDate(newDate);
+            lastStateUpdateRef.current = now;
+          }
+        }
+      }
+
+      // Update comet position (use ref for current position)
+      const atlasBody = sceneRef.current.bodies.get('3I/ATLAS');
+      if (atlasBody && orbitalData.orbital_trail) {
+        // Combine trail and projection for full timeline
+        const fullPath = [
+          ...(orbitalData.orbital_trail || []),
+          ...(orbitalData.orbital_projection || [])
+        ].sort((a, b) => {
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          return dateA - dateB;
+        });
+
+        const newPosition = interpolatePosition(currentDateRef.current, fullPath);
+        if (newPosition) {
+          // Store previous position for camera offset calculation
+          const prevPosition = atlasBody.position.clone();
+          atlasBody.position.copy(newPosition);
+
+          // Camera following: if followComet is enabled, move camera to track the comet
+          if (followComet && sceneRef.current?.controls) {
+            const controls = sceneRef.current.controls;
+            const camera = sceneRef.current.camera;
+
+            // Calculate the movement delta
+            const delta = new THREE.Vector3().subVectors(newPosition, prevPosition);
+
+            // Move camera by the same delta to maintain relative position
+            camera.position.add(delta);
+
+            // Update controls target to new comet position
+            controls.target.copy(newPosition);
+            controls.update();
+          }
+        }
+      }
+
+      // Update planet positions using real orbital mechanics
+      try {
+        const planetPositions = calculateAllPlanetPositions(currentDateRef.current);
+
+        planetPositions.forEach((planetData) => {
+          const body = sceneRef.current?.bodies.get(planetData.name);
+          if (body) {
+            // Convert astronomy-engine coordinates to Three.js coordinates
+            // astronomy-engine: heliocentric ecliptic (x, y, z in AU)
+            // Three.js: x right, y up, z toward camera (flip y/z)
+            const newPosition = new THREE.Vector3(
+              planetData.x * SCALE_FACTOR,
+              planetData.z * SCALE_FACTOR,
+              -planetData.y * SCALE_FACTOR
+            );
+            body.position.copy(newPosition);
+          }
+        });
+      } catch (error) {
+        console.error('Error calculating planet positions:', error);
+      }
+
+      // Continue animation loop
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    // Start animation loop
+    lastFrameTimeRef.current = Date.now();
+    animate();
+
+    // Cleanup
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [orbitalData, timelineRange, animationSpeed, followComet]);
+
+  // Handle theme changes - update scene background, ATLAS colors, and labels
+  useEffect(() => {
+    if (!sceneRef.current) return;
+
+    const updateTheme = () => {
+      const theme = document.documentElement.getAttribute('data-theme');
+      let bgColor: number;
+
+      switch(theme) {
+        case 'light':
+          bgColor = 0xf5f1e8;  // Warm cream
+          break;
+        case 'dark':
+          bgColor = 0x0f172a;  // Slate-900
+          break;
+        case 'high-contrast':
+          bgColor = 0x000000;  // Pure black
+          break;
+        default:
+          bgColor = 0x0f172a;  // Default to dark
+      }
+
+      // Update scene background
+      if (sceneRef.current.scene.background) {
+        (sceneRef.current.scene.background as THREE.Color).setHex(bgColor);
+      }
+
+      // Update ATLAS comet color (black in light mode, white in dark mode)
+      const atlasColorHex = getThemeAwareColor('atlas');
+      const atlasColorNum = parseInt(atlasColorHex.replace('#', '0x'));
+
+      sceneRef.current.scene.traverse((object) => {
+        // Update ATLAS nucleus and coma colors
+        if (object.userData.isAtlas && object instanceof THREE.Mesh) {
+          if (object.material instanceof THREE.MeshPhongMaterial) {
+            object.material.color.setHex(atlasColorNum);
+            object.material.emissive.setHex(atlasColorNum);
+          } else if (object.material instanceof THREE.MeshBasicMaterial) {
+            object.material.color.setHex(atlasColorNum);
+          }
+        }
+      });
+
+      // Update CSS2D labels
+      const labelColor = getThemeAwareColor('label');
+      const labels = document.querySelectorAll('.css2d-label');
+      labels.forEach((label) => {
+        const div = label as HTMLDivElement;
+        div.style.color = labelColor;
+
+        if (theme === 'light') {
+          div.style.textShadow = '0 0 4px rgba(255,255,255,0.9)';
+          div.style.backgroundColor = 'rgba(255,255,255,0.85)';
+        } else {
+          div.style.textShadow = '0 0 4px rgba(0,0,0,0.8)';
+          div.style.backgroundColor = 'rgba(0,0,0,0.7)';
+        }
+      });
+    };
+
+    // Set initial theme
+    updateTheme();
+
+    // Listen for theme changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+          updateTheme();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   // Handle grid visibility toggle
   useEffect(() => {
@@ -1146,151 +1572,94 @@ export default function ModernSolarSystem() {
     console.log(`Center target changed to ${centerTarget}, position: (${targetPosition.x.toFixed(1)}, ${targetPosition.y.toFixed(1)}, ${targetPosition.z.toFixed(1)})`);
   }, [centerTarget]);
 
+  // Keyboard controls - Space to play/pause
+  useEffect(() => {
+    if (!showControls || !timelineRange) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle Space key
+      if (e.code === 'Space') {
+        // Prevent page scroll
+        e.preventDefault();
+        // Toggle play/pause
+        setIsPlaying(prev => !prev);
+        console.log('Space key pressed - toggling animation');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showControls, timelineRange]);
+
   return (
-    <div className="max-w-5xl mx-auto bg-gray-800 rounded-lg overflow-hidden">
+    <div className="w-full bg-[var(--color-bg-secondary)] rounded-lg overflow-hidden">
       {/* Compact Header */}
-      <div className="bg-gray-900 p-3 border-b border-gray-700">
-        <div className="flex flex-col gap-3 text-sm" role="banner">
+      <div className="bg-[var(--color-bg-primary)] p-3 border-b border-[var(--color-border-primary)]">
+        <div className="flex items-center justify-center gap-3 text-sm">
           {/* Title and Date */}
-          <div className="flex items-center justify-center gap-3">
-            <h3 className="text-base font-semibold text-white">Current Solar System Position</h3>
-            <span className="text-gray-400 text-xs">
-              {currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-            </span>
-          </div>
+          <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Current Solar System Position</h3>
+          <span className="text-[var(--color-text-tertiary)] text-xs">
+            {currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+          </span>
+        </div>
+      </div>
 
-          {/* Controls */}
-          <div className="flex items-center justify-center gap-4">
-            {/* Grid Toggle */}
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showGrid}
-                onChange={(e) => setShowGrid(e.target.checked)}
-                className="w-3.5 h-3.5 cursor-pointer"
-              />
-              <span className="text-gray-300 text-xs">Grid</span>
-            </label>
-
-            {/* HUD Toggle */}
+      {/* Canvas Container */}
+      <div className="relative">
+        {/* HUD Toggle - Upper Left Corner */}
+        {!loading && !error && (
+          <div className="absolute top-2 left-2 z-10 bg-[var(--color-bg-secondary)]/80 backdrop-blur-sm border border-[var(--color-border-primary)]/50 rounded px-2 py-1">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={showHud}
                 onChange={(e) => setShowHud(e.target.checked)}
-                className="w-3.5 h-3.5 cursor-pointer"
+                className="w-3 h-3 cursor-pointer"
               />
-              <span className="text-gray-300 text-xs">HUD</span>
+              <span className="text-[var(--color-text-secondary)] text-xs">HUD</span>
             </label>
-
-            {/* Center Target */}
-            <div className="flex items-center gap-2 border-l border-gray-700 pl-3">
-              <span className="text-gray-400 text-xs">Center:</span>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="centerTarget"
-                  value="sun"
-                  checked={centerTarget === 'sun'}
-                  onChange={() => setCenterTarget('sun')}
-                  className="cursor-pointer"
-                />
-                <span className="text-gray-300 text-xs">Sol</span>
-              </label>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="centerTarget"
-                  value="earth"
-                  checked={centerTarget === 'earth'}
-                  onChange={() => setCenterTarget('earth')}
-                  className="cursor-pointer"
-                />
-                <span className="text-gray-300 text-xs">Earth</span>
-              </label>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="centerTarget"
-                  value="atlas"
-                  checked={centerTarget === 'atlas'}
-                  onChange={() => setCenterTarget('atlas')}
-                  className="cursor-pointer"
-                />
-                <span className="text-gray-300 text-xs">3I/ATLAS</span>
-              </label>
-            </div>
-
-            {/* Additional Comets Toggle - DISABLED: JPL Horizons lacks data for these comets */}
-            {/* Backend infrastructure remains in place for future use:
-                - /api/additional-comets endpoint
-                - fetchCometOrbitalTrail() function
-                - additionalComets registry in celestial-bodies.ts
-                Re-enable by uncommenting this section when suitable comets are found
-            */}
-            {false && (
-              <div className="flex items-center gap-2 border-l border-gray-700 pl-3">
-                <span className="text-gray-400 text-xs">Other Comets:</span>
-                {additionalComets.map((comet) => (
-                  <label key={comet.id} className="flex items-center gap-1 cursor-pointer" title={comet.description}>
-                    <input
-                      type="checkbox"
-                      checked={visibleComets.has(comet.id)}
-                      onChange={(e) => {
-                        const newVisible = new Set(visibleComets);
-                        if (e.target.checked) {
-                          newVisible.add(comet.id);
-                        } else {
-                          newVisible.delete(comet.id);
-                        }
-                        setVisibleComets(newVisible);
-                      }}
-                      className="w-3 h-3 cursor-pointer"
-                    />
-                    <span className="text-gray-300 text-xs" style={{ color: comet.color }}>{comet.name}</span>
-                  </label>
-                ))}
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Subtitle */}
-        <div className="text-xs text-gray-500 mt-1.5">
-          3I/ATLAS past trail (solid) and future path (dashed) • Drag to rotate • Scroll to zoom
-        </div>
-      </div>
-
-      {/* Cache Warning Banner */}
-      {cacheWarning && (
-        <div className="bg-yellow-900/30 border-y border-yellow-700/50 px-4 py-2">
-          <div className="flex items-start gap-2 text-sm">
-            <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" />
-            </svg>
-            <div className="flex-1">
-              <div className="text-yellow-200 font-medium">
-                {cacheWarning.message}
-              </div>
-              <div className="text-yellow-300/80 text-xs mt-0.5">
-                Data is {cacheWarning.dataAge} (from {new Date(cacheWarning.cachedAt).toLocaleString()}) •
-                Live API temporarily unavailable
+        {/* Cache Warning Banner */}
+        {cacheWarning && (
+          <div className="bg-yellow-900/30 border-y border-yellow-700/50 px-4 py-2">
+            <div className="flex items-start gap-2 text-sm">
+              <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" />
+              </svg>
+              <div className="flex-1">
+                <div className="text-yellow-200 font-medium">
+                  {cacheWarning.message}
+                </div>
+                <div className="text-yellow-300/80 text-xs mt-0.5">
+                  Data is {cacheWarning.dataAge} (from {new Date(cacheWarning.cachedAt).toLocaleString()}) •
+                  Live API temporarily unavailable
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div
-        ref={containerRef}
-        className="bg-gray-900 relative"
-        style={{ height: `${containerHeight}px` }}
-      >
+        <div
+          ref={containerRef}
+          className="bg-[var(--color-bg-primary)] relative"
+          style={{ height: `${containerHeight}px` }}
+        >
+        {/* Interactive Overlay - Shows hint on first visit */}
+        {!loading && !error && (
+          <ThreeDInteractiveOverlay
+            overlayId="modern-solar-system"
+            desktopMessage="Click and drag to explore!"
+            mobileMessage="Touch and drag to explore!"
+          />
+        )}
+
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
-              <div className="text-gray-400 text-lg mb-4">Loading 3D Solar System...</div>
-              <div className="text-gray-500 text-sm">Fetching real-time position data</div>
+              <div className="text-[var(--color-text-tertiary)] text-lg mb-4">Loading 3D Solar System...</div>
+              <div className="text-[var(--color-text-tertiary)] text-sm">Fetching real-time position data</div>
             </div>
           </div>
         )}
@@ -1298,35 +1667,35 @@ export default function ModernSolarSystem() {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <div className="text-red-400 text-lg mb-4">Failed to Load</div>
-              <div className="text-gray-400 text-sm">{error}</div>
+              <div className="text-[var(--color-text-tertiary)] text-sm">{error}</div>
             </div>
           </div>
         )}
 
         {/* HUD - Heads-Up Display */}
         {hudData && !loading && !error && showHud && (
-          <div className="absolute top-3 right-3 bg-black/85 backdrop-blur-sm border border-gray-700 rounded p-2 text-xs font-mono pointer-events-none z-50">
-            <div className="text-white font-bold text-sm mb-1.5 border-b border-gray-700 pb-1">
+          <div className="absolute top-3 right-3 bg-[var(--color-bg-secondary)]/95 backdrop-blur-sm border-2 border-[var(--color-border-primary)] rounded p-2 text-xs font-mono pointer-events-none z-50 shadow-lg">
+            <div className="text-[var(--color-text-primary)] font-bold text-sm mb-1.5 border-b-2 border-[var(--color-border-primary)] pb-1">
               3I/ATLAS
             </div>
 
             {/* Velocity & Activity */}
-            <div className="space-y-1 mb-1.5 pb-1.5 border-b border-gray-700">
+            <div className="space-y-1 mb-1.5 pb-1.5 border-b border-[var(--color-border-secondary)]">
               <div className="flex justify-between items-center gap-3">
-                <span className="text-gray-400">Velocity:</span>
-                <span className="text-cyan-300 font-semibold">
+                <span className="text-[var(--color-text-secondary)]">Velocity:</span>
+                <span className="text-[var(--color-accent-blue)] font-semibold">
                   {hudData.velocity.toFixed(1)} km/s{' '}
                   {hudData.velocityTrend === 'up' ? '↑' : hudData.velocityTrend === 'down' ? '↓' : '→'}
                 </span>
               </div>
               <div className="flex justify-between items-center gap-3">
-                <span className="text-gray-400">Activity:</span>
+                <span className="text-[var(--color-text-secondary)]">Activity:</span>
                 <span className={`font-semibold ${
-                  hudData.activityLevel === 'EXTREME' ? 'text-red-400' :
-                  hudData.activityLevel === 'HIGH' ? 'text-orange-400' :
-                  hudData.activityLevel === 'MODERATE' ? 'text-yellow-400' :
-                  hudData.activityLevel === 'LOW' ? 'text-green-400' :
-                  'text-gray-400'
+                  hudData.activityLevel === 'EXTREME' ? 'text-red-600 dark:text-red-400' :
+                  hudData.activityLevel === 'HIGH' ? 'text-orange-600 dark:text-orange-400' :
+                  hudData.activityLevel === 'MODERATE' ? 'text-yellow-600 dark:text-yellow-400' :
+                  hudData.activityLevel === 'LOW' ? 'text-green-600 dark:text-green-400' :
+                  'text-[var(--color-text-secondary)]'
                 }`}>
                   {hudData.activityLevel === 'EXTREME' ? '🔥 Extreme' :
                    hudData.activityLevel === 'HIGH' ? '⚡ High' :
@@ -1338,42 +1707,42 @@ export default function ModernSolarSystem() {
             </div>
 
             {/* Orbital Parameters */}
-            <div className="space-y-1 mb-1.5 pb-1.5 border-b border-gray-700">
+            <div className="space-y-1 mb-1.5 pb-1.5 border-b border-[var(--color-border-secondary)]">
               <div className="flex justify-between items-center gap-3">
-                <span className="text-gray-400">Dist (Sun):</span>
-                <span className="text-blue-300">{hudData.distanceFromSun.toFixed(2)} AU</span>
+                <span className="text-[var(--color-text-secondary)]">Dist (Sun):</span>
+                <span className="text-blue-700 dark:text-blue-300">{hudData.distanceFromSun.toFixed(2)} AU</span>
               </div>
               <div className="flex justify-between items-center gap-3">
-                <span className="text-gray-400">Dist (Earth):</span>
-                <span className="text-green-300">{hudData.distanceFromEarth.toFixed(2)} AU</span>
+                <span className="text-[var(--color-text-secondary)]">Dist (Earth):</span>
+                <span className="text-green-700 dark:text-green-300">{hudData.distanceFromEarth.toFixed(2)} AU</span>
               </div>
               <div className="flex justify-between items-center gap-3">
-                <span className="text-gray-400">Eccent:</span>
-                <span className="text-purple-300">{hudData.eccentricity.toFixed(2)}</span>
+                <span className="text-[var(--color-text-secondary)]">Eccent:</span>
+                <span className="text-purple-700 dark:text-purple-300">{hudData.eccentricity.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center gap-3">
-                <span className="text-gray-400">Inclin:</span>
-                <span className="text-purple-300">{hudData.inclination.toFixed(1)}°</span>
+                <span className="text-[var(--color-text-secondary)]">Inclin:</span>
+                <span className="text-purple-700 dark:text-purple-300">{hudData.inclination.toFixed(1)}°</span>
               </div>
             </div>
 
             {/* Mission Parameters */}
-            <div className="space-y-1 mb-1.5 pb-1.5 border-b border-gray-700">
+            <div className="space-y-1 mb-1.5 pb-1.5 border-b border-[var(--color-border-secondary)]">
               <div className="flex justify-between items-center gap-3">
-                <span className="text-gray-400">Perihelion:</span>
-                <span className="text-yellow-300">Oct 30, 2025</span>
+                <span className="text-[var(--color-text-secondary)]">Perihelion:</span>
+                <span className="text-yellow-700 dark:text-yellow-300">Oct 30, 2025</span>
               </div>
             </div>
 
             {/* Data Source & Timestamp */}
             <div className="space-y-0.5 text-[10px]">
               <div className="flex justify-between items-center gap-2">
-                <span className="text-gray-500">Source:</span>
-                <span className="text-gray-400 truncate max-w-[100px]">{hudData.dataSource}</span>
+                <span className="text-[var(--color-text-tertiary)]">Source:</span>
+                <span className="text-[var(--color-text-tertiary)] truncate max-w-[100px]">{hudData.dataSource}</span>
               </div>
               <div className="flex justify-between items-center gap-2">
-                <span className="text-gray-500">Update:</span>
-                <span className="text-gray-400">
+                <span className="text-[var(--color-text-tertiary)]">Update:</span>
+                <span className="text-[var(--color-text-tertiary)]">
                   {new Date(hudData.lastUpdate).toLocaleString('en-US', {
                     month: 'short',
                     day: 'numeric',
@@ -1382,13 +1751,96 @@ export default function ModernSolarSystem() {
                   })}
                 </span>
               </div>
-              <div className="text-gray-500 italic mt-1 pt-1 border-t border-gray-800">
+              <div className="text-[var(--color-text-tertiary)] italic mt-1 pt-1 border-t border-[var(--color-border-secondary)]">
                 Sizes not to scale
               </div>
             </div>
           </div>
         )}
+
+        {/* Timeline Controls - Bottom overlay */}
+        {showControls && timelineRange && !loading && !error && cameraFlyInComplete && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[90%] max-w-3xl z-20">
+            <div className="bg-black/70 backdrop-blur-sm border border-[var(--color-border-primary)] rounded-lg p-4 shadow-lg">
+              <div className="flex items-center gap-4">
+                {/* Play/Pause Button */}
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="flex-shrink-0 w-12 h-12 rounded-full bg-[var(--color-chart-primary)] hover:opacity-80 transition-opacity flex items-center justify-center text-white shadow-lg"
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  title={isPlaying ? 'Pause animation (Space)' : 'Play animation (Space)'}
+                >
+                  {isPlaying ? (
+                    // Pause icon
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                    </svg>
+                  ) : (
+                    // Play icon
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Timeline Slider Container */}
+                <div className="flex-1 flex flex-col gap-2">
+                  {/* Current Date Display */}
+                  <div className="text-center">
+                    <div className="text-[var(--color-text-primary)] font-semibold text-lg">
+                      {currentDate.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        timeZone: 'UTC'
+                      })}
+                    </div>
+                    <div className="text-[var(--color-text-tertiary)] text-xs">
+                      {animationSpeed === 1 ? '1 day per second' : `${animationSpeed} days per second`}
+                    </div>
+                  </div>
+
+                  {/* Timeline Slider */}
+                  <div className="relative">
+                    <input
+                      type="range"
+                      min={timelineRange.start.getTime()}
+                      max={timelineRange.end.getTime()}
+                      value={currentDate.getTime()}
+                      onChange={(e) => {
+                        setCurrentDate(new Date(parseInt(e.target.value)));
+                        setIsPlaying(false); // Pause when user manually scrubs
+                      }}
+                      className="w-full h-2 bg-[var(--color-bg-tertiary)] rounded-lg appearance-none cursor-pointer slider-thumb"
+                      style={{
+                        background: `linear-gradient(to right,
+                          var(--color-chart-primary) 0%,
+                          var(--color-chart-primary) ${((currentDate.getTime() - timelineRange.start.getTime()) / (timelineRange.end.getTime() - timelineRange.start.getTime())) * 100}%,
+                          var(--color-bg-tertiary) ${((currentDate.getTime() - timelineRange.start.getTime()) / (timelineRange.end.getTime() - timelineRange.start.getTime())) * 100}%,
+                          var(--color-bg-tertiary) 100%)`
+                      }}
+                    />
+
+                    {/* Date Labels */}
+                    <div className="flex justify-between mt-1 text-xs text-[var(--color-text-tertiary)]">
+                      <span>{timelineRange.start.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}</span>
+                      <span>{timelineRange.end.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Keyboard Hint */}
+              <div className="mt-2 text-center text-xs text-[var(--color-text-tertiary)] opacity-70">
+                Press Space to play/pause
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
       </div>
     </div>
   );
-}
+});
+
+export default ModernSolarSystem;

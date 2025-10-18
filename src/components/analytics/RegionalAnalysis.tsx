@@ -246,14 +246,14 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
     <ExtensionSafeWrapper>
       <div className="space-y-6">
         {/* Control Panel */}
-        <div className="bg-gray-800 rounded-lg p-4">
+        <div className="bg-[var(--color-bg-secondary)] rounded-lg p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Chart Type</label>
+              <label className="block text-sm text-[var(--color-text-tertiary)] mb-1">Chart Type</label>
               <select
                 value={chartType}
                 onChange={(e) => setChartType(e.target.value as 'bar' | 'pie' | 'coverage')}
-                className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-[var(--color-bg-tertiary)] rounded border border-[var(--color-border-secondary)] focus:border-blue-500 focus:outline-none"
               >
                 <option value="bar">Bar Chart</option>
                 <option value="pie">Pie Chart</option>
@@ -261,11 +261,11 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Sort By</label>
+              <label className="block text-sm text-[var(--color-text-tertiary)] mb-1">Sort By</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as 'observers' | 'observations' | 'quality' | 'coverage')}
-                className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-[var(--color-bg-tertiary)] rounded border border-[var(--color-border-secondary)] focus:border-blue-500 focus:outline-none"
               >
                 <option value="observers">Observer Count</option>
                 <option value="observations">Total Observations</option>
@@ -274,11 +274,11 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Show Top</label>
+              <label className="block text-sm text-[var(--color-text-tertiary)] mb-1">Show Top</label>
               <select
                 value={showTop}
                 onChange={(e) => setShowTop(parseInt(e.target.value))}
-                className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                className="w-full px-3 py-2 bg-[var(--color-bg-tertiary)] rounded border border-[var(--color-border-secondary)] focus:border-blue-500 focus:outline-none"
               >
                 <option value={10}>Top 10</option>
                 <option value={15}>Top 15</option>
@@ -300,7 +300,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
         {/* Continental Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {continentData.map(continent => (
-            <div key={continent.continent} className="bg-gray-800 rounded-lg p-4">
+            <div key={continent.continent} className="bg-[var(--color-bg-secondary)] rounded-lg p-4">
               <h3 className="text-lg font-semibold text-blue-300 mb-2">{continent.continent}</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -325,31 +325,31 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
         </div>
 
         {/* Country Analysis Table */}
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
-          <div className="p-4 bg-gray-700">
+        <div className="bg-[var(--color-bg-secondary)] rounded-lg overflow-hidden">
+          <div className="p-4 bg-[var(--color-bg-tertiary)]">
             <h2 className="text-xl font-semibold">Country-by-Country Analysis</h2>
-            <p className="text-gray-400 mt-1">Click on a country to view detailed statistics</p>
+            <p className="text-[var(--color-text-tertiary)] mt-1">Click on a country to view detailed statistics</p>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-700">
+              <thead className="bg-[var(--color-bg-tertiary)]">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Rank</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Country</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase">Observers</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase">Observations</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase">Avg/Observer</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase">Active</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase">Coverage</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Top Observer</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase">Rank</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase">Country</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-[var(--color-text-secondary)] uppercase">Observers</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-[var(--color-text-secondary)] uppercase">Observations</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-[var(--color-text-secondary)] uppercase">Avg/Observer</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-[var(--color-text-secondary)] uppercase">Active</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-[var(--color-text-secondary)] uppercase">Coverage</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-secondary)] uppercase">Top Observer</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700">
+              <tbody className="divide-y divide-[var(--color-border-primary)]">
                 {topCountries.map((country, index) => (
                   <tr
                     key={country.country}
-                    className={`hover:bg-gray-700 cursor-pointer transition-colors ${
+                    className={`hover:bg-[var(--color-bg-tertiary)] cursor-pointer transition-colors ${
                       selectedCountry === country.country ? 'bg-blue-900' : ''
                     }`}
                     onClick={() => setSelectedCountry(
@@ -357,26 +357,26 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                     )}
                   >
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-300">#{index + 1}</span>
+                      <span className="font-medium text-[var(--color-text-secondary)]">#{index + 1}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center">
                         <span className="mr-2">🌍</span>
                         <div>
-                          <div className="font-medium text-white">{country.country}</div>
-                          <div className="text-xs text-gray-400">{getContinent(country.country)}</div>
+                          <div className="font-medium text-[var(--color-text-primary)]">{country.country}</div>
+                          <div className="text-xs text-[var(--color-text-tertiary)]">{getContinent(country.country)}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="font-medium text-white">{country.observerCount}</div>
-                      <div className="text-xs text-gray-400">active: {country.activeObservers}</div>
+                      <div className="font-medium text-[var(--color-text-primary)]">{country.observerCount}</div>
+                      <div className="text-xs text-[var(--color-text-tertiary)]">active: {country.activeObservers}</div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="font-medium text-white">{country.totalObservations.toLocaleString()}</div>
+                      <div className="font-medium text-[var(--color-text-primary)]">{country.totalObservations.toLocaleString()}</div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="font-medium text-white">{country.averageObservationsPerObserver.toFixed(1)}</div>
+                      <div className="font-medium text-[var(--color-text-primary)]">{country.averageObservationsPerObserver.toFixed(1)}</div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="text-sm">
@@ -391,7 +391,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-medium text-blue-300">{country.topObserver.name}</div>
-                      <div className="text-xs text-gray-400">{country.topObserver.observationCount} obs</div>
+                      <div className="text-xs text-[var(--color-text-tertiary)]">{country.topObserver.observationCount} obs</div>
                     </td>
                   </tr>
                 ))}
@@ -402,12 +402,12 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
 
         {/* Coverage Analysis Chart */}
         {chartType === 'coverage' && (
-          <div className="bg-gray-800 rounded-lg p-6">
+          <div className="bg-[var(--color-bg-secondary)] rounded-lg p-6">
             <h3 className="text-xl font-semibold mb-4">Global Coverage Analysis</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Coverage Score Distribution */}
               <div>
-                <h4 className="font-medium text-gray-300 mb-3">Coverage Score Distribution</h4>
+                <h4 className="font-medium text-[var(--color-text-secondary)] mb-3">Coverage Score Distribution</h4>
                 <div className="space-y-2">
                   {[
                     { range: '80-100', label: 'Excellent', color: 'bg-green-500', count: countryData.filter(c => c.coverageScore >= 80).length },
@@ -428,11 +428,11 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
 
               {/* Geographic Insights */}
               <div>
-                <h4 className="font-medium text-gray-300 mb-3">Geographic Insights</h4>
+                <h4 className="font-medium text-[var(--color-text-secondary)] mb-3">Geographic Insights</h4>
                 <div className="space-y-3 text-sm">
-                  <div className="bg-gray-700 rounded p-3">
+                  <div className="bg-[var(--color-bg-tertiary)] rounded p-3">
                     <div className="font-medium text-blue-300 mb-1">Northern Hemisphere Dominance</div>
-                    <div className="text-gray-300">
+                    <div className="text-[var(--color-text-secondary)]">
                       {(() => {
                         const northernHemisphere = observers.filter(obs => obs.location.lat > 0).length;
                         return `${northernHemisphere} of ${observers.length} observers (${((northernHemisphere / observers.length) * 100).toFixed(1)}%) are located in the northern hemisphere`;
@@ -440,9 +440,9 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                     </div>
                   </div>
 
-                  <div className="bg-gray-700 rounded p-3">
+                  <div className="bg-[var(--color-bg-tertiary)] rounded p-3">
                     <div className="font-medium text-green-300 mb-1">Longitudinal Coverage</div>
-                    <div className="text-gray-300">
+                    <div className="text-[var(--color-text-secondary)]">
                       Global coverage spans {(() => {
                         const lngs = observers.map(obs => obs.location.lng);
                         return Math.round(Math.max(...lngs) - Math.min(...lngs));
@@ -451,9 +451,9 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                     </div>
                   </div>
 
-                  <div className="bg-gray-700 rounded p-3">
+                  <div className="bg-[var(--color-bg-tertiary)] rounded p-3">
                     <div className="font-medium text-purple-300 mb-1">Coverage Gaps</div>
-                    <div className="text-gray-300">
+                    <div className="text-[var(--color-text-secondary)]">
                       Southern Ocean, Antarctica, and equatorial regions have limited observer presence,
                       creating potential observation gaps
                     </div>
@@ -470,12 +470,12 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
           const countryObservers = observers.filter(obs => obs.country === selectedCountry);
 
           return (
-            <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-6">
+            <div className="bg-gradient-to-r from-[var(--color-bg-secondary)] to-[var(--color-bg-tertiary)] rounded-lg p-6">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-2xl font-semibold">{selectedCountry} - Detailed Analysis</h3>
                 <button
                   onClick={() => setSelectedCountry(null)}
-                  className="text-gray-400 hover:text-white"
+                  className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
                 >
                   ✕
                 </button>
@@ -488,7 +488,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {/* Statistics */}
-                  <div className="bg-gray-700 rounded-lg p-4">
+                  <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4">
                     <h4 className="font-semibold text-blue-300 mb-3">Observer Statistics</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
@@ -513,7 +513,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                   </div>
 
                   {/* Coverage */}
-                  <div className="bg-gray-700 rounded-lg p-4">
+                  <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4">
                     <h4 className="font-semibold text-green-300 mb-3">Geographic Coverage</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
@@ -530,7 +530,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                       </div>
                       <div className="mt-3">
                         <div className={`w-full h-2 rounded ${getCoverageColor(countryDetails.coverageScore)}`}></div>
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-xs text-[var(--color-text-tertiary)] mt-1">
                           {getCoverageDescription(countryDetails.coverageScore)}
                         </div>
                       </div>
@@ -538,7 +538,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                   </div>
 
                   {/* Top Performers */}
-                  <div className="bg-gray-700 rounded-lg p-4">
+                  <div className="bg-[var(--color-bg-tertiary)] rounded-lg p-4">
                     <h4 className="font-semibold text-purple-300 mb-3">Top Performers</h4>
                     <div className="space-y-3">
                       {countryObservers
@@ -546,12 +546,12 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
                         .slice(0, 3)
                         .map((observer, index) => (
                           <div key={observer.id} className="flex items-start">
-                            <span className="text-xs bg-gray-600 rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">
+                            <span className="text-xs bg-[var(--color-bg-tertiary)] rounded-full w-5 h-5 flex items-center justify-center mr-2 mt-0.5">
                               {index + 1}
                             </span>
                             <div className="flex-1">
                               <div className="text-sm font-medium">{observer.name}</div>
-                              <div className="text-xs text-gray-400">
+                              <div className="text-xs text-[var(--color-text-tertiary)]">
                                 {observer.observationCount} observations •
                                 Quality: {observer.qualityScore?.toFixed(0) || 'N/A'}
                               </div>
@@ -574,7 +574,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
               <h4 className="font-medium text-blue-300 mb-3">Why Geographic Distribution Matters</h4>
-              <ul className="space-y-2 text-gray-300">
+              <ul className="space-y-2 text-[var(--color-text-secondary)]">
                 <li>• <strong>24/7 Coverage:</strong> Global distribution ensures continuous observation as Earth rotates</li>
                 <li>• <strong>Weather Independence:</strong> Multiple locations reduce impact of local weather conditions</li>
                 <li>• <strong>Validation:</strong> Multiple observers confirm unusual brightness changes or morphological features</li>
@@ -583,7 +583,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
             </div>
             <div>
               <h4 className="font-medium text-purple-300 mb-3">Regional Advantages</h4>
-              <ul className="space-y-2 text-gray-300">
+              <ul className="space-y-2 text-[var(--color-text-secondary)]">
                 <li>• <strong>Northern Latitudes:</strong> Longer winter nights provide extended observation windows</li>
                 <li>• <strong>Desert Regions:</strong> Clear, dry skies offer excellent transparency for faint objects</li>
                 <li>• <strong>Mountain Locations:</strong> Higher altitude reduces atmospheric interference</li>
@@ -592,7 +592,7 @@ const RegionalAnalysis = React.memo(function RegionalAnalysis({ observers }: Reg
             </div>
           </div>
           <div className="mt-4 p-4 bg-black bg-opacity-30 rounded">
-            <p className="text-gray-300 text-sm">
+            <p className="text-[var(--color-text-secondary)] text-sm">
               <strong>Coverage Score Calculation:</strong> Based on observer density, geographic spread, observation frequency,
               and data quality. Higher scores indicate regions that contribute significantly to global comet monitoring efforts.
             </p>

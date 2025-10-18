@@ -16,11 +16,11 @@ export default function NotFound() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-black flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-[var(--color-bg-primary)] via-blue-900 to-black flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-6xl font-bold text-white mb-4">404</h1>
-        <p className="text-xl text-gray-300 mb-2">Page not found</p>
-        <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
+        <h1 className="text-6xl font-bold text-[var(--color-text-primary)] mb-4">404</h1>
+        <p className="text-xl text-[var(--color-text-secondary)] mb-2">Page not found</p>
+        <p className="text-sm text-[var(--color-text-tertiary)]">Redirecting to dashboard...</p>
       </div>
     </div>
   );

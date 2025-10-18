@@ -68,11 +68,31 @@ export interface EnhancedCometData {
     cobs: { active: boolean; last_updated: string; error?: string };
     theskylive: { active: boolean; last_updated: string; error?: string };
     jpl_horizons: { active: boolean; last_updated: string; error?: string };
+    jpl_ephemeris: { active: boolean; last_updated: string; error?: string };
     mpc: { active: boolean; last_updated: string; error?: string };
   };
 
   // NEW: MPC orbital elements (for cross-validation with JPL)
   mpc_orbital_elements?: MPCOrbitalElements;
+
+  // NEW: JPL Horizons ephemeris data (observer-centric position/brightness)
+  jpl_ephemeris?: {
+    current_position?: {
+      ra: number;              // Right Ascension (degrees)
+      dec: number;             // Declination (degrees)
+      magnitude: number;       // Visual magnitude
+      last_updated: string;    // ISO timestamp
+    };
+    time_series?: Array<{
+      date: string;
+      ra: number;
+      dec: number;
+      delta: number;           // Earth distance (AU)
+      r: number;              // Sun distance (AU)
+      magnitude: number;
+    }>;
+    data_source?: string;      // e.g., "JPL Horizons Ephemeris" or "TheSkyLive (fallback)"
+  };
 }
 
 /**
@@ -125,6 +145,7 @@ export interface CacheStatus {
   cobs: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
   theskylive: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
   jpl_horizons: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
+  jpl_ephemeris: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
   mpc: { cached: boolean; age?: number; nextRefresh?: number; lastUpdate?: string; status: 'fresh' | 'stale' | 'none' };
 }
 

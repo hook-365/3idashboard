@@ -109,9 +109,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        // Tier 2: Derived analytics - 15 minutes (observer statistics and aggregations)
-        // Observer list changes less frequently than individual observations
-        'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
+        // Browser + CDN cache for 5 minutes, revalidate in background for 10 min
+        // Observer stats change less frequently than raw observations
+        'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
         'X-Processing-Time': processingTime.toString(),
         'X-Total-Count': filteredObservers.length.toString(),
       },
