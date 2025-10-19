@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { COBSApiClient } from '@/services/cobs-api';
+import logger from '@/lib/logger';
 
 /**
  * Multi-Comet COBS Observations API
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    console.log(`[Multi-Comet Observations API] Fetching data for ${cometDesignation}...`);
+    logger.info({ cometDesignation, forceRefresh }, 'Fetching multi-comet observations');
 
     // Create COBS client for the specified comet
     const cobsClient = new COBSApiClient(cometDesignation);
@@ -30,7 +31,12 @@ export async function GET(request: NextRequest) {
 
     const processingTime = Date.now() - startTime;
 
-    console.log(`[Multi-Comet Observations API] ${cometDesignation}: ${observations.length} observations from ${observers.length} observers (${processingTime}ms)`);
+    logger.info({
+      cometDesignation,
+      observationCount: observations.length,
+      observerCount: observers.length,
+      processingTimeMs: processingTime
+    }, 'Multi-comet observations completed');
 
     return NextResponse.json(
       {
@@ -60,7 +66,13 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error(`[Multi-Comet Observations API] Error for ${cometDesignation}:`, error);
+
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      cometDesignation,
+      processingTimeMs: processingTime
+    }, 'Error in multi-comet observations API');
 
     return NextResponse.json(
       {
