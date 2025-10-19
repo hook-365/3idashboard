@@ -5,6 +5,7 @@ import { saveSolarSystemCache, loadSolarSystemCache } from '@/lib/cache/persiste
 import { getSBDBPosition } from '@/lib/data-sources/nasa-sbdb';
 import { CACHE_TTL } from '@/constants/cache';
 import { calculatePositionFromElements } from '@/lib/orbital-calculations';
+import logger from '@/lib/logger';
 import {
   calculateAtlasProjectionFromStateVectors,
   calculateAtlasTrailFromOrbit,
@@ -140,7 +141,7 @@ async function calculateAtlasProjection(
 
   // If we have JPL position/velocity data, use it to calculate projection
   if (currentPosition && currentVelocity) {
-    console.log('Using JPL Horizons data for projection calculation');
+    logger.info({ projectionDays }, 'Using JPL Horizons data for projection calculation');
     return calculateAtlasProjectionFromStateVectors(projectionDays, startDate, currentPosition, currentVelocity);
   }
 
@@ -175,7 +176,7 @@ async function calculateAtlasProjection(
 
     // Stop if we've exceeded max distance (comet leaving solar system)
     if (distance_from_sun > maxDistance) {
-      console.log(`⚠ Projection stopped at ${distance_from_sun.toFixed(1)} AU (exceeded ${maxDistance} AU limit after ${i} days)`);
+      logger.warn({ distance: distance_from_sun, maxDistance, daysCalculated: i }, 'Projection stopped - exceeded distance limit');
       break;
     }
 
@@ -188,7 +189,7 @@ async function calculateAtlasProjection(
     });
   }
 
-  console.log(`✓ Calculated ${projection.length} projection points using Kepler orbital mechanics (${projectionDays} days)`);
+  logger.info({ pointCount: projection.length, projectionDays }, 'Calculated projection points using Kepler orbital mechanics');
   return projection;
 }
 
@@ -208,12 +209,12 @@ async function fetchOrbitalTrail(
 }>> {
   // If we have current position/velocity, use backward integration
   if (currentPosition && currentVelocity) {
-    console.log('Using JPL Horizons data for trail calculation (backward integration from current state)');
+    logger.info({ trailDays }, 'Using JPL Horizons data for trail calculation');
     return calculateAtlasTrailFromOrbit(trailDays, currentPosition, currentVelocity);
   }
 
   // Fallback: try to get JPL data
-  console.warn('No current position provided for trail, using simplified trail');
+  logger.warn({ trailDays }, 'No current position provided for trail, using simplified trail');
   return generateSimplifiedTrail(trailDays);
 }
 
@@ -273,7 +274,7 @@ export async function GET(request: NextRequest) {
   if (!forceRefresh) {
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < cached.ttl) {
-      console.log('Solar system position cache hit');
+      logger.info({ cacheAgeMs: Date.now() - cached.timestamp }, 'Solar system position cache hit');
 
       return NextResponse.json({
         success: true,
@@ -294,7 +295,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log(`Fetching solar system position data with ${trailDays} day trail...`);
+    logger.info({ trailDays, projectionDays, forceRefresh }, 'Fetching solar system position data');
 
     const currentDate = new Date();
 
@@ -309,10 +310,10 @@ export async function GET(request: NextRequest) {
     if (jplData) {
       cometPos = jplData.state_vectors.position;
       cometVel = jplData.state_vectors.velocity;
-      console.log('✓ Using JPL Horizons data');
+      logger.info({ hasPosition: !!atlasPosition, hasVelocity: !!atlasVelocity }, 'Using JPL Horizons data');
     } else {
       // 2. Try NASA Small-Body Database as fallback
-      console.warn('JPL Horizons unavailable, trying NASA SBDB...');
+      logger.warn('JPL Horizons unavailable, trying NASA SBDB');
       const sbdbData = await getSBDBPosition(currentDate);
 
       if (sbdbData) {
@@ -320,10 +321,10 @@ export async function GET(request: NextRequest) {
         // Estimate velocity (very rough approximation)
         cometVel = [-0.01, 0.02, -0.002];
         cometDataSource = 'NASA_SBDB';
-        console.log('✓ Using NASA SBDB data (approximate positions)');
+        logger.info({ hasPosition: !!sbdbData.position }, 'Using NASA SBDB data (approximate positions)');
       } else {
         // 3. Final fallback: calculate from official MPC orbital elements
-        console.warn('All NASA APIs unavailable - calculating from MPC orbital elements');
+        logger.warn('All NASA APIs unavailable - calculating from MPC orbital elements');
 
         // Official MPC orbital elements (MPEC 2025-N12)
         const perihelionDate = new Date('2025-10-29T05:03:46.000Z'); // Corrected perihelion date
@@ -351,7 +352,11 @@ export async function GET(request: NextRequest) {
         ];
 
         cometDataSource = 'MPC_orbital_elements';
-        console.log(`✓ Calculated position from MPC elements: (${pos.x.toFixed(3)}, ${pos.y.toFixed(3)}, ${pos.z.toFixed(3)}) AU`);
+        logger.info({
+          x: pos.x,
+          y: pos.y,
+          z: pos.z
+        }, 'Calculated position from MPC elements');
       }
     }
 
@@ -363,7 +368,7 @@ export async function GET(request: NextRequest) {
     const earthPos = calculateEarthPosition(currentDate);
     const earthVel = calculateEarthVelocity(currentDate);
     const planetsSource = 'astronomy_engine';
-    console.log('Using astronomy-engine for Earth position');
+    logger.info('Using astronomy-engine for Earth position');
     const distanceFromEarth = Math.sqrt(
       (cometPos[0] - earthPos.x)**2 +
       (cometPos[1] - earthPos.y)**2 +
@@ -460,7 +465,12 @@ export async function GET(request: NextRequest) {
 
     const processingTime = Date.now() - startTime;
 
-    console.log(`Solar system position API completed in ${processingTime}ms`);
+    logger.info({
+      processingTimeMs: processingTime,
+      trailPoints: trail.length,
+      projectionPoints: projection.length,
+      dataSource: cometDataSource
+    }, 'Solar system position API completed');
 
     // Determine data quality and attribution based on source
     const isJPLHorizons = cometDataSource === 'JPL_Horizons';
@@ -514,7 +524,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error('Error in solar system position API:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTimeMs: Date.now() - startTime
+    }, 'Error in solar system position API');
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
@@ -524,7 +538,10 @@ export async function GET(request: NextRequest) {
       const cacheAgeMinutes = (Date.now() - cachedData.timestamp) / (1000 * 60);
       const cacheAgeDays = cacheAgeMinutes / (60 * 24);
 
-      console.log(`⚠️  Using cached data from ${cachedData.createdAt} (${cacheAgeMinutes.toFixed(1)} minutes old)`);
+      logger.warn({
+        cacheCreatedAt: cachedData.createdAt,
+        cacheAgeMinutes: cacheAgeMinutes
+      }, 'Using stale cached data as fallback');
 
       return NextResponse.json({
         success: true,

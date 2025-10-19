@@ -3,6 +3,7 @@ import { CometObservation } from '@/types/comet';
 import { cobsApi, ObserverInfo } from '@/services/cobs-api';
 import { calculateRegionalStatistics, transformObserversForMap, analyzeTrend, calculateRunningAverage } from '@/services/data-transforms';
 import { calculateActivityFromAPIData } from '@/utils/activity-calculator';
+import logger from '@/lib/logger';
 import { getEnhancedCometData } from '@/lib/data-sources/source-manager';
 
 /**
@@ -260,9 +261,9 @@ export async function GET(request: NextRequest) {
   const region = searchParams.get('region');
 
   try {
-    console.log('Analytics Bundle API: Starting consolidated data fetch...', {
+    logger.info({
       days, limit, trendDays, smoothingWindow, minObservations, region
-    });
+    }, 'Analytics Bundle API: Starting consolidated data fetch');
 
     // Fetch enhanced data ONCE (includes COBS observations + orbital mechanics)
     let observations: CometObservation[] = [];
@@ -291,9 +292,11 @@ export async function GET(request: NextRequest) {
       }));
       heliocentric_distance = enhancedData.orbital_mechanics?.current_distance?.heliocentric || 2.1;
       dataSource = 'Multi-Source Enhanced';
-      console.log('Using enhanced multi-source data with orbital mechanics');
+      logger.info({ heliocentric_distance }, 'Using enhanced multi-source data with orbital mechanics');
     } catch (enhancedError) {
-      console.warn('Enhanced data failed, falling back to COBS-only:', enhancedError);
+      logger.warn({
+        error: enhancedError instanceof Error ? enhancedError.message : String(enhancedError)
+      }, 'Enhanced data failed, falling back to COBS-only');
       // Optimization: Store COBS observations for reuse in getObservers() call
       cobsProcessedObservations = await cobsApi.getObservations();
       observations = cobsProcessedObservations.map(obs => ({
@@ -312,7 +315,7 @@ export async function GET(request: NextRequest) {
           name: obs.observer.location.name
         }
       }));
-      console.log('Using COBS-only data with fallback distance');
+      logger.info({ heliocentric_distance }, 'Using COBS-only data with fallback distance');
     }
 
     if (observations.length === 0) {
@@ -328,7 +331,7 @@ export async function GET(request: NextRequest) {
       } satisfies Partial<AnalyticsBundleResponse>, { status: 200 });
     }
 
-    console.log(`Fetched ${observations.length} observations from ${dataSource}`);
+    logger.info({ observationCount: observations.length, dataSource }, 'Fetched observations');
 
     // ========================================================================
     // 1. OBSERVERS DATA (replaces /api/observers)
@@ -673,11 +676,17 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`Analytics Bundle API completed in ${totalProcessingTime}ms`);
-    console.log(`  - Observers: ${observersProcessingTime}ms (${transformedObservers.length} observers)`);
-    console.log(`  - Activity: ${activityProcessingTime}ms (${activityData.length} data points)`);
-    console.log(`  - Comet Data: ${cometDataProcessingTime}ms (${lightCurve.length} light curve points)`);
-    console.log(`  - Velocity: ${velocityProcessingTime}ms (${velocityData.length} velocity points)`);
+    logger.info({
+      totalProcessingTimeMs: totalProcessingTime,
+      observersTimeMs: observersProcessingTime,
+      observersCount: transformedObservers.length,
+      activityTimeMs: activityProcessingTime,
+      activityPoints: activityData.length,
+      cometDataTimeMs: cometDataProcessingTime,
+      lightCurvePoints: lightCurve.length,
+      velocityTimeMs: velocityProcessingTime,
+      velocityPoints: velocityData.length
+    }, 'Analytics Bundle API completed');
 
     return NextResponse.json(response, {
       headers: {
@@ -693,15 +702,14 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error('Analytics Bundle API error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    console.error('Analytics Bundle error details:', {
-      message: errorMessage,
+    logger.error({
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
-      processingTime,
-      timestamp: new Date().toISOString(),
-    });
+      processingTimeMs: processingTime,
+      timestamp: new Date().toISOString()
+    }, 'Analytics Bundle API error');
 
     return NextResponse.json({
       success: false,

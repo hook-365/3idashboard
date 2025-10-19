@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 interface NASAImageItem {
   data: Array<{
@@ -497,7 +498,7 @@ async function fetchNASAImages(): Promise<GalleryImage[]> {
     for (const searchTerm of searchTerms) {
       try {
         const url = `https://images-api.nasa.gov/search?q=${encodeURIComponent(searchTerm)}&media_type=image&page_size=10`;
-        console.log(`Searching NASA API for: ${searchTerm}`);
+        logger.info({ searchTerm }, 'Searching NASA API');
 
         const response = await fetch(url, {
           headers: {
@@ -506,14 +507,14 @@ async function fetchNASAImages(): Promise<GalleryImage[]> {
         });
 
         if (!response.ok) {
-          console.warn(`NASA API returned ${response.status} for "${searchTerm}"`);
+          logger.warn({ searchTerm, status: response.status }, 'NASA API returned non-200 status');
           continue;
         }
 
         const data: NASASearchResponse = await response.json();
 
         if (data.collection?.items && data.collection.items.length > 0) {
-          console.log(`Found ${data.collection.items.length} images for "${searchTerm}"`);
+          logger.info({ searchTerm, imageCount: data.collection.items.length }, 'Found images from NASA API');
 
           for (const item of data.collection.items) {
             if (!item.data?.[0] || !item.links?.[0]) continue;
@@ -551,27 +552,33 @@ async function fetchNASAImages(): Promise<GalleryImage[]> {
           if (images.length > 0) break;
         }
       } catch (searchError) {
-        console.warn(`Error searching for "${searchTerm}":`, searchError);
+        logger.warn({
+          searchTerm,
+          error: searchError instanceof Error ? searchError.message : String(searchError)
+        }, 'Error searching NASA API for term');
         continue;
       }
     }
 
-    console.log(`NASA API returned ${images.length} total images`);
+    logger.info({ imageCount: images.length }, 'NASA API returned total images');
     return images;
 
   } catch (error) {
-    console.error('Error in fetchNASAImages:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Error in fetchNASAImages');
     return [];
   }
 }
 
 export async function GET() {
   try {
-    console.log('Fetching gallery images...');
+    logger.info('Fetching gallery images');
 
     // Fetch dynamically from NASA Images API
     const nasaImages = await fetchNASAImages();
-    console.log(`Fetched ${nasaImages.length} images from NASA API`);
+    logger.info({ imageCount: nasaImages.length }, 'Fetched images from NASA API');
 
     // Combine official images with NASA API results
     const allImages = [...official3IAtlasImages];
@@ -589,7 +596,11 @@ export async function GET() {
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
-    console.log(`Returning ${sortedImages.length} total gallery images (${official3IAtlasImages.length} official + ${sortedImages.length - official3IAtlasImages.length} from NASA API)`);
+    logger.info({
+      totalImages: sortedImages.length,
+      officialImages: official3IAtlasImages.length,
+      nasaImages: sortedImages.length - official3IAtlasImages.length
+    }, 'Returning gallery images');
 
     return NextResponse.json({
       success: true,
@@ -617,7 +628,10 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('Error in gallery API:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Error in gallery API');
 
     // Return official images even on error
     return NextResponse.json({

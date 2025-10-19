@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getEnhancedCometData } from '@/lib/data-sources/source-manager';
 import { calculateEclipticPosition, COMET_ORBITAL_ELEMENTS } from '@/lib/orbital-path-calculator';
 import { COBSApiClient } from '@/services/cobs-api';
+import logger from '@/lib/logger';
 
 /**
  * Fetch last 30 days of brightness observations from COBS
@@ -13,7 +14,7 @@ async function fetchCOBSLightCurve(designation: string): Promise<Array<{ date: s
     const client = new COBSApiClient(designation);
     const observations = await client.getObservations(); // Fetch all observations
 
-    console.log(`[fetchCOBSLightCurve] ${designation}: fetched ${observations.length} total observations`);
+    logger.info({ designation, observationCount: observations.length }, 'Fetched COBS observations');
 
     // Filter to last 30 days only
     const thirtyDaysAgo = new Date();
@@ -26,11 +27,14 @@ async function fetchCOBSLightCurve(designation: string): Promise<Array<{ date: s
         magnitude: obs.magnitude
       }));
 
-    console.log(`[fetchCOBSLightCurve] ${designation}: ${filtered.length} observations in last 30 days`);
+    logger.info({ designation, filteredCount: filtered.length }, 'Filtered to last 30 days');
 
     return filtered;
   } catch (error) {
-    console.warn(`[Comets Comparison] Failed to fetch COBS data for ${designation}:`, error);
+    logger.warn({
+      designation,
+      error: error instanceof Error ? error.message : String(error)
+    }, 'Failed to fetch COBS data for comet');
     return [];
   }
 }
@@ -108,7 +112,7 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    console.log('[Comets Comparison API] Fetching multi-comet data...');
+    logger.info('Fetching multi-comet comparison data');
 
     // Fetch 3I/ATLAS data from existing enhanced data source
     const atlasData = await getEnhancedCometData();
@@ -126,11 +130,13 @@ export async function GET(request: NextRequest) {
             y: pos.y,
             z: pos.z
           };
-          console.log('[Comets Comparison API] 3I/ATLAS position from solar-system API:', atlasPosition3D);
+          logger.info({ position: atlasPosition3D }, '3I/ATLAS position from solar-system API');
         }
       }
     } catch (err) {
-      console.warn('[Comets Comparison API] Failed to fetch 3I/ATLAS 3D position:', err);
+      logger.warn({
+        error: err instanceof Error ? err.message : String(err)
+      }, 'Failed to fetch 3I/ATLAS 3D position');
     }
 
     // Build comparison data
@@ -152,10 +158,11 @@ export async function GET(request: NextRequest) {
       fetchCOBSLightCurve('C/2025 K1 (ATLAS)'), // Auto-normalized to 'C/2025 K1'
     ]);
 
-    console.log('[Comets Comparison API] Light curve data counts:');
-    console.log('  SWAN:', swanLightCurve.length, 'points');
-    console.log('  Lemmon:', lemmonLightCurve.length, 'points');
-    console.log('  K1:', k1LightCurve.length, 'points');
+    logger.info({
+      swan: swanLightCurve.length,
+      lemmon: lemmonLightCurve.length,
+      k1: k1LightCurve.length
+    }, 'Light curve data counts');
 
     // 1. C/2025 R2 (SWAN) - Already past perihelion
     const swanPosition = calculateEclipticPosition(
@@ -348,7 +355,7 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    console.log(`[Comets Comparison API] Completed in ${processingTime}ms`);
+    logger.info({ processingTimeMs: processingTime, cometCount: comets.length }, 'Comets comparison API completed');
 
     return NextResponse.json(response, {
       headers: {
@@ -360,7 +367,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error('[Comets Comparison API] Error:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTimeMs: Date.now() - startTime
+    }, 'Comets comparison API error');
 
     return NextResponse.json(
       {
