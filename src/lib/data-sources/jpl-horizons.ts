@@ -18,6 +18,7 @@
  */
 
 import * as Astronomy from 'astronomy-engine';
+import logger from '@/lib/logger';
 
 // TypeScript interface for JPL Horizons orbital mechanics data
 export interface JPLHorizonsData {
@@ -251,7 +252,7 @@ export function buildEphemerisParams(dateRange?: DateRange, stepSize: string = '
  * Handles the fixed-width format returned by the JPL system
  */
 export function parseHorizonsResponse(response: string): JPLHorizonsData {
-  console.log('Parsing JPL Horizons response...');
+  logger.info({}, 'Parsing JPL Horizons response');
 
   // Initialize with default values
   const state_vectors = {
@@ -307,7 +308,7 @@ export function parseHorizonsResponse(response: string): JPLHorizonsData {
               parseFloat(zMatch[1])  // Z (AU)
             ];
             foundPosition = true;
-            console.log('Parsed position vectors:', state_vectors.position);
+            logger.info({ position: state_vectors.position }, 'Parsed position vectors');
           }
         }
 
@@ -324,13 +325,13 @@ export function parseHorizonsResponse(response: string): JPLHorizonsData {
               parseFloat(vzMatch[1])  // VZ (AU/day)
             ];
             foundVelocity = true;
-            console.log('Parsed velocity vectors:', state_vectors.velocity);
+            logger.info({ velocity: state_vectors.velocity }, 'Parsed velocity vectors');
           }
         }
       }
 
       if (foundPosition && foundVelocity) {
-        console.log('Successfully parsed complete state vectors from JPL response');
+        logger.info({}, 'Successfully parsed complete state vectors from JPL response');
       }
     }
 
@@ -399,8 +400,8 @@ export function parseHorizonsResponse(response: string): JPLHorizonsData {
     }
 
   } catch (error) {
-    console.error('Error parsing JPL Horizons response:', error);
-    console.log('Using default orbital parameters for 3I/ATLAS');
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Error parsing JPL Horizons response');
+    logger.warn({}, 'Using default orbital parameters for 3I/ATLAS');
   }
 
   return {
@@ -481,19 +482,19 @@ export async function fetchJPLHorizonsData(dateRange?: DateRange): Promise<JPLHo
   // Check cache first
   const cached = cache.get<JPLHorizonsData>(cacheKey);
   if (cached) {
-    console.log('JPL Horizons cache hit - returning cached data');
+    logger.info({ cacheKey: 'jpl_horizons_orbital' }, 'JPL Horizons cache hit');
     return cached;
   }
 
   try {
     await rateLimiter.waitForSlot();
 
-    console.log('Fetching JPL Horizons orbital mechanics data...');
+    logger.info({}, 'Fetching JPL Horizons orbital mechanics data');
 
     const params = buildHorizonsParams(dateRange);
     const url = `${JPL_HORIZONS_BASE}?${params.toString()}`;
 
-    console.log('JPL API URL:', url);
+    logger.info({ url }, 'JPL API URL');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -538,22 +539,22 @@ export async function fetchJPLHorizonsData(dateRange?: DateRange): Promise<JPLHo
 
     // If we only have velocity but not position (or vice versa), supplement with calculated data
     if (!hasValidPosition && hasValidVelocity) {
-      console.log('JPL returned velocity but not position - using real velocity with calculated position');
+      logger.warn({}, 'JPL returned velocity but not position - using real velocity with calculated position');
     } else if (hasValidPosition && !hasValidVelocity) {
-      console.log('JPL returned position but not velocity - using real position with calculated velocity');
+      logger.warn({}, 'JPL returned position but not velocity - using real position with calculated velocity');
     } else {
-      console.log('JPL returned complete state vector data');
+      logger.info({}, 'JPL returned complete state vector data');
     }
 
     // Cache successful result for 30 minutes
     cache.set(cacheKey, horizonsData, 1800000);
 
-    console.log('Successfully fetched and parsed JPL Horizons data');
+    logger.info({}, 'Successfully fetched and parsed JPL Horizons data');
     return horizonsData;
 
   } catch (error) {
-    console.error('Failed to fetch JPL Horizons data:', error);
-    console.log('JPL API unavailable - no fallback data will be provided');
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Failed to fetch JPL Horizons data');
+    // Error already logged above
 
     // Re-throw the error instead of providing mock data
     throw error;
@@ -569,8 +570,8 @@ export async function getJPLHorizonsOrbitalData(dateRange?: DateRange): Promise<
   try {
     return await fetchJPLHorizonsData(dateRange);
   } catch (error) {
-    console.error('Critical error in JPL Horizons data fetch:', error);
-    console.log('Returning null - no mock data will be provided');
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Critical error in JPL Horizons data fetch - returning null');
+    // Error already logged above
     // Return null instead of mock data
     return null;
   }
@@ -669,7 +670,7 @@ export function calculateOrbitalParameters(data: JPLHorizonsData): {
  * Note: RA and DEC are in decimal degrees when ANG_FORMAT='DEG'
  */
 export function parseEphemerisResponse(response: string, dateRange?: DateRange, stepSize?: string): JPLEphemerisData {
-  console.log('Parsing JPL Horizons ephemeris response...');
+  logger.info({}, 'Parsing JPL Horizons ephemeris response');
 
   const ephemeris_points: JPLEphemerisPoint[] = [];
 
@@ -679,14 +680,14 @@ export function parseEphemerisResponse(response: string, dateRange?: DateRange, 
     const dataEnd = response.indexOf('$$EOE');
 
     if (dataStart === -1 || dataEnd === -1) {
-      console.warn('No ephemeris data section found in JPL response (missing $$SOE/$$EOE markers)');
+      logger.warn({}, 'No ephemeris data section found in JPL response');
       throw new Error('No ephemeris data section found in JPL response');
     }
 
     const dataSection = response.substring(dataStart + 5, dataEnd); // Skip '$$SOE'
     const lines = dataSection.split('\n').filter(line => line.trim().length > 0);
 
-    console.log(`Found ${lines.length} ephemeris data lines to parse`);
+    logger.info({ lineCount: lines.length }, 'Found ephemeris data lines to parse');
 
     for (const line of lines) {
       try {
@@ -715,13 +716,13 @@ export function parseEphemerisResponse(response: string, dateRange?: DateRange, 
 
         // Validate coordinates
         if (isNaN(ra) || isNaN(dec)) {
-          console.warn(`Skipping invalid coordinates: ${line.substring(0, 50)}...`);
+          logger.warn({ lineSample: line.substring(0, 50) }, 'Skipping invalid coordinates');
           continue;
         }
 
         // Additional validation
         if (ra < 0 || ra > 360 || dec < -90 || dec > 90) {
-          console.warn(`Skipping out-of-range coordinates: RA=${ra}, DEC=${dec}`);
+          logger.warn({ ra, dec }, 'Skipping out-of-range coordinates');
           continue;
         }
 
@@ -757,15 +758,21 @@ export function parseEphemerisResponse(response: string, dateRange?: DateRange, 
         });
 
       } catch (lineError) {
-        console.warn(`Error parsing ephemeris line: ${line.substring(0, 50)}...`, lineError);
+        logger.warn({
+          lineSample: line.substring(0, 50),
+          error: lineError instanceof Error ? lineError.message : String(lineError)
+        }, 'Error parsing ephemeris line');
         // Continue to next line
       }
     }
 
-    console.log(`Successfully parsed ${ephemeris_points.length} ephemeris points (RA/DEC + distances + velocities)`);
+    logger.info({ pointCount: ephemeris_points.length }, 'Successfully parsed ephemeris points (RA/DEC + distances + velocities)');
 
   } catch (error) {
-    console.error('Error parsing JPL Horizons ephemeris response:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Error parsing JPL Horizons ephemeris response');
   }
 
   // Build metadata
@@ -861,7 +868,7 @@ async function fetchPlanetPosition(planetCode: string, planetName: string, date?
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.error(`Failed to fetch ${planetName} position: ${response.status}`);
+      logger.error({ planetName, status: response.status }, 'Failed to fetch planet position');
       return null;
     }
 
@@ -872,7 +879,7 @@ async function fetchPlanetPosition(planetCode: string, planetName: string, date?
     const vectorEnd = responseText.indexOf('$$EOE');
 
     if (vectorStart === -1 || vectorEnd === -1) {
-      console.error(`No vector data found for ${planetName}`);
+      logger.error({ planetName }, 'No vector data found for planet');
       return null;
     }
 
@@ -923,13 +930,13 @@ async function fetchPlanetPosition(planetCode: string, planetName: string, date?
     }
 
     if (!foundPosition) {
-      console.error(`Could not parse position for ${planetName}`);
+      logger.error({ planetName }, 'Could not parse position for planet');
       return null;
     }
 
     const distance_from_sun = Math.sqrt(position[0]**2 + position[1]**2 + position[2]**2);
 
-    console.log(`Successfully fetched ${planetName} position: [${position.join(', ')}] AU`);
+    logger.info({ planetName, position }, 'Successfully fetched planet position');
 
     return {
       name: planetName,
@@ -939,7 +946,7 @@ async function fetchPlanetPosition(planetCode: string, planetName: string, date?
     };
 
   } catch (error) {
-    console.error(`Error fetching ${planetName} position:`, error);
+    logger.error({ planetName, error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Error fetching planet position');
     return null;
   }
 }
@@ -953,11 +960,11 @@ export async function fetchAllPlanetPositions(date?: Date): Promise<PlanetPositi
   // Check cache first
   const cached = cache.get<PlanetPosition[]>(cacheKey);
   if (cached) {
-    console.log('Planet positions cache hit');
+    logger.info({ cacheKey: 'all_planets' }, 'Planet positions cache hit');
     return cached;
   }
 
-  console.log('Fetching all planet positions from JPL Horizons...');
+  logger.info({}, 'Fetching all planet positions from JPL Horizons');
 
   const planetPromises = Object.entries(PLANET_CODES).map(([name, code]) =>
     fetchPlanetPosition(code, name, date)
@@ -971,9 +978,9 @@ export async function fetchAllPlanetPositions(date?: Date): Promise<PlanetPositi
   if (planets.length > 0) {
     // Cache for 6 hours (planets move slowly)
     cache.set(cacheKey, planets, 6 * 60 * 60 * 1000);
-    console.log(`Successfully fetched ${planets.length}/8 planet positions`);
+    logger.info({ fetchedCount: planets.length, totalCount: 8 }, 'Successfully fetched planet positions');
   } else {
-    console.error('Failed to fetch any planet positions');
+    logger.error({}, 'Failed to fetch any planet positions');
   }
 
   return planets;
@@ -995,19 +1002,19 @@ export async function fetchJPLEphemerisData(
   // Check cache first
   const cached = cache.get<JPLEphemerisData>(cacheKey);
   if (cached) {
-    console.log('JPL Horizons ephemeris cache hit - returning cached data');
+    logger.info({ cacheKey: 'jpl_ephemeris' }, 'JPL Horizons ephemeris cache hit');
     return cached;
   }
 
   try {
     await rateLimiter.waitForSlot();
 
-    console.log('Fetching JPL Horizons ephemeris data...');
+    logger.info({}, 'Fetching JPL Horizons ephemeris data');
 
     const params = buildEphemerisParams(dateRange, stepSize);
     const url = `${JPL_HORIZONS_BASE}?${params.toString()}`;
 
-    console.log('JPL Ephemeris API URL:', url);
+    logger.info({ url }, 'JPL Ephemeris API URL');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -1059,12 +1066,12 @@ export async function fetchJPLEphemerisData(
     // Cache successful result for 15 minutes (ephemeris changes more frequently than orbital elements)
     cache.set(cacheKey, ephemerisData, 900000);
 
-    console.log(`Successfully fetched and parsed JPL Horizons ephemeris data (${ephemerisData.ephemeris_points.length} points)`);
+    logger.info({ pointCount: ephemerisData.ephemeris_points.length }, 'Successfully fetched and parsed JPL Horizons ephemeris data');
     return ephemerisData;
 
   } catch (error) {
-    console.error('Failed to fetch JPL Horizons ephemeris data:', error);
-    console.log('JPL Ephemeris API unavailable - no fallback data will be provided');
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Failed to fetch JPL Horizons ephemeris data');
+    // Error already logged above
 
     // Return null instead of throwing (allows graceful degradation)
     return null;
@@ -1105,7 +1112,7 @@ export async function getCurrentJPLEphemeris(): Promise<JPLEphemerisPoint | null
     }
   }
 
-  console.log(`Found current ephemeris point (${Math.round(minTimeDiff / 60000)} minutes from now)`);
+  logger.info({ timeOffsetMinutes: Math.round(minTimeDiff / 60000) }, 'Found current ephemeris point');
   return closestPoint;
 }
 
@@ -1124,7 +1131,7 @@ export async function getJPLEphemerisData(
   try {
     return await fetchJPLEphemerisData(dateRange, stepSize);
   } catch (error) {
-    console.error('Critical error in JPL ephemeris data fetch:', error);
+    logger.error({ error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Critical error in JPL ephemeris data fetch - returning null');
     return null;
   }
 }
@@ -1178,7 +1185,7 @@ export async function fetchCometOrbitalTrail(
   // Check cache
   const cached = cache.get<CometOrbitalData>(cacheKey);
   if (cached) {
-    console.log(`Cache hit for comet trail: ${target}`);
+    logger.info({ target, cacheKey: key }, 'Cache hit for comet trail');
     return cached;
   }
 
@@ -1200,7 +1207,7 @@ export async function fetchCometOrbitalTrail(
     await rateLimiter.waitForSlot();
 
     const url = `${JPL_HORIZONS_BASE}?${params.toString()}`;
-    console.log(`Fetching JPL Horizons data for ${target}...`);
+    logger.info({ target, startDate, endDate, stepSize }, 'Fetching JPL Horizons data for comet');
 
     const response = await fetch(url, {
       headers: {
@@ -1209,7 +1216,7 @@ export async function fetchCometOrbitalTrail(
     });
 
     if (!response.ok) {
-      console.error(`JPL Horizons returned ${response.status} for ${target}`);
+      logger.error({ target, status: response.status }, 'JPL Horizons returned error status');
       return null;
     }
 
@@ -1282,7 +1289,7 @@ export async function fetchCometOrbitalTrail(
     }
 
     if (vectors.length === 0) {
-      console.warn(`No orbital vectors found for ${target}`);
+      logger.warn({ target }, 'No orbital vectors found for comet');
       return null;
     }
 
@@ -1299,12 +1306,12 @@ export async function fetchCometOrbitalTrail(
 
     // Cache for 24 hours
     cache.set(cacheKey, result, 24 * 60 * 60 * 1000);
-    console.log(`✓ Fetched ${vectors.length} orbital vectors for ${target}`);
+    logger.info({ target, vectorCount: vectors.length }, 'Fetched orbital vectors for comet');
 
     return result;
 
   } catch (error) {
-    console.error(`Error fetching orbital trail for ${target}:`, error);
+    logger.error({ target, error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined }, 'Error fetching orbital trail');
     return null;
   }
 }

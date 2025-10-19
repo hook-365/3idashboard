@@ -15,6 +15,8 @@
  * - Orbital elements from JPL Horizons
  */
 
+import logger from '@/lib/logger';
+
 // TypeScript interface for TheSkyLive orbital data
 export interface TheSkyLiveData {
   orbital_velocity: number;      // km/s (derived from orbital elements)
@@ -182,10 +184,10 @@ function calculateVelocityFromOrbitalElements(
 ): number {
   // Validate inputs
   if (heliocentric_distance <= 0 || perihelion_distance <= 0) {
-    console.warn('Invalid distances for velocity calculation:', {
+    logger.warn({
       heliocentric_distance,
       perihelion_distance
-    });
+    }, 'Invalid distances for velocity calculation');
     return 0;
   }
 
@@ -202,7 +204,7 @@ function calculateVelocityFromOrbitalElements(
   // a = q / (1 - e)
   const a_km = q_km / (1 - eccentricity);
 
-  console.log('Velocity calculation inputs:', {
+  logger.info({
     heliocentric_distance_au: heliocentric_distance,
     heliocentric_distance_km: r_km,
     eccentricity,
@@ -210,12 +212,14 @@ function calculateVelocityFromOrbitalElements(
     perihelion_distance_km: q_km,
     semi_major_axis_km: a_km,
     orbit_type: eccentricity > 1 ? 'hyperbolic' : eccentricity === 1 ? 'parabolic' : 'elliptical'
-  });
+  }, 'Velocity calculation inputs');
 
   // Apply vis-viva equation: v = sqrt(μ * (2/r - 1/a))
   const velocity_km_s = Math.sqrt(GM_SUN * (2 / r_km - 1 / a_km));
 
-  console.log(`Calculated heliocentric velocity: ${velocity_km_s.toFixed(2)} km/s`);
+  logger.info({
+    velocity_km_s: parseFloat(velocity_km_s.toFixed(2))
+  }, 'Calculated heliocentric velocity');
 
   return velocity_km_s;
 }
@@ -258,7 +262,7 @@ function calculateSolarElongation(ra: number): number {
  * Parse orbital data from TheSkyLive tracker page HTML
  */
 export function parseOrbitalData(html: string): TheSkyLiveData {
-  console.log('Parsing TheSkyLive orbital data...');
+  logger.info({}, 'Parsing TheSkyLive orbital data');
 
   // Initialize default values
   let ra = 0;
@@ -275,28 +279,28 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
     const raMatch = html.match(/<number class="raApparent">([^<]+)<\/number>/i);
     if (raMatch) {
       ra = parseRA(raMatch[1].trim());
-      console.log(`Extracted RA: ${raMatch[1].trim()} → ${ra}°`);
+      logger.info({ raw: raMatch[1].trim(), parsed: ra }, 'Extracted RA');
     }
 
     // Extract Declination from TheSkyLive format (apparent coordinates)
     const decMatch = html.match(/<number class="decApparent">([^<]+)<\/number>/i);
     if (decMatch) {
       dec = parseDec(decMatch[1].trim());
-      console.log(`Extracted Dec: ${decMatch[1].trim()} → ${dec}°`);
+      logger.info({ raw: decMatch[1].trim(), parsed: dec }, 'Extracted Dec');
     }
 
     // Extract Distance from Earth (from info page has AU distance)
     const earthDistanceMatch = html.match(/<number class="distanceAU">([^<]+)<\/number>/i);
     if (earthDistanceMatch) {
       geocentric_distance = parseFloat(earthDistanceMatch[1]);
-      console.log(`Extracted Earth distance: ${earthDistanceMatch[1].trim()} → ${geocentric_distance} AU`);
+      logger.info({ geocentric_distance }, 'Extracted Earth distance');
     }
 
     // Extract Current Magnitude (observed from COBS)
     const magnitudeMatch = html.match(/latest observed magnitude[^>]*is <number>([^<]+)<\/number>/i);
     if (magnitudeMatch) {
       magnitude_estimate = parseFloat(magnitudeMatch[1]);
-      console.log(`Extracted magnitude: ${magnitude_estimate}`);
+      logger.info({ magnitude_estimate }, 'Extracted magnitude');
     }
 
     // Extract orbital elements from TheSkyLive orbital elements table
@@ -304,14 +308,14 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
     const eccentricityMatch = html.match(/Orbit eccentricity[\s\S]*?<td class="right value">([0-9.]+)<\/td>/i);
     if (eccentricityMatch) {
       eccentricity = parseFloat(eccentricityMatch[1]);
-      console.log(`Extracted eccentricity: ${eccentricity}`);
+      logger.info({ eccentricity }, 'Extracted eccentricity');
     }
 
     // Perihelion distance: <td class="left">Perihelion distance</td>...<td class="right value">1.35638454 AU
     const perihelionMatch = html.match(/Perihelion distance[\s\S]*?<td class="right value">([0-9.]+)\s*AU/i);
     if (perihelionMatch) {
       perihelion_distance = parseFloat(perihelionMatch[1]);
-      console.log(`Extracted perihelion distance: ${perihelion_distance} AU`);
+      logger.info({ perihelion_distance }, 'Extracted perihelion distance');
     }
 
     // For heliocentric distance, we'll estimate from geocentric + Earth-Sun distance
@@ -319,7 +323,7 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
     if (geocentric_distance > 0) {
       // Rough approximation: assuming Earth is ~1 AU from Sun
       heliocentric_distance = Math.max(0.5, geocentric_distance - 1.0); // rough estimate
-      console.log(`Estimated heliocentric distance: ${heliocentric_distance} AU (approximation)`);
+      logger.info({ heliocentric_distance, method: 'approximation' }, 'Estimated heliocentric distance');
     }
 
     // Calculate velocity from orbital elements if we have them
@@ -329,11 +333,14 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
         eccentricity,
         perihelion_distance
       );
-      console.log(`Calculated velocity from orbital elements: ${calculated_velocity.toFixed(2)} km/s`);
+      logger.info({ calculated_velocity: parseFloat(calculated_velocity.toFixed(2)) }, 'Calculated velocity from orbital elements');
     }
 
   } catch (error) {
-    console.error('Error parsing TheSkyLive HTML:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Error parsing TheSkyLive HTML');
   }
 
   // Calculate derived values
@@ -373,14 +380,14 @@ export async function fetchTheSkyLiveData(): Promise<TheSkyLiveData> {
   // Check cache first
   const cached = cache.get<TheSkyLiveData>(cacheKey);
   if (cached) {
-    console.log('TheSkyLive cache hit - returning cached data');
+    logger.info({ cacheKey }, 'TheSkyLive cache hit - returning cached data');
     return cached;
   }
 
   try {
     await rateLimiter.waitForSlot();
 
-    console.log('Fetching TheSkyLive orbital data...');
+    logger.info({ url: COMET_INFO_URL }, 'Fetching TheSkyLive orbital data');
 
     // Fetch from info page which has distance and magnitude data
     const controller = new AbortController();
@@ -422,12 +429,19 @@ export async function fetchTheSkyLiveData(): Promise<TheSkyLiveData> {
     // Cache successful result for 15 minutes
     cache.set(cacheKey, orbitalData, 900000);
 
-    console.log('Successfully fetched and parsed TheSkyLive data');
+    logger.info({
+      ra: orbitalData.ra,
+      dec: orbitalData.dec,
+      geocentric_distance: orbitalData.geocentric_distance,
+      magnitude: orbitalData.magnitude_estimate
+    }, 'Successfully fetched and parsed TheSkyLive data');
     return orbitalData;
 
   } catch (error) {
-    console.error('Failed to fetch TheSkyLive data:', error);
-    console.log('TheSkyLive API unavailable - no fallback data will be provided');
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Failed to fetch TheSkyLive data - API unavailable');
 
     // Re-throw the error instead of providing mock data
     throw error;
@@ -485,8 +499,10 @@ export async function getTheSkyLiveOrbitalData(): Promise<TheSkyLiveData | null>
   try {
     return await fetchTheSkyLiveData();
   } catch (error) {
-    console.error('Critical error in TheSkyLive data fetch:', error);
-    console.log('Returning null - no mock data will be provided');
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Critical error in TheSkyLive data fetch - returning null');
     // Return null instead of mock data
     return null;
   }
@@ -530,7 +546,7 @@ export function getTheSkyLiveCacheInfo(): {
  * Extracts predicted positions, magnitudes, and constellations
  */
 export function parseEphemerisTable(html: string): EphemerisTable {
-  console.log('Parsing TheSkyLive ephemeris table...');
+  logger.info({}, 'Parsing TheSkyLive ephemeris table');
 
   const predictions: EphemerisPoint[] = [];
   const capturedAt = new Date().toISOString();
@@ -542,7 +558,7 @@ export function parseEphemerisTable(html: string): EphemerisTable {
     try {
       epoch = new Date(epochMatch[1]).toISOString();
     } catch (e) {
-      console.warn('Failed to parse epoch date:', epochMatch[1]);
+      logger.warn({ epochStr: epochMatch[1] }, 'Failed to parse epoch date');
     }
   }
 
@@ -613,19 +629,31 @@ export function parseEphemerisTable(html: string): EphemerisTable {
         });
 
       } catch (error) {
-        console.warn(`Failed to parse ephemeris row: ${dateStr}`, error);
+        logger.warn({
+          dateStr,
+          error: error instanceof Error ? error.message : String(error)
+        }, 'Failed to parse ephemeris row');
       }
     }
 
-    console.log(`Parsed ${predictions.length} ephemeris predictions from TheSkyLive`);
-
-    if (predictions.length > 0) {
-      console.log(`Date range: ${predictions[0].date} to ${predictions[predictions.length - 1].date}`);
-      console.log(`Sample prediction: ${predictions[0].date} - RA ${predictions[0].ra.toFixed(2)}° Dec ${predictions[0].dec.toFixed(2)}° Mag ${predictions[0].magnitude}`);
-    }
+    logger.info({
+      predictionCount: predictions.length,
+      dateRange: predictions.length > 0 ?
+        `${predictions[0].date} to ${predictions[predictions.length - 1].date}` :
+        'none',
+      samplePrediction: predictions.length > 0 ? {
+        date: predictions[0].date,
+        ra: parseFloat(predictions[0].ra.toFixed(2)),
+        dec: parseFloat(predictions[0].dec.toFixed(2)),
+        magnitude: predictions[0].magnitude
+      } : undefined
+    }, 'Parsed ephemeris predictions from TheSkyLive');
 
   } catch (error) {
-    console.error('Error parsing ephemeris table:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Error parsing ephemeris table');
   }
 
   return {
@@ -644,14 +672,14 @@ export async function fetchEphemerisTable(): Promise<EphemerisTable | null> {
   // Check cache first
   const cached = cache.get<EphemerisTable>(cacheKey);
   if (cached) {
-    console.log('TheSkyLive ephemeris cache hit - returning cached table');
+    logger.info({ cacheKey, predictionCount: cached.predictions.length }, 'TheSkyLive ephemeris cache hit');
     return cached;
   }
 
   try {
     await rateLimiter.waitForSlot();
 
-    console.log('Fetching TheSkyLive ephemeris table...');
+    logger.info({ url: COMET_INFO_URL }, 'Fetching TheSkyLive ephemeris table');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
@@ -692,11 +720,19 @@ export async function fetchEphemerisTable(): Promise<EphemerisTable | null> {
     // Cache successful result for 6 hours (ephemeris doesn't change often)
     cache.set(cacheKey, ephemerisTable, 6 * 60 * 60 * 1000);
 
-    console.log('Successfully fetched and parsed TheSkyLive ephemeris table');
+    logger.info({
+      predictionCount: ephemerisTable.predictions.length,
+      dateRange: ephemerisTable.predictions.length > 0 ?
+        `${ephemerisTable.predictions[0].date} to ${ephemerisTable.predictions[ephemerisTable.predictions.length - 1].date}` :
+        'none'
+    }, 'Successfully fetched and parsed TheSkyLive ephemeris table');
     return ephemerisTable;
 
   } catch (error) {
-    console.error('Failed to fetch TheSkyLive ephemeris table:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Failed to fetch TheSkyLive ephemeris table');
     return null;
   }
 }
