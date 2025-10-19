@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCometOrbitalTrail } from '@/lib/data-sources/jpl-horizons';
 import { additionalComets } from '@/lib/celestial-bodies';
+import logger from '@/lib/logger';
 
 /**
  * Additional Comets API
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
         const cached = cometCache.get(cacheKey);
 
         if (cached && (now - cached.timestamp) < CACHE_TTL) {
-          console.log(`Cache hit for ${designation}`);
+          logger.info({ designation, cacheAge: now - cached.timestamp }, 'Cache hit for comet');
           results.push(cached.data);
           continue;
         }
@@ -75,7 +76,12 @@ export async function GET(request: NextRequest) {
           endDate = '2026-01-31';
         }
 
-        console.log(`Fetching orbital data for ${designation} from ${startDate} to ${endDate} (perihelion: ${cometInfo?.perihelionDate || 'unknown'})...`);
+        logger.info({
+          designation,
+          startDate,
+          endDate,
+          perihelion: cometInfo?.perihelionDate || 'unknown'
+        }, 'Fetching orbital data for additional comet');
 
         // Try JPL Horizons first
         let jplData = await fetchCometOrbitalTrail(
@@ -87,7 +93,7 @@ export async function GET(request: NextRequest) {
 
         // If JPL Horizons fails, try alternate designations
         if (!jplData || !jplData.orbital_vectors || jplData.orbital_vectors.length === 0) {
-          console.log(`  JPL Horizons failed for ${designation}, trying alternate formats...`);
+          logger.warn({ designation }, 'JPL Horizons failed, trying alternate formats');
 
           // Try different designation formats that JPL might accept
           const alternateDesignations = [];
@@ -105,10 +111,10 @@ export async function GET(request: NextRequest) {
           }
 
           for (const altDes of alternateDesignations) {
-            console.log(`  Trying alternate designation: ${altDes}`);
+            logger.info({ designation, alternateDesignation: altDes }, 'Trying alternate designation');
             jplData = await fetchCometOrbitalTrail(altDes, startDate, endDate, '1d');
             if (jplData && jplData.orbital_vectors && jplData.orbital_vectors.length > 0) {
-              console.log(`  ✓ Success with ${altDes}`);
+              logger.info({ designation, successfulDesignation: altDes }, 'Success with alternate designation');
               break;
             }
           }
@@ -138,12 +144,15 @@ export async function GET(request: NextRequest) {
           cometCache.set(cacheKey, { data: cometData, timestamp: now });
           results.push(cometData);
 
-          console.log(`✓ Successfully fetched ${trail.length} points for ${designation}`);
+          logger.info({ designation, pointCount: trail.length }, 'Successfully fetched orbital points');
         } else {
-          console.warn(`⚠ No orbital data available for ${designation} - JPL may not have this comet`);
+          logger.warn({ designation }, 'No orbital data available - JPL may not have this comet');
         }
       } catch (error) {
-        console.error(`✗ Error fetching ${designation}:`, error instanceof Error ? error.message : error);
+        logger.error({
+          designation,
+          error: error instanceof Error ? error.message : String(error)
+        }, 'Error fetching comet data');
         // Continue with other comets even if one fails
       }
     }
@@ -168,7 +177,10 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Additional comets API error:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Additional comets API error');
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
