@@ -3,6 +3,7 @@ import { CometObservation } from '@/types/comet';
 import { cobsApi } from '@/services/cobs-api';
 import { calculateActivityFromAPIData } from '@/utils/activity-calculator';
 import { getEnhancedCometData } from '@/lib/data-sources/source-manager';
+import logger from '@/lib/logger';
 
 interface SimpleActivityDataPoint {
   date: string;
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
   const days = Math.min(365, Math.max(7, parseInt(searchParams.get('days') || '0'))); // 0 means all data
 
   try {
-    console.log('Calculating simple activity levels with params:', { days });
+    logger.info({ days }, 'Calculating simple activity levels');
 
     // Try to get enhanced data first (includes orbital mechanics)
     let observations: CometObservation[] = [];
@@ -123,9 +124,11 @@ export async function GET(request: NextRequest) {
         }
       }));
       heliocentric_distance = enhancedData.orbital_mechanics?.current_distance?.heliocentric || 2.1;
-      console.log('Using enhanced data with orbital mechanics');
+      logger.info({ heliocentric_distance }, 'Using enhanced data with orbital mechanics');
     } catch (enhancedError) {
-      console.warn('Enhanced data failed, falling back to COBS-only:', enhancedError);
+      logger.warn({
+        error: enhancedError instanceof Error ? enhancedError.message : String(enhancedError)
+      }, 'Enhanced data failed, falling back to COBS-only');
       const cobsObs = await cobsApi.getObservations();
       observations = cobsObs.map(obs => ({
         ...obs,
@@ -143,7 +146,7 @@ export async function GET(request: NextRequest) {
           name: obs.observer.location.name
         }
       }));
-      console.log('Using COBS-only data with fallback distance');
+      logger.info({ heliocentric_distance }, 'Using COBS-only data with fallback distance');
     }
 
     if (observations.length === 0) {
@@ -299,9 +302,12 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`Simple activity API completed in ${processingTime}ms`);
-    console.log(`Generated ${activityData.length} activity data points`);
-    console.log(`Current activity level: ${currentActivity.level} (${currentActivity.index})`);
+    logger.info({
+      processingTimeMs: processingTime,
+      dataPointCount: activityData.length,
+      currentLevel: currentActivity.level,
+      currentIndex: currentActivity.index
+    }, 'Simple activity API completed');
 
     return NextResponse.json(response, {
       headers: {
@@ -314,8 +320,13 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error calculating simple activity levels:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    logger.error({
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTimeMs: Date.now() - startTime
+    }, 'Error calculating simple activity levels');
 
     return NextResponse.json({
       success: false,
