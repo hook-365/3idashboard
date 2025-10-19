@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cobsApi } from '@/services/cobs-api';
 import { analyzeTrend } from '@/services/data-transforms';
+import logger from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   const days = parseInt(searchParams.get('days') || '30');
 
   try {
-    console.log('Fetching trend analysis data...');
+    logger.info({ days, includePrediction }, 'Fetching trend analysis data');
 
     // Get light curve data for trend analysis
     const lightCurve = await cobsApi.getLightCurve();
@@ -54,7 +55,11 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    console.log(`Trend analysis completed in ${processingTime}ms`);
+    logger.info({
+      processingTimeMs: processingTime,
+      dataPoints: lightCurve.length,
+      trend: trendAnalysis.trend
+    }, 'Trend analysis completed');
 
     return NextResponse.json(response, {
       headers: {
@@ -66,7 +71,13 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in trend-analysis API:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    logger.error({
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTimeMs: Date.now() - startTime
+    }, 'Error in trend-analysis API');
 
     return NextResponse.json({
       success: false,
