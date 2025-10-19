@@ -82,8 +82,7 @@ export function createEarthBlackoutAnnotation(
   // Resolve CSS variables for Chart.js canvas rendering
   const blackoutBg = getCSSVariable('--color-chart-blackout') || 'rgba(100, 100, 100, 0.1)';
   const borderColor = getCSSVariable('--color-border-primary') || '#475569';
-  const labelBg = getCSSVariable('--color-bg-tertiary') || '#334155';
-  const labelColor = getCSSVariable('--color-text-primary') || '#f1f5f9';
+  const labelBg = getCSSVariable('--color-bg-secondary') || '#2a1f3d';
 
   return {
     type: 'box',
@@ -98,9 +97,10 @@ export function createEarthBlackoutAnnotation(
       content: 'Not Visible from Earth',
       position: 'center',
       backgroundColor: labelBg,
-      color: labelColor,
+      color: '#ffffff', // Force white text for maximum contrast (like perihelion)
       font: {
-        size: 11
+        size: 11,
+        weight: 'bold'
       },
       padding: 4
     }

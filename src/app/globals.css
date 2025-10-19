@@ -15,19 +15,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #1a0f2e;
     --foreground: #ededed;
   }
 }
 
 /* Theme CSS Variables - Dark Theme (Default) */
-/* Deep Space - Refined slate palette for professional astronomy work */
+/* Deep Space - Dark purple palette for professional astronomy work */
 :root,
 [data-theme="dark"] {
-  /* Background colors - deep slate (deep space) */
-  --color-bg-primary: #0f172a;
-  --color-bg-secondary: #1e293b;
-  --color-bg-tertiary: #334155;
+  /* Background colors - dark purple (deep space) */
+  --color-bg-primary: #1a0f2e;
+  --color-bg-secondary: #2a1f3d;
+  --color-bg-tertiary: #3d2f52;
 
   /* Text colors - warm white for excellent readability */
   --color-text-primary: #f1f5f9;
@@ -164,16 +164,16 @@ body {
 
 /* Leaflet map customizations for dark theme */
 [data-theme="dark"] .leaflet-container {
-  background-color: #1e293b !important;
+  background-color: #2a1f3d !important;
 }
 
 [data-theme="dark"] .leaflet-popup-content-wrapper {
-  background-color: #334155 !important;
+  background-color: #3d2f52 !important;
   color: #f1f5f9 !important;
 }
 
 [data-theme="dark"] .leaflet-popup-tip {
-  background-color: #334155 !important;
+  background-color: #3d2f52 !important;
 }
 
 /* Leaflet map customizations for light theme */
