@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cobsApi } from '@/services/cobs-api';
 import { binObservationsByTime, calculateRegionalStatistics } from '@/services/data-transforms';
+import logger from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -24,7 +25,14 @@ export async function GET(request: NextRequest) {
   const forceRefresh = searchParams.get('refresh') === 'true'; // Force cache bypass
 
   try {
-    console.log('Fetching observations with filters:', { observer, minMagnitude, maxMagnitude, days, includeStats, forceRefresh });
+    logger.info({
+      observer,
+      minMagnitude,
+      maxMagnitude,
+      days,
+      includeStats,
+      forceRefresh
+    }, 'Fetching observations with filters');
 
     // Optimization: Fetch observations once and reuse for observer statistics
     // This avoids duplicate fetches when getObservers() would internally call getObservations()
@@ -135,7 +143,11 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`Observations API completed in ${processingTime}ms - returned ${paginatedObservations.length} of ${filteredObservations.length} filtered observations`);
+    logger.info({
+      processingTimeMs: processingTime,
+      returnedCount: paginatedObservations.length,
+      filteredCount: filteredObservations.length
+    }, 'Observations API completed');
 
     return NextResponse.json(response, {
       headers: {
@@ -149,15 +161,14 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error('Error fetching observations:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    console.error('Observations API error details:', {
-      message: errorMessage,
+    logger.error({
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
-      processingTime,
-      filters: { observer, minMagnitude, maxMagnitude, days, includeStats },
-    });
+      processingTimeMs: processingTime,
+      filters: { observer, minMagnitude, maxMagnitude, days, includeStats }
+    }, 'Error fetching observations');
 
     return NextResponse.json(
       {
