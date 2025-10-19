@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 /**
  * API endpoint to check data freshness for all sources
@@ -46,7 +47,10 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('Error in data-freshness API:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Error in data-freshness API');
     return NextResponse.json({
       success: false,
       error: 'Failed to fetch data freshness status',
