@@ -248,21 +248,42 @@ export default memo(ExpensiveComponent);
 
 ## Implementation Guide for Next Session
 
-### Step 1: Logger Migration (1-2 hours)
+### Step 1: Logger Migration
+
+**Context Cost**: High (~40K tokens for 13 API routes)
+**Risk Level**: Medium (syntax errors possible)
 
 **File-by-file approach**:
 ```bash
-# 1. Pick one API route
-# 2. Add import
+# 1. Pick ONE API route
+# 2. Add import: import logger from '@/lib/logger';
 # 3. Replace console.* with logger.*
-# 4. Test build: npm run build
-# 5. If successful, commit
-# 6. Repeat for next file
+# 4. TEST: npm run build
+# 5. TEST: Start dev server and hit the API endpoint
+# 6. If both tests pass, commit immediately
+# 7. Repeat for next file
 ```
 
-**Commit after every 3-5 files** to maintain safety.
+**CRITICAL**:
+- Do NOT batch multiple files without testing
+- Commit after EVERY successful file change
+- If build fails, restore that file and try again
 
-### Step 2: Image Optimization (30 minutes)
+**Testing After Each File**:
+```bash
+# Build test
+npm run build
+
+# API endpoint test (example for comet-data)
+curl http://localhost:3020/api/comet-data | jq .
+
+# Verify JSON logs appear in terminal (not console.log)
+```
+
+### Step 2: Image Optimization
+
+**Context Cost**: Low (~5K tokens)
+**Risk Level**: Low (reversible with git)
 
 **Create script** at `/scripts/optimize-images.js`:
 ```javascript
@@ -297,18 +318,91 @@ npm install --save-dev imagemin imagemin-mozjpeg imagemin-pngquant
 node scripts/optimize-images.js
 ```
 
-**Verify**: Check images in browser look acceptable, commit if good.
+**Testing After Optimization**:
+```bash
+# 1. Check file sizes reduced
+ls -lh public/textures/planets/*.jpg
+ls -lh public/gallery/loeb-research/*.png
 
-### Step 3: React.memo Top 5 (1 hour)
+# 2. Build to ensure Next.js processes optimized images
+npm run build
 
-**Order**:
+# 3. Start dev server
+PORT=3020 npm run dev
+
+# 4. Visual verification - check EVERY image in browser:
+# - Visit http://localhost:3020/details (3D planets should render)
+# - Visit http://localhost:3020/gallery (research images should load)
+# - Zoom in on images - verify no severe quality loss
+# - Check planet textures in 3D view rotate smoothly
+
+# 5. If ANY image looks bad, restore from backup and adjust quality settings
+# 6. Only commit if ALL images pass visual inspection
+```
+
+### Step 3: React.memo Top 5
+
+**Context Cost**: Medium (~20K tokens for 5 components)
+**Risk Level**: Medium (could break component behavior)
+
+**Order** (by impact):
 1. ModernSolarSystem (biggest impact)
 2. LightCurve
 3. VelocityChart
 4. ObserverMap
 5. OrbitalVelocityChart
 
-**Test after EACH component** - ensure no visual regressions.
+**Process for EACH component**:
+```bash
+# 1. Wrap ONE component in memo()
+# 2. TEST: npm run build (verify no TypeScript errors)
+# 3. TEST: Start dev server
+# 4. TEST: Navigate to page with that component
+# 5. TEST: Interact with component (click, hover, scroll)
+# 6. TEST: Verify no visual regressions or broken functionality
+# 7. If all tests pass, commit immediately
+# 8. Move to next component
+```
+
+**Testing Checklist Per Component**:
+
+**ModernSolarSystem.tsx**:
+- [ ] Build passes
+- [ ] 3D view renders on /details page
+- [ ] Planets rotate correctly
+- [ ] Comet trail displays
+- [ ] Camera controls work (zoom, pan, rotate)
+- [ ] No console errors
+
+**LightCurve.tsx**:
+- [ ] Build passes
+- [ ] Chart renders on /details page
+- [ ] Data points display correctly
+- [ ] Tooltips work on hover
+- [ ] No console errors
+
+**VelocityChart.tsx**:
+- [ ] Build passes
+- [ ] Chart renders on /details page
+- [ ] Multiple velocity series display
+- [ ] Legend toggles work
+- [ ] No console errors
+
+**ObserverMap.tsx**:
+- [ ] Build passes
+- [ ] Map renders on /observers page
+- [ ] Markers display correctly
+- [ ] Tooltips work on marker hover
+- [ ] No console errors
+
+**OrbitalVelocityChart.tsx**:
+- [ ] Build passes
+- [ ] Chart renders correctly
+- [ ] Animation works (if animated)
+- [ ] Data updates correctly
+- [ ] No console errors
+
+**CRITICAL**: If ANY test fails, immediately restore that file and debug before proceeding.
 
 ---
 
@@ -331,14 +425,78 @@ node scripts/optimize-images.js
 
 ---
 
-## Estimated Time Investment
+## Task Complexity Assessment
 
-| Phase | Time | Impact | Priority |
-|-------|------|--------|----------|
-| Logger migration (API routes only) | 1-2 hrs | High | 🔴 High |
-| Image optimization | 30 min | VERY High | 🔴 Critical |
-| React.memo (top 5) | 1 hr | Medium | 🟡 Medium |
-| **Total for high-impact items** | **2.5-3.5 hrs** | **Production ready** | - |
+| Phase | Context Cost | Risk Level | Testing Required | Priority |
+|-------|--------------|------------|------------------|----------|
+| Image optimization | Low (~5K tokens) | Low | Browser visual check | 🔴 Critical |
+| Logger migration (API routes) | High (~40K tokens) | Medium | Build + API tests | 🔴 High |
+| React.memo (top 5) | Medium (~20K tokens) | Medium | Build + visual regression | 🟡 Medium |
+| TypeScript any fixes | Low (~10K tokens) | Low | Type check only | 🟢 Low |
+
+**Context Cost**: Estimated tokens needed to complete the task
+**Risk Level**: Likelihood of introducing breaking changes
+**Testing Required**: What must be verified before committing
+
+---
+
+## Testing Philosophy
+
+### Every Change Must Be Tested Before Committing
+
+**Why**: One untested change can break the entire application. Testing after each change ensures:
+1. We know exactly which change caused a break
+2. We can restore quickly to last known good state
+3. We maintain interoperability between components
+4. We don't waste context fixing cascading failures
+
+### Testing Hierarchy
+
+**Level 1: Build Test** (ALWAYS required)
+```bash
+npm run build
+```
+- Verifies TypeScript compiles
+- Catches syntax errors
+- Catches import/export issues
+- Fast (~30 seconds)
+
+**Level 2: Functionality Test** (For API/backend changes)
+```bash
+# Start dev server
+PORT=3020 npm run dev
+
+# Test the specific endpoint changed
+curl http://localhost:3020/api/[endpoint] | jq .
+
+# Check logs for proper formatting
+```
+- Verifies runtime behavior
+- Catches logical errors
+- Validates data flow
+
+**Level 3: Visual Regression Test** (For UI/component changes)
+```bash
+# Start dev server
+PORT=3020 npm run dev
+
+# Navigate to affected page in browser
+# Click, hover, scroll - verify no broken functionality
+# Check browser console for errors
+```
+- Verifies user-facing behavior
+- Catches rendering issues
+- Validates interoperability between components
+
+**Level 4: Interoperability Test** (For major changes)
+- Test related/dependent components
+- Example: If changing data source, test all charts that use that data
+- Example: If changing a shared component, test all pages that import it
+- Verify no cascading failures
+
+### When to Skip Tests
+
+**NEVER** - Always test at minimum Level 1 (build)
 
 ---
 
@@ -383,11 +541,26 @@ Impact: ~3 second faster initial page load
 
 **Context for next session**: This optimization effort was triggered by astronomy-dashboard-dev agent code review. The agent identified:
 - 46 files using console.log instead of logger
-- Duplicate ErrorBoundary (152 lines waste)
+- Duplicate ErrorBoundary (152 lines waste) ✅ DONE
 - 4.3MB unoptimized images
 - 15 components needing React.memo
 - 12 TypeScript `any` types to fix
 
-**Current status**: Only duplicate ErrorBoundary removed (5KB saved). Remaining work documented above.
+**Current status**:
+- ✅ Duplicate ErrorBoundary removed (5KB bundle reduction)
+- ✅ Backup branch created (`optimization-backup-20251018`)
+- ✅ Build verified successful
+- ✅ Comprehensive testing guide documented
 
-**Next steps**: Start with image optimization (highest user impact), then logger migration (highest production value).
+**Critical Success Factors**:
+1. **Test after EVERY change** - No exceptions
+2. **Commit frequently** - After each successful test
+3. **Never batch changes** - If it breaks, we need to know which file caused it
+4. **Context management** - Start with low-context tasks (images) before high-context tasks (logger)
+
+**Recommended Order for Next Session**:
+1. 🔴 Image optimization first (Low context, low risk, high impact)
+2. 🔴 Logger migration second (High context, medium risk, high production value)
+3. 🟡 React.memo third (Medium context, medium risk, medium impact)
+
+**Why this order**: Knock out the quick win (images) first to free up context window for the more complex logger migration.
