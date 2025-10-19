@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cobsApi } from '@/services/cobs-api';
 import { analyzeTrend, calculateRunningAverage } from '@/services/data-transforms';
 import { getEnhancedCometData } from '@/lib/data-sources/source-manager';
+import logger from '@/lib/logger';
 
 // Helper function to build COBS-only response data
 async function buildCOBSOnlyData(params: {
@@ -22,7 +23,11 @@ async function buildCOBSOnlyData(params: {
     cobsApi.getLightCurve(forceRefresh),
   ]);
 
-  console.log(`COBS data fetched: ${observations.length} observations, ${observers.length} observers, ${lightCurve.length} light curve points`);
+  logger.info({
+    observationCount: observations.length,
+    observerCount: observers.length,
+    lightCurvePoints: lightCurve.length
+  }, 'COBS data fetched');
 
   // Analyze trend for the specified period
   const trendAnalysis = analyzeTrend(lightCurve, trendDays);
@@ -105,16 +110,16 @@ export async function GET(request: NextRequest) {
   const forceRefresh = searchParams.get('refresh') === 'true'; // Force cache bypass
 
   try {
-    console.log('Starting comet-data API request with params:', {
+    logger.info({
       includeSmoothed,
       includePrediction,
       maxObservations,
       trendDays,
       forceRefresh
-    });
+    }, 'Starting comet-data API request');
 
     // OPTIMIZATION: Start both COBS and enhanced data fetches in parallel
-    console.log('Starting parallel data fetch: COBS + enhanced multi-source...');
+    logger.info('Starting parallel data fetch: COBS + enhanced multi-source');
 
     // Start COBS-only fetch immediately (doesn't wait)
     const cobsPromise = buildCOBSOnlyData({
@@ -136,14 +141,17 @@ export async function GET(request: NextRequest) {
           setTimeout(() => reject(new Error('Timeout')), ENHANCED_DATA_TIMEOUT)
         )
       ]);
-      console.log('Successfully fetched enhanced multi-source data');
+      logger.info('Successfully fetched enhanced multi-source data');
     } catch (error) {
-      console.log(`Enhanced data timeout or error after ${ENHANCED_DATA_TIMEOUT}ms:`, error instanceof Error ? error.message : error);
+      logger.warn({
+        timeout: ENHANCED_DATA_TIMEOUT,
+        error: error instanceof Error ? error.message : String(error)
+      }, 'Enhanced data timeout or error');
     }
 
     // If enhanced data is available, use it; otherwise use COBS-only
     if (enhancedResult) {
-      console.log('Using enhanced multi-source data');
+      logger.info('Using enhanced multi-source data');
       const enhancedData = enhancedResult;
 
       // Apply frontend processing to enhanced data
@@ -239,7 +247,10 @@ export async function GET(request: NextRequest) {
         timestamp: new Date().toISOString(),
       };
 
-      console.log(`Enhanced comet-data API completed in ${processingTime}ms with sources: ${activeSources.join(', ')}`);
+      logger.info({
+        processingTimeMs: processingTime,
+        activeSources: activeSources
+      }, 'Enhanced comet-data API completed');
 
       return NextResponse.json(response, {
         headers: {
@@ -255,7 +266,7 @@ export async function GET(request: NextRequest) {
       });
     } else {
       // Enhanced data timed out or failed - use COBS-only data (already fetched in parallel)
-      console.log('Enhanced data unavailable (timeout or error), using COBS-only fallback');
+      logger.warn('Enhanced data unavailable (timeout or error), using COBS-only fallback');
       const cobsData = await cobsPromise;
 
       const processingTime = Date.now() - startTime;
@@ -276,7 +287,9 @@ export async function GET(request: NextRequest) {
         }
       };
 
-      console.log(`COBS-only fallback completed in ${processingTime}ms`);
+      logger.info({
+        processingTimeMs: processingTime
+      }, 'COBS-only fallback completed');
 
       return NextResponse.json(responseWithFallbackInfo, {
         headers: {
@@ -293,19 +306,16 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error('Error fetching comet data:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
     // Enhanced error logging
-    console.error('Full error details:', {
-      message: errorMessage,
+    logger.error({
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
-      processingTime,
+      processingTimeMs: processingTime,
       timestamp: new Date().toISOString(),
-    });
+    }, 'Error fetching comet data - COBS API failed');
 
-    // Return error response when real data isn't available
-    console.error('COBS API failed and no mock data fallback will be used');
     return NextResponse.json(
       {
         success: false,
