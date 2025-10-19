@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cobsApi } from '@/services/cobs-api';
+import logger from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -45,7 +46,14 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error(`Error calculating ${type} velocity:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    logger.error({
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTimeMs: processingTime,
+      velocityType: type
+    }, `Error calculating ${type} velocity`);
 
     return NextResponse.json({
       success: false,
