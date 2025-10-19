@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cobsApi, ObserverInfo } from '@/services/cobs-api';
 import { calculateRegionalStatistics, transformObserversForMap } from '@/services/data-transforms';
+import logger from '@/lib/logger';
 
 interface ObserversResponseData {
   list?: ObserverInfo[];
@@ -19,7 +20,12 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '100');
 
   try {
-    console.log('Fetching observers with params:', { includeStats, format, minObservations, region });
+    logger.info({
+      includeStats,
+      format,
+      minObservations,
+      region
+    }, 'Fetching observers with params');
 
     // Optimization: Fetch observations once and reuse for observer statistics
     // This avoids duplicate fetches when getObservers() would internally call getObservations()
@@ -105,7 +111,11 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`Observers API completed in ${processingTime}ms - returned ${transformedObservers.length} of ${filteredObservers.length} filtered observers`);
+    logger.info({
+      processingTimeMs: processingTime,
+      returnedCount: transformedObservers.length,
+      filteredCount: filteredObservers.length
+    }, 'Observers API completed');
 
     return NextResponse.json(response, {
       headers: {
@@ -119,15 +129,14 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    console.error('Error fetching observers:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    console.error('Observers API error details:', {
-      message: errorMessage,
+    logger.error({
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
-      processingTime,
-      filters: { includeStats, format, minObservations, region },
-    });
+      processingTimeMs: processingTime,
+      filters: { includeStats, format, minObservations, region }
+    }, 'Error fetching observers');
 
     return NextResponse.json(
       {
