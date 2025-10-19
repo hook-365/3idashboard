@@ -7,6 +7,8 @@
  * API Documentation: https://ssd-api.jpl.nasa.gov/doc/sbdb.html
  */
 
+import logger from '@/lib/logger';
+
 export interface SBDBOrbitalElements {
   epoch: number;           // Julian Date of epoch
   e: number;               // Eccentricity
@@ -44,7 +46,7 @@ export interface SBDBResponse {
 export async function fetchSBDBData(designation: string = '3I'): Promise<SBDBResponse | null> {
   try {
     const url = `https://ssd-api.jpl.nasa.gov/sbdb.api?sstr=${encodeURIComponent(designation)}&full-prec=true`;
-    console.log(`Fetching SBDB data for ${designation}...`);
+    logger.info({ designation, url }, 'Fetching SBDB data');
 
     const response = await fetch(url, {
       headers: {
@@ -53,21 +55,34 @@ export async function fetchSBDBData(designation: string = '3I'): Promise<SBDBRes
     });
 
     if (!response.ok) {
-      console.error(`SBDB API error: ${response.status} ${response.statusText}`);
+      logger.error({
+        status: response.status,
+        statusText: response.statusText,
+        designation
+      }, 'SBDB API error');
       return null;
     }
 
     const data = await response.json();
 
     if (!data.orbit) {
-      console.warn('SBDB response missing orbital elements');
+      logger.warn({ designation, hasData: !!data }, 'SBDB response missing orbital elements');
       return null;
     }
 
-    console.log(`✓ Successfully fetched SBDB data for ${data.object?.fullname || designation}`);
+    logger.info({
+      designation,
+      fullname: data.object?.fullname,
+      eccentricity: data.orbit.e,
+      perihelion_distance: data.orbit.q
+    }, 'Successfully fetched SBDB data');
     return data;
   } catch (error) {
-    console.error('Error fetching SBDB data:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      designation
+    }, 'Error fetching SBDB data');
     return null;
   }
 }
@@ -140,10 +155,16 @@ export function calculatePositionFromElements(
     }
 
     // For elliptical orbits (not expected for 3I/ATLAS)
-    console.warn('Elliptical orbit calculation not fully implemented');
+    logger.warn({
+      eccentricity: e,
+      perihelion_distance: q
+    }, 'Elliptical orbit calculation not fully implemented');
     return null;
   } catch (error) {
-    console.error('Error calculating position from orbital elements:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Error calculating position from orbital elements');
     return null;
   }
 }
