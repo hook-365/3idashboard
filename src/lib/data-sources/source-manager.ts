@@ -35,6 +35,7 @@ import type {
   CacheEntry,
   CacheStatus,
 } from '../../types/enhanced-comet-data';
+import logger from '@/lib/logger';
 
 // Re-export types for backward compatibility
 export type { EnhancedCometData, CacheStatus } from '../../types/enhanced-comet-data';
@@ -99,7 +100,7 @@ export class DataSourceManager {
    * Main orchestration method - fetches and merges data from all sources
    */
   async getCometData(): Promise<EnhancedCometData> {
-    console.log(`[DataSourceManager ${this.instanceId}] Starting multi-source data fetch...`);
+    logger.info({ instanceId: this.instanceId }, 'Starting multi-source data fetch');
 
     // Fetch from all sources in parallel using Promise.allSettled
     const [cobsResult, theSkyResult, jplResult, jplEphemerisResult, mpcResult] = await Promise.allSettled([
@@ -118,13 +119,13 @@ export class DataSourceManager {
     const mpcData = mpcResult.status === 'fulfilled' ? mpcResult.value : null;
 
     // Log source status
-    console.log('Source fetch results:', {
+    logger.info({
       cobs: cobsResult.status,
       theskylive: theSkyResult.status,
       jpl_horizons: jplResult.status,
       jpl_ephemeris: jplEphemerisResult.status,
       mpc: mpcResult.status,
-    });
+    }, 'Source fetch results');
 
     // Merge data sources with intelligent fallbacks
     return this.mergeDataSources(cobsData, jplData, jplEphemerisData, theSkyData, mpcData);
@@ -141,12 +142,16 @@ export class DataSourceManager {
     // Check cache first
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.timestamp < cached.ttl) {
-      console.log(`Cache hit for ${key}`);
+      logger.info({
+        key,
+        cacheAge: Date.now() - cached.timestamp,
+        ttl: cached.ttl
+      }, 'Cache hit');
       return cached.data as T;
     }
 
     try {
-      console.log(`Fetching fresh data for ${key}...`);
+      logger.info({ key }, 'Fetching fresh data');
       const data = await fetcher();
 
       // Cache successful result
@@ -158,7 +163,11 @@ export class DataSourceManager {
 
       return data;
     } catch (error) {
-      console.error(`Failed to fetch ${key}:`, error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        key
+      }, 'Failed to fetch data source');
 
       // Cache the failure for a shorter period to avoid hammering
       this.cache.set(key, {
@@ -306,7 +315,13 @@ export class DataSourceManager {
     theSkyData: TheSkyLiveData | null,
     mpcData: MPCSourceData | null
   ): EnhancedCometData {
-    console.log('Merging data from available sources...');
+    logger.info({
+      hasCOBS: !!cobsData,
+      hasJPL: !!jplData,
+      hasJPLEphemeris: !!jplEphemerisData,
+      hasTheSkyLive: !!theSkyData,
+      hasMPC: !!mpcData
+    }, 'Merging data from available sources');
 
     // Use COBS as primary source for observations and basic stats
     const baseData: COBSDataStructure = cobsData || (this.getMockData('cobs') as COBSDataStructure);
@@ -322,7 +337,12 @@ export class DataSourceManager {
 
     // Extract ephemeris data for frontend (with calculated fallback)
     const jplEphemeris = this.extractEphemerisData(jplEphemerisData, theSkyData);
-    console.log(`jplEphemeris extracted:`, jplEphemeris ? `RA=${jplEphemeris.current_position?.ra?.toFixed(2)}°, source=${jplEphemeris.data_source}` : 'null');
+    logger.info({
+      hasEphemeris: !!jplEphemeris,
+      ra: jplEphemeris?.current_position?.ra,
+      dec: jplEphemeris?.current_position?.dec,
+      dataSource: jplEphemeris?.data_source
+    }, 'Extracted ephemeris data');
 
     return {
       // Existing COBS structure
@@ -370,7 +390,12 @@ export class DataSourceManager {
       // Get the most recent (current) position
       const latestPoint = jplEphemerisData.ephemeris_points[jplEphemerisData.ephemeris_points.length - 1];
 
-      console.log(`Using JPL ephemeris data: RA=${latestPoint.ra.toFixed(2)}°, DEC=${latestPoint.dec.toFixed(2)}°`);
+      logger.info({
+        ra: latestPoint.ra,
+        dec: latestPoint.dec,
+        magnitude: latestPoint.magnitude,
+        pointCount: jplEphemerisData.ephemeris_points.length
+      }, 'Using JPL ephemeris data');
       return {
         current_position: {
           ra: latestPoint.ra,
@@ -392,7 +417,11 @@ export class DataSourceManager {
 
     // Priority 2: Use TheSkyLive if available (observational data)
     if (theSkyData?.ra !== undefined && theSkyData?.dec !== undefined) {
-      console.log(`Using TheSkyLive ephemeris data: RA=${theSkyData.ra.toFixed(2)}°, DEC=${theSkyData.dec.toFixed(2)}°`);
+      logger.info({
+        ra: theSkyData.ra,
+        dec: theSkyData.dec,
+        magnitude: theSkyData.magnitude
+      }, 'Using TheSkyLive ephemeris data');
       return {
         current_position: {
           ra: theSkyData.ra,
@@ -406,9 +435,12 @@ export class DataSourceManager {
     }
 
     // Priority 3: Fallback to calculation from orbital elements
-    console.log('JPL ephemeris and TheSkyLive unavailable - calculating RA/DEC from orbital elements');
+    logger.info({}, 'JPL ephemeris and TheSkyLive unavailable - calculating RA/DEC from orbital elements');
     const calculated = calculateAtlasRADEC();
-    console.log(`Calculated ephemeris: RA=${calculated.ra.toFixed(2)}°, DEC=${calculated.dec.toFixed(2)}°`);
+    logger.info({
+      ra: calculated.ra,
+      dec: calculated.dec
+    }, 'Calculated ephemeris from orbital elements');
 
     return {
       current_position: {
@@ -447,10 +479,10 @@ export class DataSourceManager {
   ): number | null {
     // Validate inputs
     if (heliocentric_distance <= 0 || perihelion_distance <= 0) {
-      console.warn('Invalid distances for velocity calculation:', {
+      logger.warn({
         heliocentric_distance,
         perihelion_distance
-      });
+      }, 'Invalid distances for velocity calculation');
       return null;
     }
 
@@ -467,18 +499,20 @@ export class DataSourceManager {
     // a = q / (1 - e)
     const a_km = q_km / (1 - eccentricity);
 
-    console.log('Velocity calculation from orbital elements:', {
-      heliocentric_distance_au: heliocentric_distance.toFixed(3),
-      eccentricity: eccentricity.toFixed(3),
-      perihelion_distance_au: perihelion_distance.toFixed(3),
-      semi_major_axis_km: a_km.toFixed(0),
+    logger.info({
+      heliocentric_distance_au: parseFloat(heliocentric_distance.toFixed(3)),
+      eccentricity: parseFloat(eccentricity.toFixed(3)),
+      perihelion_distance_au: parseFloat(perihelion_distance.toFixed(3)),
+      semi_major_axis_km: parseFloat(a_km.toFixed(0)),
       orbit_type: eccentricity > 1 ? 'hyperbolic (interstellar)' : eccentricity === 1 ? 'parabolic' : 'elliptical'
-    });
+    }, 'Velocity calculation from orbital elements');
 
     // Apply vis-viva equation: v = sqrt(μ * (2/r - 1/a))
     const velocity_km_s = Math.sqrt(GM_SUN * (2 / r_km - 1 / a_km));
 
-    console.log(`Calculated heliocentric velocity: ${velocity_km_s.toFixed(2)} km/s (from orbital elements)`);
+    logger.info({
+      velocity_km_s: parseFloat(velocity_km_s.toFixed(2))
+    }, 'Calculated heliocentric velocity from orbital elements');
 
     return velocity_km_s;
   }
@@ -518,7 +552,11 @@ export class DataSourceManager {
       2 * heliocentric_velocity * EARTH_ORBITAL_VELOCITY * cos_angle
     );
 
-    console.log(`Calculated geocentric velocity: ${geocentric_velocity.toFixed(2)} km/s (accounting for Earth's motion)`);
+    logger.info({
+      geocentric_velocity: parseFloat(geocentric_velocity.toFixed(2)),
+      heliocentric_velocity: parseFloat(heliocentric_velocity.toFixed(2)),
+      earth_orbital_velocity: EARTH_ORBITAL_VELOCITY
+    }, 'Calculated geocentric velocity accounting for Earth motion');
 
     return geocentric_velocity;
   }
@@ -553,20 +591,30 @@ export class DataSourceManager {
         geocentric_velocity = Math.abs(latestPoint.delta_rate);
       }
 
-      console.log('Using JPL ephemeris for distances');
+      logger.info({
+        heliocentric_distance,
+        geocentric_distance,
+        has_range_rate: !!latestPoint.delta_rate
+      }, 'Using JPL ephemeris for distances');
     } else if (jplData) {
       // Fallback to orbital mechanics calculations
       const orbitalParams = calculateOrbitalParameters(jplData);
       heliocentric_distance = orbitalParams.distance_from_sun;
       geocentric_distance = orbitalParams.distance_from_earth;
 
-      console.log('Using JPL orbital mechanics for distances');
+      logger.info({
+        heliocentric_distance,
+        geocentric_distance
+      }, 'Using JPL orbital mechanics for distances');
     } else if (theSkyData) {
       // Last resort: use TheSkyLive distance data
       heliocentric_distance = theSkyData.heliocentric_distance;
       geocentric_distance = theSkyData.geocentric_distance;
 
-      console.log('Using TheSkyLive for distances (JPL unavailable)');
+      logger.info({
+        heliocentric_distance,
+        geocentric_distance
+      }, 'Using TheSkyLive for distances (JPL unavailable)');
     }
 
     // VELOCITY CALCULATION PRIORITY:
@@ -582,13 +630,19 @@ export class DataSourceManager {
       const orbitalParams = calculateOrbitalParameters(jplData);
       heliocentric_velocity = orbitalParams.current_velocity;
       velocity_source = 'JPL orbital parameters';
-      console.log(`Using JPL orbital parameters for velocity: ${heliocentric_velocity.toFixed(2)} km/s`);
+      logger.info({
+        heliocentric_velocity: parseFloat(heliocentric_velocity.toFixed(2)),
+        source: velocity_source
+      }, 'Using JPL orbital parameters for velocity');
     }
     // If no JPL, try TheSkyLive calculated velocity (from orbital elements)
     else if (theSkyData?.calculated_velocity) {
       heliocentric_velocity = theSkyData.calculated_velocity;
       velocity_source = 'TheSkyLive orbital elements (vis-viva equation)';
-      console.log(`Using TheSkyLive calculated velocity: ${heliocentric_velocity.toFixed(2)} km/s`);
+      logger.info({
+        heliocentric_velocity: parseFloat(heliocentric_velocity.toFixed(2)),
+        source: velocity_source
+      }, 'Using TheSkyLive calculated velocity');
     }
     // If no TheSkyLive calculated velocity, try calculating from MPC orbital elements
     else if (mpcData?.orbital_elements?.eccentricity && mpcData?.orbital_elements?.perihelion_distance) {
@@ -601,7 +655,10 @@ export class DataSourceManager {
       if (calculated_velocity !== null) {
         heliocentric_velocity = calculated_velocity;
         velocity_source = 'MPC orbital elements (vis-viva equation)';
-        console.log(`Using MPC orbital elements for velocity calculation: ${heliocentric_velocity.toFixed(2)} km/s`);
+        logger.info({
+          heliocentric_velocity: parseFloat(heliocentric_velocity.toFixed(2)),
+          source: velocity_source
+        }, 'Using MPC orbital elements for velocity calculation');
       }
     }
     // Try manual calculation if TheSkyLive has orbital elements but no calculated velocity
@@ -615,14 +672,17 @@ export class DataSourceManager {
       if (calculated_velocity !== null) {
         heliocentric_velocity = calculated_velocity;
         velocity_source = 'TheSkyLive orbital elements (manual calculation)';
-        console.log(`Calculated velocity from TheSkyLive orbital elements: ${heliocentric_velocity.toFixed(2)} km/s`);
+        logger.info({
+          heliocentric_velocity: parseFloat(heliocentric_velocity.toFixed(2)),
+          source: velocity_source
+        }, 'Calculated velocity from TheSkyLive orbital elements');
       }
     }
 
     // FINAL FALLBACK: If no data source provided velocity, calculate from official orbital elements
     // This should ALWAYS work as long as we have distance data
     if (heliocentric_velocity === null) {
-      console.log('No velocity from data sources - calculating from official 3I/ATLAS orbital elements');
+      logger.info({}, 'No velocity from data sources - calculating from official 3I/ATLAS orbital elements');
 
       const calculated_velocity = this.calculateVelocityFromOrbitalElements(
         heliocentric_distance,
@@ -633,7 +693,10 @@ export class DataSourceManager {
       if (calculated_velocity !== null) {
         heliocentric_velocity = calculated_velocity;
         velocity_source = 'Official 3I/ATLAS orbital elements (IAU/MPC)';
-        console.log(`✓ Calculated velocity from official orbital elements: ${heliocentric_velocity.toFixed(2)} km/s`);
+        logger.info({
+          heliocentric_velocity: parseFloat(heliocentric_velocity.toFixed(2)),
+          source: velocity_source
+        }, 'Calculated velocity from official orbital elements');
       } else {
         // This should NEVER happen unless distance data is completely invalid
         throw new Error('CRITICAL: Failed to calculate velocity - distance data invalid');
@@ -654,13 +717,13 @@ export class DataSourceManager {
       angular_velocity = theSkyData.orbital_velocity * 0.01; // Convert to arcsec/day approximation
     }
 
-    console.log('Orbital mechanics summary:', {
-      heliocentric_velocity: `${heliocentric_velocity.toFixed(2)} km/s`,
-      geocentric_velocity: `${geocentric_velocity.toFixed(2)} km/s`,
-      heliocentric_distance: `${heliocentric_distance.toFixed(3)} AU`,
-      geocentric_distance: `${geocentric_distance.toFixed(3)} AU`,
+    logger.info({
+      heliocentric_velocity_km_s: parseFloat(heliocentric_velocity.toFixed(2)),
+      geocentric_velocity_km_s: parseFloat(geocentric_velocity.toFixed(2)),
+      heliocentric_distance_au: parseFloat(heliocentric_distance.toFixed(3)),
+      geocentric_distance_au: parseFloat(geocentric_distance.toFixed(3)),
       velocity_source
-    });
+    }, 'Orbital mechanics summary');
 
     // Calculate velocity changes (simplified - would need historical data for accurate trends)
     const acceleration = this.calculateAcceleration(jplData);
@@ -972,7 +1035,7 @@ export class DataSourceManager {
    */
   clearCache(): void {
     this.cache.clear();
-    console.log('DataSourceManager: All caches cleared');
+    logger.info({ instanceId: this.instanceId }, 'All caches cleared');
   }
 
   /**
@@ -981,12 +1044,18 @@ export class DataSourceManager {
   getCacheStatus(): CacheStatus {
     const now = Date.now();
 
-    console.log(`[DataSourceManager ${this.instanceId}] getCacheStatus called. Cache keys:`, Array.from(this.cache.keys()));
+    logger.info({
+      instanceId: this.instanceId,
+      cacheKeys: Array.from(this.cache.keys())
+    }, 'getCacheStatus called');
 
     const getStatus = (key: string, ttl: number) => {
       const entry = this.cache.get(key);
       if (!entry) {
-        console.log(`[DataSourceManager ${this.instanceId}] No cache entry for ${key}`);
+        logger.info({
+          instanceId: this.instanceId,
+          key
+        }, 'No cache entry for key');
         return { cached: false, status: 'none' as const };
       }
 
@@ -994,7 +1063,13 @@ export class DataSourceManager {
       const nextRefresh = Math.max(0, entry.ttl - age);
       const isFresh = age < ttl;
 
-      console.log(`[DataSourceManager ${this.instanceId}] ${key}: age=${age}ms, isFresh=${isFresh}`);
+      logger.info({
+        instanceId: this.instanceId,
+        key,
+        age,
+        isFresh,
+        ttl
+      }, 'Cache entry status');
 
       return {
         cached: true,
