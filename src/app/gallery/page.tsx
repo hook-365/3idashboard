@@ -48,10 +48,10 @@ export default function GalleryPage() {
 
   const fetchGalleryImages = async () => {
     try {
-      // Try to get from localStorage cache first
-      const cachedDataStr = localStorage.getItem(CACHE_KEY);
-      if (cachedDataStr) {
-        try {
+      // Try to get from localStorage cache first (with fallback for blocked access)
+      try {
+        const cachedDataStr = localStorage.getItem(CACHE_KEY);
+        if (cachedDataStr) {
           const cachedData: CachedData = JSON.parse(cachedDataStr);
           const now = Date.now();
 
@@ -62,10 +62,10 @@ export default function GalleryPage() {
             setLoading(false);
             return;
           }
-        } catch {
-          // If parsing fails, clear the cache and fetch fresh data
-          localStorage.removeItem(CACHE_KEY);
         }
+      } catch (storageError) {
+        // localStorage access denied or parsing failed - just skip cache
+        console.warn('localStorage unavailable, fetching fresh data');
       }
 
       // Cache miss or expired - fetch from API
@@ -75,12 +75,17 @@ export default function GalleryPage() {
       if (result.success) {
         setImages(result.data);
 
-        // Store in cache with timestamp
-        const cacheData: CachedData = {
-          data: result.data,
-          timestamp: Date.now()
-        };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+        // Store in cache with timestamp (with fallback for blocked access)
+        try {
+          const cacheData: CachedData = {
+            data: result.data,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+        } catch (storageError) {
+          // localStorage access denied - just skip caching
+          console.warn('localStorage unavailable, skipping cache');
+        }
       }
     } catch (error) {
       console.error('Error fetching gallery images:', error);
