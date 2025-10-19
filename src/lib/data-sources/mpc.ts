@@ -18,6 +18,7 @@
 
 import { gunzipSync } from 'zlib';
 import type { MPCOrbitalElements, MPCSourceData } from '@/types/enhanced-comet-data';
+import logger from '@/lib/logger';
 
 // MPC API configuration
 const MPC_COMET_ELEMENTS_URL = 'https://www.minorplanetcenter.net/Extended_Files/cometels.json.gz';
@@ -156,7 +157,15 @@ function julianToISO(jd: number): string {
 function parseMPCElement(element: MPCCometElement): MPCOrbitalElements | null {
   // Validate required fields
   if (!element.q || !element.e || !element.i || !element.Node || !element.Peri) {
-    console.warn('MPC element missing required orbital parameters');
+    logger.warn({
+      designation: element.Designation,
+      name: element.Name,
+      hasQ: !!element.q,
+      hasE: !!element.e,
+      hasI: !!element.i,
+      hasNode: !!element.Node,
+      hasPeri: !!element.Peri
+    }, 'MPC element missing required orbital parameters');
     return null;
   }
 
@@ -206,7 +215,7 @@ function parseMPCElement(element: MPCCometElement): MPCOrbitalElements | null {
  * Find 3I/ATLAS in MPC comet elements database
  */
 function find3IAtlasInMPCData(comets: MPCCometElement[]): MPCCometElement | null {
-  console.log(`Searching for 3I/ATLAS in ${comets.length} MPC comet records...`);
+  logger.info({ recordCount: comets.length }, 'Searching for 3I/ATLAS in MPC comet records');
 
   // Search strategies (in order of preference):
   // 1. Exact designation match "3I"
@@ -216,7 +225,7 @@ function find3IAtlasInMPCData(comets: MPCCometElement[]): MPCCometElement | null
   for (const comet of comets) {
     // Strategy 1: Exact designation
     if (comet.Designation === '3I') {
-      console.log('Found 3I/ATLAS by exact designation match');
+      logger.info({ designation: comet.Designation, name: comet.Name }, 'Found 3I/ATLAS by exact designation match');
       return comet;
     }
   }
@@ -227,7 +236,7 @@ function find3IAtlasInMPCData(comets: MPCCometElement[]): MPCCometElement | null
       comet.Designation.includes('3I') ||
       comet.Designation.includes('C/2025 N1')
     )) {
-      console.log(`Found 3I/ATLAS by designation: ${comet.Designation}`);
+      logger.info({ designation: comet.Designation, name: comet.Name }, 'Found 3I/ATLAS by designation match');
       return comet;
     }
   }
@@ -238,12 +247,12 @@ function find3IAtlasInMPCData(comets: MPCCometElement[]): MPCCometElement | null
       comet.Name.toUpperCase().includes('ATLAS') ||
       comet.Name.includes('3I')
     )) {
-      console.log(`Found 3I/ATLAS by name: ${comet.Name}`);
+      logger.info({ designation: comet.Designation, name: comet.Name }, 'Found 3I/ATLAS by name match');
       return comet;
     }
   }
 
-  console.warn('3I/ATLAS not found in MPC database');
+  logger.warn({ recordCount: comets.length }, '3I/ATLAS not found in MPC database');
   return null;
 }
 
@@ -255,7 +264,7 @@ async function fetchMPCDataWithRetry(maxRetries: number = 3): Promise<MPCCometEl
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`Fetching MPC comet elements (attempt ${attempt}/${maxRetries})...`);
+      logger.info({ attempt, maxRetries, url: MPC_COMET_ELEMENTS_URL }, 'Fetching MPC comet elements');
 
       await rateLimiter.waitForSlot();
 
@@ -282,7 +291,10 @@ async function fetchMPCDataWithRetry(maxRetries: number = 3): Promise<MPCCometEl
       const buffer = Buffer.from(arrayBuffer);
 
       // Decompress gzip data
-      console.log(`Decompressing ${buffer.length} bytes of gzipped MPC data...`);
+      logger.info({
+        compressedSizeBytes: buffer.length,
+        attempt
+      }, 'Decompressing gzipped MPC data');
       const decompressed = gunzipSync(buffer);
       const jsonString = decompressed.toString('utf-8');
 
@@ -293,16 +305,29 @@ async function fetchMPCDataWithRetry(maxRetries: number = 3): Promise<MPCCometEl
         throw new Error('MPC returned invalid or empty data');
       }
 
-      console.log(`Successfully fetched and parsed ${data.length} MPC comet records`);
+      logger.info({
+        recordCount: data.length,
+        decompressedSizeBytes: decompressed.length,
+        compressionRatio: (buffer.length / decompressed.length).toFixed(2)
+      }, 'Successfully fetched and parsed MPC comet records');
       return data;
 
     } catch (error) {
       lastError = error as Error;
-      console.error(`MPC fetch attempt ${attempt} failed:`, error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        attempt,
+        maxRetries
+      }, 'MPC fetch attempt failed');
 
       if (attempt < maxRetries) {
         const backoffMs = attempt * 5000; // 5s, 10s, 15s backoff
-        console.log(`Retrying in ${backoffMs / 1000}s...`);
+        logger.info({
+          backoffMs,
+          backoffSeconds: backoffMs / 1000,
+          nextAttempt: attempt + 1
+        }, 'Retrying MPC fetch after backoff');
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
     }
@@ -320,7 +345,7 @@ export async function fetchMPCData(): Promise<MPCSourceData> {
   // Check cache first
   const cached = cache.get<MPCSourceData>(cacheKey);
   if (cached) {
-    console.log('MPC cache hit - returning cached data');
+    logger.info({ cacheKey }, 'MPC cache hit - returning cached data');
     return cached;
   }
 
@@ -353,11 +378,20 @@ export async function fetchMPCData(): Promise<MPCSourceData> {
     // Cache for 24 hours
     cache.set(cacheKey, result, 86400000);
 
-    console.log('Successfully fetched MPC data for 3I/ATLAS');
+    logger.info({
+      designation: result.designation,
+      name: result.name,
+      eccentricity: result.orbital_elements.eccentricity,
+      perihelion_distance: result.orbital_elements.perihelion_distance,
+      cacheKey
+    }, 'Successfully fetched MPC data for 3I/ATLAS');
     return result;
 
   } catch (error) {
-    console.error('Failed to fetch MPC data:', error);
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Failed to fetch MPC data');
     throw error;
   }
 }
@@ -371,8 +405,10 @@ export async function getMPCOrbitalData(): Promise<MPCSourceData | null> {
   try {
     return await fetchMPCData();
   } catch (error) {
-    console.error('Critical error in MPC data fetch:', error);
-    console.log('Returning null - MPC data unavailable');
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Critical error in MPC data fetch - returning null');
     return null;
   }
 }
