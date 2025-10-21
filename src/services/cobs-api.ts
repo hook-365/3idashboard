@@ -6,6 +6,7 @@
  */
 
 import { format } from 'date-fns';
+import logger from '@/lib/logger';
 
 // TypeScript interfaces for COBS data structures
 export interface COBSObservation {
@@ -195,7 +196,7 @@ export class COBSApiClient {
     // Normalize designation to COBS format
     // Default: '3I/ATLAS' → '3I' (COBS database ID: 2643)
     this.cometDesignation = normalizeCOBSDesignation(designation);
-    console.log(`[COBSApiClient] Initialized with designation: ${designation} → normalized: ${this.cometDesignation}`);
+    logger.info({ designation, normalized: this.cometDesignation }, 'COBSApiClient initialized');
   }
 
   // Known observer locations (can be expanded)
@@ -296,7 +297,10 @@ export class COBSApiClient {
         tail,
       };
     } catch (error) {
-      console.error('Error parsing JSON observation:', error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }, 'Error parsing JSON observation');
       return null;
     }
   }
@@ -397,7 +401,10 @@ export class COBSApiClient {
         tail,
       };
     } catch (error) {
-      console.error('Error parsing observation line:', error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }, 'Error parsing observation line');
       return null;
     }
   }
@@ -512,12 +519,16 @@ export class COBSApiClient {
     const cacheKey = `raw_observations_${this.cometDesignation}`;
     const cached = this.cache.get<COBSObservation[]>(cacheKey);
     if (cached && !forceRefresh) {
-      console.log(`[${this.cometDesignation}] Cache hit: returning ${cached.length} observations`);
+      logger.info({
+        designation: this.cometDesignation,
+        observationCount: cached.length,
+        cacheKey
+      }, 'Cache hit for COBS observations');
       return cached;
     }
 
     if (forceRefresh) {
-      console.log(`[${this.cometDesignation}] Force refresh: bypassing cache`);
+      logger.info({ designation: this.cometDesignation }, 'Force refresh: bypassing cache');
     }
 
     let lastError: Error | null = null;
@@ -526,7 +537,11 @@ export class COBSApiClient {
       try {
         await this.rateLimiter.waitForSlot();
 
-        console.log(`[${this.cometDesignation}] Fetching COBS data (attempt ${attempt}/${this.retryAttempts})...`);
+        logger.info({
+          designation: this.cometDesignation,
+          attempt,
+          maxRetries: this.retryAttempts
+        }, 'Fetching COBS data');
 
         // Query for comet observations in JSON format (much more reliable than ICQ)
         const params = new URLSearchParams({
@@ -573,7 +588,10 @@ export class COBSApiClient {
 
         // Extract observations from JSON response
         const objects = jsonData.objects || [];
-        console.log(`Received ${objects.length} observations from COBS API (JSON format)`);
+        logger.info({
+          objectCount: objects.length,
+          format: 'json'
+        }, 'Received observations from COBS API');
 
         const observations: COBSObservation[] = [];
         let parsedCount = 0;
@@ -589,12 +607,19 @@ export class COBSApiClient {
           } catch (parseError) {
             errorCount++;
             if (errorCount < 5) { // Log first few parse errors
-              console.warn('Parse error for observation:', parseError);
+              logger.warn({
+                error: parseError instanceof Error ? parseError.message : String(parseError),
+                errorNumber: errorCount
+              }, 'Parse error for observation');
             }
           }
         }
 
-        console.log(`Parsed ${parsedCount} valid observations, ${errorCount} parse errors`);
+        logger.info({
+          parsedCount,
+          errorCount,
+          totalObjects: objects.length
+        }, 'Observation parsing completed');
 
         if (observations.length === 0) {
           throw new Error(`No valid observations found in COBS response for designation: ${this.cometDesignation}`);
@@ -603,16 +628,31 @@ export class COBSApiClient {
         // Cache for 5 minutes (300000ms)
         this.cache.set(cacheKey, observations, 300000);
 
-        console.log(`Successfully cached ${observations.length} observations for ${this.cometDesignation}`);
+        logger.info({
+          designation: this.cometDesignation,
+          observationCount: observations.length,
+          cacheKey,
+          ttlMs: 300000
+        }, 'Successfully cached COBS observations');
         return observations;
 
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        console.error(`COBS API attempt ${attempt} failed:`, lastError.message);
+        logger.error({
+          error: lastError.message,
+          stack: lastError.stack,
+          attempt,
+          maxRetries: this.retryAttempts,
+          designation: this.cometDesignation
+        }, 'COBS API attempt failed');
 
         if (attempt < this.retryAttempts) {
           const delay = this.retryDelay * attempt; // Exponential backoff
-          console.log(`Retrying in ${delay}ms...`);
+          logger.info({
+            delayMs: delay,
+            nextAttempt: attempt + 1,
+            maxRetries: this.retryAttempts
+          }, 'Retrying COBS API fetch');
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
