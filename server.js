@@ -1,6 +1,7 @@
 const { createServer } = require('http')
 const { parse } = require('url')
 const next = require('next')
+const compression = require('compression')
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = process.env.HOSTNAME || '0.0.0.0'
@@ -9,11 +10,28 @@ const port = process.env.PORT || 3000
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
+// Configure compression middleware
+const compress = compression({
+  level: 6, // Balanced compression level (1-9, 6 is default)
+  threshold: 1024, // Only compress responses larger than 1KB
+  filter: (req, res) => {
+    // Skip compression if client doesn't support it
+    if (req.headers['x-no-compression']) {
+      return false
+    }
+    // Use default filter function
+    return compression.filter(req, res)
+  }
+})
+
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
     try {
-      const parsedUrl = parse(req.url, true)
-      await handle(req, res, parsedUrl)
+      // Apply compression middleware
+      compress(req, res, async () => {
+        const parsedUrl = parse(req.url, true)
+        await handle(req, res, parsedUrl)
+      })
     } catch (err) {
       console.error('Error occurred handling', req.url, err)
       res.statusCode = 500
@@ -56,5 +74,6 @@ app.prepare().then(() => {
       console.log(`> Ready on http://${hostname}:${port}`)
       console.log(`> Environment: ${dev ? 'development' : 'production'}`)
       console.log(`> Process ID: ${process.pid}`)
+      console.log(`> Compression: enabled (gzip, level 6, threshold 1KB)`)
     })
 })
