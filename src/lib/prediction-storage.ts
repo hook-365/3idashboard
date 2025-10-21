@@ -13,6 +13,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import logger from '@/lib/logger';
 import type { EphemerisPoint } from './data-sources/theskylive';
 
 const PREDICTIONS_DIR = path.join(process.cwd(), 'data', 'predictions');
@@ -32,7 +33,7 @@ export interface StoredPrediction {
 function ensurePredictionsDir(): void {
   if (!fs.existsSync(PREDICTIONS_DIR)) {
     fs.mkdirSync(PREDICTIONS_DIR, { recursive: true });
-    console.log(`Created predictions directory: ${PREDICTIONS_DIR}`);
+    logger.info({ directory: PREDICTIONS_DIR }, 'Created predictions directory');
   }
 }
 
@@ -48,7 +49,7 @@ export async function storePredictions(predictions: EphemerisPoint[]): Promise<v
   const today = new Date().toISOString().split('T')[0];
   const filename = path.join(PREDICTIONS_DIR, `predictions_${today}.json`);
 
-  console.log(`Storing ${predictions.length} predictions to ${filename}`);
+  logger.info({ predictionCount: predictions.length, filename }, 'Storing predictions');
 
   // Read existing predictions if file exists
   let existingPredictions: StoredPrediction[] = [];
@@ -56,9 +57,13 @@ export async function storePredictions(predictions: EphemerisPoint[]): Promise<v
     try {
       const fileContent = fs.readFileSync(filename, 'utf-8');
       existingPredictions = JSON.parse(fileContent);
-      console.log(`Found ${existingPredictions.length} existing predictions`);
+      logger.info({ existingCount: existingPredictions.length }, 'Found existing predictions');
     } catch (error) {
-      console.error('Error reading existing predictions file:', error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        filename
+      }, 'Error reading existing predictions file');
       // If file is corrupted, we'll overwrite it
       existingPredictions = [];
     }
@@ -85,7 +90,7 @@ export async function storePredictions(predictions: EphemerisPoint[]): Promise<v
     ).values()
   );
 
-  console.log(`After deduplication: ${uniquePredictions.length} unique predictions`);
+  logger.info({ uniqueCount: uniquePredictions.length }, 'Predictions deduplicated');
 
   // Sort by target date for easier browsing
   uniquePredictions.sort((a, b) => a.date.localeCompare(b.date));
@@ -93,7 +98,7 @@ export async function storePredictions(predictions: EphemerisPoint[]): Promise<v
   // Write to file with pretty formatting
   fs.writeFileSync(filename, JSON.stringify(uniquePredictions, null, 2), 'utf-8');
 
-  console.log(`Successfully stored predictions to ${filename}`);
+  logger.info({ filename, predictionCount: uniquePredictions.length }, 'Successfully stored predictions');
 }
 
 /**
@@ -107,7 +112,7 @@ export function loadPredictionsForDate(date: string): StoredPrediction[] {
   ensurePredictionsDir();
 
   if (!fs.existsSync(PREDICTIONS_DIR)) {
-    console.log('Predictions directory does not exist');
+    logger.info({}, 'Predictions directory does not exist');
     return [];
   }
 
@@ -126,11 +131,15 @@ export function loadPredictionsForDate(date: string): StoredPrediction[] {
       const matching = content.filter((p: StoredPrediction) => p.date === date);
       predictions.push(...matching);
     } catch (error) {
-      console.error(`Error reading prediction file ${file}:`, error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        file
+      }, 'Error reading prediction file');
     }
   }
 
-  console.log(`Found ${predictions.length} predictions for date ${date}`);
+  logger.info({ predictionCount: predictions.length, targetDate: date }, 'Found predictions for date');
   return predictions;
 }
 
@@ -148,7 +157,7 @@ export function loadPredictionsForDateRange(
   ensurePredictionsDir();
 
   if (!fs.existsSync(PREDICTIONS_DIR)) {
-    console.log('Predictions directory does not exist');
+    logger.info({}, 'Predictions directory does not exist');
     return [];
   }
 
@@ -169,13 +178,19 @@ export function loadPredictionsForDateRange(
       );
       predictions.push(...matching);
     } catch (error) {
-      console.error(`Error reading prediction file ${file}:`, error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        file
+      }, 'Error reading prediction file');
     }
   }
 
-  console.log(
-    `Found ${predictions.length} predictions for date range ${startDate} to ${endDate}`
-  );
+  logger.info({
+    predictionCount: predictions.length,
+    startDate,
+    endDate
+  }, 'Found predictions for date range');
   return predictions;
 }
 
@@ -234,7 +249,11 @@ export function getPredictionStats(): {
         allPredictionDates.push(p.prediction_date);
       });
     } catch (error) {
-      console.error(`Error reading prediction file ${file}:`, error);
+      logger.error({
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        file
+      }, 'Error reading prediction file');
     }
   }
 
