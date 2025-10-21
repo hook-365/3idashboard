@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { Line } from 'react-chartjs-2';
 import type { ChartOptions, ChartData } from 'chart.js';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
@@ -25,7 +25,7 @@ interface OrbitalVelocityChartProps {
   showTrendLine?: boolean;
 }
 
-export default function OrbitalVelocityChart({
+const OrbitalVelocityChart = memo(function OrbitalVelocityChart({
   data,
   title = "Orbital Velocity Evolution",
   showMultipleVelocities = true,
@@ -394,4 +394,6 @@ export default function OrbitalVelocityChart({
       </div>
     </div>
   );
-}
+});
+
+export default OrbitalVelocityChart;

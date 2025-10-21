@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { Line } from 'react-chartjs-2';
 import type { ChartOptions, ChartData } from 'chart.js';
 import { ANALYTICS_DATE_CONFIG } from '@/utils/analytics-config';
@@ -28,7 +28,7 @@ interface VelocityChartProps {
   showTrend?: boolean;
 }
 
-export default function VelocityChart({
+const VelocityChart = memo(function VelocityChart({
   data,
   title,
   yAxisLabel,
@@ -288,7 +288,9 @@ export default function VelocityChart({
       )}
     </div>
   );
-}
+});
+
+export default VelocityChart;
 
 function calculateTrendLine(data: VelocityDataPoint[]): Array<{ x: string; y: number }> {
   if (data.length < 2) return [];
