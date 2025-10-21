@@ -13,6 +13,7 @@
  */
 
 import * as Astronomy from 'astronomy-engine';
+import logger from '@/lib/logger';
 
 /**
  * Convert equatorial coordinates to ecliptic coordinates
@@ -79,7 +80,7 @@ export function calculatePositionFromElements(
   }
 
   if (!converged && Math.abs(daysFromPerihelion) < 100) {
-    console.warn(`Warning: Kepler solver did not converge for days=${daysFromPerihelion.toFixed(1)}, M=${M.toFixed(4)}, H=${H.toFixed(4)}`);
+    logger.warn({ daysFromPerihelion: parseFloat(daysFromPerihelion.toFixed(1)), meanAnomaly: parseFloat(M.toFixed(4)), hyperbolicAnomaly: parseFloat(H.toFixed(4)) }, 'Kepler solver did not converge');
   }
 
   // True anomaly from hyperbolic anomaly
@@ -96,7 +97,7 @@ export function calculatePositionFromElements(
 
   // Debug key points
   if (Math.abs(daysFromPerihelion) < 1 || Math.abs(daysFromPerihelion - 30) < 1 || Math.abs(daysFromPerihelion + 30) < 1) {
-    console.log(`days=${daysFromPerihelion.toFixed(1)}, M=${M.toFixed(4)}, H=${H.toFixed(4)}, v=${(nu * 180 / Math.PI).toFixed(2)} deg, r=${r.toFixed(3)} AU`);
+    logger.info({ days: parseFloat(daysFromPerihelion.toFixed(1)), M: parseFloat(M.toFixed(4)), H: parseFloat(H.toFixed(4)), trueAnomaly_deg: parseFloat((nu * 180 / Math.PI).toFixed(2)), distance_au: parseFloat(r.toFixed(3)) }, 'Orbital key point');
   }
 
   // Rotation matrices to convert from orbital plane to ecliptic coordinates
@@ -153,7 +154,7 @@ export function calculateAtlasProjectionFromStateVectors(
     });
 
     if (distance_from_sun > maxDistance) {
-      console.log(`Warning: Projection stopped at ${distance_from_sun.toFixed(1)} AU`);
+      logger.warn({ distance_au: parseFloat(distance_from_sun.toFixed(1)), maxDistance_au: maxDistance }, 'Projection stopped at max distance');
       break;
     }
 
@@ -171,7 +172,7 @@ export function calculateAtlasProjectionFromStateVectors(
     pos[2] += vel[2] * sampleInterval;
   }
 
-  console.log(`Calculated ${projection.length} projection points from JPL state vectors`);
+  logger.info({ pointCount: projection.length }, 'Calculated projection points from JPL state vectors');
   return projection;
 }
 
@@ -208,7 +209,7 @@ export function calculateAtlasTrailFromOrbit(
   const effectiveTrailDays = Math.min(trailDays, Math.floor(daysSinceDiscovery));
   const numSteps = Math.floor(effectiveTrailDays / sampleInterval);
 
-  console.log(`Trail limited to ${effectiveTrailDays} days (since discovery on June 14, 2025)`);
+  logger.info({ effectiveTrailDays, discoveryDate: '2025-06-14' }, 'Trail limited to days since discovery');
 
   // Integrate backward in time
   for (let step = 0; step <= numSteps; step++) {
@@ -245,11 +246,16 @@ export function calculateAtlasTrailFromOrbit(
   // Reverse array so it goes from oldest to newest
   trail.reverse();
 
-  console.log(`Calculated ${trail.length} trail points using backward numerical integration from JPL state vectors`);
+  logger.info({ pointCount: trail.length }, 'Calculated trail points using backward numerical integration');
   if (trail.length > 0) {
-    console.log(`Trail endpoints: first=(${trail[0].x.toFixed(3)}, ${trail[0].y.toFixed(3)}), last=(${trail[trail.length-1].x.toFixed(3)}, ${trail[trail.length-1].y.toFixed(3)})`);
+    logger.info({
+      first: { x: parseFloat(trail[0].x.toFixed(3)), y: parseFloat(trail[0].y.toFixed(3)) },
+      last: { x: parseFloat(trail[trail.length-1].x.toFixed(3)), y: parseFloat(trail[trail.length-1].y.toFixed(3)) }
+    }, 'Trail endpoints');
   }
-  console.log(`Input position: (${currentPos[0].toFixed(3)}, ${currentPos[1].toFixed(3)})`);
+  logger.info({
+    position: { x: parseFloat(currentPos[0].toFixed(3)), y: parseFloat(currentPos[1].toFixed(3)) }
+  }, 'Input position for trail calculation');
   return trail;
 }
 
