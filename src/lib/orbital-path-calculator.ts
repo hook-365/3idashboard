@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import logger from '@/lib/logger';
 
 export interface OrbitalElements {
   e: number;      // eccentricity (0 = circular, 0-1 = elliptical, ~1 = parabolic, >1 = hyperbolic)
@@ -157,7 +158,7 @@ export function calculateEclipticPosition(
   const { e, q, i, omega, w, T } = elements;
 
   if (!T) {
-    console.warn('Perihelion date (T) required for position calculation');
+    logger.warn({}, 'Perihelion date required for position calculation');
     return null;
   }
 
@@ -325,9 +326,9 @@ export function calculateOrbitPointsWithDates(
   }
 
   if (skippedPoints > 0) {
-    console.log(`[calculateOrbitPointsWithDates] Skipped ${skippedPoints} points (beyond 50 AU or calculation failed) for ${T.toISOString().split('T')[0]} (e=${e.toFixed(4)}, q=${q.toFixed(2)})`);
+    logger.info({ skippedPoints, date: T.toISOString().split('T')[0], eccentricity: parseFloat(e.toFixed(4)), perihelionDistance: parseFloat(q.toFixed(2)) }, 'Skipped orbit points beyond 50 AU or calculation failed');
   }
-  console.log(`[calculateOrbitPointsWithDates] Generated ${points.length} orbit points using Kepler equation solver over ${dayRange * 2} day span`);
+  logger.info({ pointCount: points.length, daySpan: dayRange * 2 }, 'Generated orbit points using Kepler equation solver');
 
   return points;
 }

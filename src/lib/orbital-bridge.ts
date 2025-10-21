@@ -7,6 +7,7 @@
  * This allows gradual migration of existing APIs without breaking changes.
  */
 
+import logger from '@/lib/logger';
 import {
   propagateOrbit,
   ATLAS_3I_ELEMENTS,
@@ -168,7 +169,7 @@ export function calculateAtlasProjectionFromStateVectors(
 
     // Stop if too far from Sun (> 100 AU)
     if (r > 100) {
-      console.log(`Projection stopped at ${r.toFixed(1)} AU`);
+      logger.info({ distance_au: parseFloat(r.toFixed(1)) }, 'Projection stopped at max distance');
       break;
     }
   }

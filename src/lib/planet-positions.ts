@@ -8,6 +8,7 @@
  */
 
 import * as Astronomy from 'astronomy-engine';
+import logger from '@/lib/logger';
 import { equatorialToEcliptic } from './orbital-calculations';
 
 /**
@@ -146,7 +147,7 @@ export function calculateAllPlanetPositions(date: Date = new Date()): Array<{
   z: number;
   distance_from_sun: number;
 }> {
-  console.log('Calculating planet positions using astronomy-engine for date:', date.toISOString());
+  logger.info({ date: date.toISOString() }, 'Calculating planet positions using astronomy-engine');
 
   const planets = [
     { name: 'Mercury', body: Astronomy.Body.Mercury },
@@ -173,7 +174,7 @@ export function calculateAllPlanetPositions(date: Date = new Date()): Array<{
       ecliptic.z * ecliptic.z
     );
 
-    console.log(`${planet.name} equatorial: (${position.x.toFixed(4)}, ${position.y.toFixed(4)}, ${position.z.toFixed(4)}) -> ecliptic: (${ecliptic.x.toFixed(4)}, ${ecliptic.y.toFixed(4)}, ${ecliptic.z.toFixed(4)}) AU`);
+    logger.info({ planetName: planet.name, equatorial: { x: parseFloat(position.x.toFixed(4)), y: parseFloat(position.y.toFixed(4)), z: parseFloat(position.z.toFixed(4)) }, ecliptic: { x: parseFloat(ecliptic.x.toFixed(4)), y: parseFloat(ecliptic.y.toFixed(4)), z: parseFloat(ecliptic.z.toFixed(4)) } }, 'Planet position calculated');
 
     return {
       name: planet.name,
@@ -198,7 +199,7 @@ export function calculatePlanetOrbitalPath(
 ): Array<{ x: number; y: number; z: number }> {
   const orbitData = PLANET_ORBITS.find(p => p.name === planetName);
   if (!orbitData) {
-    console.warn(`No orbit data found for ${planetName}`);
+    logger.warn({ planetName }, 'No orbit data found for planet');
     return [];
   }
 

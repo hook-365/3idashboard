@@ -1,4 +1,5 @@
 /**
+import logger from '@/lib/logger';
  * Professional-Grade Orbital Mechanics Library
  *
  * Professional-quality orbital integration for 3I/ATLAS interstellar comet.
@@ -202,7 +203,7 @@ export function gravitationalAcceleration(position: [number, number, number]): [
   const r = Math.sqrt(position[0]**2 + position[1]**2 + position[2]**2);
 
   if (r === 0) {
-    console.error('Division by zero in gravitational acceleration');
+    logger.error({}, 'Division by zero in gravitational acceleration');
     return [0, 0, 0];
   }
 
