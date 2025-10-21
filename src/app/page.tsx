@@ -102,11 +102,17 @@ function LatestObservationsCollapsible({ observations }: { observations: Observa
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-chart-primary)] to-[var(--color-chart-secondary)] flex items-center justify-center text-white font-bold text-sm">
-                    {obs.observer.name.charAt(0).toUpperCase()}
+                    {obs.observer?.name?.charAt(0)?.toUpperCase() || '?'}
                   </div>
                   <div>
-                    <div className="font-semibold text-[var(--color-text-primary)]">{obs.observer.name}</div>
-                    <div className="text-xs text-[var(--color-text-tertiary)]">{obs.observer.location?.name || 'Unknown location'}</div>
+                    <div className="font-semibold text-[var(--color-text-primary)]">{obs.observer?.name || 'Unknown'}</div>
+                    <div className="text-xs text-[var(--color-text-tertiary)]">
+                      {obs.observer?.location ? (
+                        typeof obs.observer.location === 'object' && 'name' in obs.observer.location
+                          ? (obs.observer.location as { name: string }).name
+                          : String(obs.observer.location)
+                      ) : 'Unknown location'}
+                    </div>
                   </div>
                 </div>
 

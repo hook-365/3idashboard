@@ -83,7 +83,7 @@ export default function CometsPage() {
         json.data.comets.forEach((comet: CometInfo) => {
           console.log(`  ${comet.name}:`, {
             sunDistance: comet.current.sunDistance,
-            position_3d: comet.current.position_3d
+            earthDistance: comet.current.earthDistance
           });
         });
 

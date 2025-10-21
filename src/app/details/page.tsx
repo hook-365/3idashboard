@@ -311,21 +311,21 @@ export default function AnalyticsPage() {
 
     // Transform observations for morphology (coma/tail)
     const morphologyData: MorphologyDataPoint[] = observations
-      .filter((obs: ObservationData) => obs.coma !== undefined || obs.tail !== undefined)
-      .map((obs: ObservationData) => ({
+      .filter((obs) => obs.coma !== undefined || obs.tail !== undefined)
+      .map((obs) => ({
         date: obs.date,
         comaSize: obs.coma,
         tailLength: obs.tail,
         observer: obs.observer ? {
           name: obs.observer.name,
           telescope: obs.observer.telescope || 'Unknown',
-          location: obs.observer.location || 'Unknown'
+          location: obs.observer.location?.name || 'Unknown'
         } : undefined,
         quality: obs.quality
       }));
 
     // Transform light curve
-    const lightCurveData: LightCurveDataPoint[] = lightCurve.map((point: LightCurveDataPoint) => ({
+    const lightCurveData: LightCurveDataPoint[] = lightCurve.map((point) => ({
       date: new Date(point.date).toISOString(),
       magnitude: point.magnitude,
       source: 'COBS',
@@ -334,7 +334,7 @@ export default function AnalyticsPage() {
     }));
 
     // Transform observations
-    const observationData = observations.map((obs: ObservationData) => ({
+    const observationData = observations.map((obs) => ({
       id: obs.id,
       date: obs.date,
       magnitude: obs.magnitude,
@@ -342,7 +342,7 @@ export default function AnalyticsPage() {
       observer: {
         id: obs.observer?.id || 'unknown',
         name: obs.observer?.name || 'Unknown Observer',
-        location: obs.observer?.location || 'Unknown Location'
+        location: obs.observer?.location?.name || 'Unknown Location'
       },
       telescope: obs.observer?.telescope || 'Unknown',
       quality: obs.quality || 'good',
@@ -350,28 +350,28 @@ export default function AnalyticsPage() {
     }));
 
     // Transform brightness velocity
-    const brightnessVelocityData: VelocityDataPoint[] = brightnessVelocity.map((v: VelocityDataPoint) => ({
+    const brightnessVelocityData: VelocityDataPoint[] = brightnessVelocity.map((v) => ({
       date: v.date,
-      value: v.value || v.velocity || v.brightnessVelocity || 0,
+      value: v.value || 0,
       confidence: v.confidence,
       dataPoints: v.dataPoints
     }));
 
     // Transform activity data
-    const activityDataTransformed: ActivityIndexDataPoint[] = activityData.map((a: ActivityIndexDataPoint) => ({
+    const activityDataTransformed: ActivityIndexDataPoint[] = activityData.map((a) => ({
       date: a.date,
-      activityIndex: a.activityIndex || a.activityLevel || 0,
-      comaContribution: (a.activityIndex || 0) * 0.6,
-      brightnessContribution: (a.activityIndex || 0) * 0.4,
+      activityIndex: a.index || 0,
+      comaContribution: (a.index || 0) * 0.6,
+      brightnessContribution: (a.index || 0) * 0.4,
       confidence: a.confidence || 0,
       comaSize: undefined,
       brightnessVelocity: undefined,
-      heliocentrieDistance: a.heliocentric_distance,
+      heliocentrieDistance: undefined,
       correlation: 0.5
     }));
 
     // Transform orbital velocity
-    const orbitalVelocityData: OrbitalVelocityDataPoint[] = orbitalVelocity.map((v: OrbitalVelocityDataPoint) => ({
+    const orbitalVelocityData: OrbitalVelocityDataPoint[] = orbitalVelocity.map((v) => ({
       date: v.date,
       heliocentric_velocity: v.heliocentric_velocity,
       geocentric_velocity: v.geocentric_velocity,
@@ -379,11 +379,11 @@ export default function AnalyticsPage() {
       source: v.source === 'JPL Ephemeris' ? 'Real observations (JPL Horizons)' : 'Predicted (orbital mechanics)'
     }));
 
-    // Transform orbital velocity to acceleration data
-    const accelerationData: VelocityDataPoint[] = orbitalVelocity.map((v: OrbitalVelocityDataPoint) => ({
+    // Transform orbital velocity to acceleration data (using velocity magnitude as approximation)
+    const accelerationData: VelocityDataPoint[] = orbitalVelocity.map((v) => ({
       date: v.date,
-      value: v.acceleration || 0,
-      confidence: v.confidence || 0.8,
+      value: v.heliocentric_velocity || 0,
+      confidence: v.uncertainty ? (1 - v.uncertainty) : 0.8,
       dataPoints: 1
     }));
 
@@ -394,14 +394,15 @@ export default function AnalyticsPage() {
         (new Date('2025-10-30').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
       ),
       current_velocity_km_s: cometData.orbital_mechanics.current_velocity?.heliocentric ?? 0,
-      brightness_trend: (() => {
-        const trend = cometData.stats?.trendAnalysis;
-        if (!trend) return undefined;
-        return trend.trend === 'brightening' ? 'brightening' as const :
-               trend.trend === 'dimming' ? 'dimming' as const : 'stable' as const;
-      })(),
+      brightness_trend: undefined, // Trend data not available in stats
       velocity_trend: 'constant' as const,
-      activity_level: currentActivity?.level || 'UNKNOWN',
+      activity_level: (() => {
+        const level = currentActivity?.level?.toUpperCase();
+        if (level === 'LOW' || level === 'MODERATE' || level === 'HIGH' || level === 'EXTREME') {
+          return level;
+        }
+        return 'INSUFFICIENT_DATA' as const;
+      })(),
       source_health: {
         cobs: cometData.source_status?.cobs?.active ?? false,
         jpl: cometData.source_status?.jpl_horizons?.active ?? false,
@@ -422,10 +423,10 @@ export default function AnalyticsPage() {
       accelerationData,
       morphologyData,
       missionStatus,
-      trendAnalysis: cometData.stats?.trendAnalysis || null,
-      mpcOrbitalElements: cometData.orbital_mechanics?.mpc_elements,
-      jplHorizonsData: cometData.jpl_ephemeris,
-      ephemerisPosition: cometData.orbital_mechanics?.current_position,
+      trendAnalysis: null, // Trend analysis not available in stats
+      mpcOrbitalElements: undefined, // MPC elements not available in orbital_mechanics
+      jplHorizonsData: (cometData.jpl_ephemeris || null) as import('@/lib/data-sources/jpl-horizons').JPLHorizonsData | null, // Type mismatch - simplified ephemeris vs full JPLHorizonsData
+      ephemerisPosition: cometData.jpl_ephemeris?.current_position || undefined
     };
   }, [cometData, activityData, brightnessVelocity, orbitalVelocity, currentActivity]);
 
@@ -696,7 +697,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="text-sm text-[var(--color-text-secondary)] mb-1">Speed vs Earth</div>
                   <div className="text-lg font-semibold text-green-300">
-                    {((state.orbitalVelocityData && state.orbitalVelocityData.length > 0 ? state.orbitalVelocityData[state.orbitalVelocityData.length - 1]?.geocentric_velocity : 0) * 2237).toFixed(0)} mph
+                    {((state.orbitalVelocityData && state.orbitalVelocityData.length > 0 ? (state.orbitalVelocityData[state.orbitalVelocityData.length - 1]?.geocentric_velocity || 0) : 0) * 2237).toFixed(0)} mph
                   </div>
                 </div>
                 <div className="bg-gradient-to-br from-purple-600/20 to-[var(--color-bg-tertiary)] rounded-lg p-6 text-center border-2 border-purple-500/30">

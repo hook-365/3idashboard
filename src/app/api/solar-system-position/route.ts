@@ -468,8 +468,8 @@ export async function GET(request: NextRequest) {
 
     logger.info({
       processingTimeMs: processingTime,
-      trailPoints: trail.length,
-      projectionPoints: projection.length,
+      trailPoints: orbitalTrail.length,
+      projectionPoints: orbitalProjection.length,
       dataSource: cometDataSource
     }, 'Solar system position API completed');
 
