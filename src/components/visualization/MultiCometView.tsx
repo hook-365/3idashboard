@@ -397,7 +397,7 @@ export default function MultiCometView({ comets, showSun = true, showEarth = tru
         const cometColorNum = parseInt(comet.color.replace('#', '0x'));
 
         // Determine which trajectory to use
-        let trajectoryPoints: THREE.Vector3[] = [];
+        const trajectoryPoints: THREE.Vector3[] = [];
 
         if (comet.name === '3I/ATLAS') {
           // Use real trajectory data from API

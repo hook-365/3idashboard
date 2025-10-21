@@ -549,7 +549,7 @@ export default function PredictionAccuracyViz({ epochsData }: PredictionAccuracy
       });
     });
 
-    setPlanetaryCloseApproaches(approaches as any);
+    setPlanetaryCloseApproaches(approaches);
     console.log('Planetary close approaches:', approaches);
   }, [epochsData]);
 

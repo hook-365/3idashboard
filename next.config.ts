@@ -20,13 +20,15 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // TypeScript and ESLint validation enabled for clean builds
+  // Warnings are allowed but errors will fail the build
   typescript: {
-    // Ignore type errors during build (for Chart.js compatibility)
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
-    // Warning: allows production builds to complete even with errors
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
+    // Allow warnings to pass through (only errors will fail build)
+    dirs: ['src', 'app'],
   },
   images: {
     remotePatterns: [

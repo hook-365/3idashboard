@@ -33,7 +33,7 @@ interface GalleryImage {
   title: string;
   description: string;
   date: string;
-  source: 'NASA' | 'ESA/Hubble' | 'ESA/ExoMars' | 'JWST' | 'Virtual Telescope' | 'Community' | 'NOIRLab/Gemini' | 'ESO';
+  source: 'NASA' | 'ESA/Hubble' | 'ESA/ExoMars' | 'JWST' | 'Virtual Telescope' | 'Community' | 'NOIRLab/Gemini' | 'ESO' | 'Research';
   imageUrl: string;
   thumbnailUrl: string;
   attribution: string;

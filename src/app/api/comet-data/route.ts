@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cobsApi } from '@/services/cobs-api';
 import { analyzeTrend, calculateRunningAverage } from '@/services/data-transforms';
-import { getEnhancedCometData } from '@/lib/data-sources/source-manager';
+import { getEnhancedCometData, type EnhancedCometData } from '@/lib/data-sources/source-manager';
 import logger from '@/lib/logger';
 
 // Helper function to build COBS-only response data
@@ -132,12 +132,12 @@ export async function GET(request: NextRequest) {
 
     // Try to fetch enhanced data with timeout, fall back to COBS-only on failure
     const ENHANCED_DATA_TIMEOUT = 5000;
-    let enhancedResult = null;
+    let enhancedResult: EnhancedCometData | null = null;
 
     try {
       enhancedResult = await Promise.race([
         getEnhancedCometData(),
-        new Promise((_, reject) =>
+        new Promise<EnhancedCometData>((_, reject) =>
           setTimeout(() => reject(new Error('Timeout')), ENHANCED_DATA_TIMEOUT)
         )
       ]);

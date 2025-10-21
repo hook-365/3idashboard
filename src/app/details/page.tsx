@@ -311,8 +311,8 @@ export default function AnalyticsPage() {
 
     // Transform observations for morphology (coma/tail)
     const morphologyData: MorphologyDataPoint[] = observations
-      .filter((obs: any) => obs.coma !== undefined || obs.tail !== undefined)
-      .map((obs: any) => ({
+      .filter((obs: ObservationData) => obs.coma !== undefined || obs.tail !== undefined)
+      .map((obs: ObservationData) => ({
         date: obs.date,
         comaSize: obs.coma,
         tailLength: obs.tail,
@@ -325,7 +325,7 @@ export default function AnalyticsPage() {
       }));
 
     // Transform light curve
-    const lightCurveData: LightCurveDataPoint[] = lightCurve.map((point: any) => ({
+    const lightCurveData: LightCurveDataPoint[] = lightCurve.map((point: LightCurveDataPoint) => ({
       date: new Date(point.date).toISOString(),
       magnitude: point.magnitude,
       source: 'COBS',
@@ -334,7 +334,7 @@ export default function AnalyticsPage() {
     }));
 
     // Transform observations
-    const observationData = observations.map((obs: any) => ({
+    const observationData = observations.map((obs: ObservationData) => ({
       id: obs.id,
       date: obs.date,
       magnitude: obs.magnitude,
@@ -350,7 +350,7 @@ export default function AnalyticsPage() {
     }));
 
     // Transform brightness velocity
-    const brightnessVelocityData: VelocityDataPoint[] = brightnessVelocity.map((v: any) => ({
+    const brightnessVelocityData: VelocityDataPoint[] = brightnessVelocity.map((v: VelocityDataPoint) => ({
       date: v.date,
       value: v.value || v.velocity || v.brightnessVelocity || 0,
       confidence: v.confidence,
@@ -358,7 +358,7 @@ export default function AnalyticsPage() {
     }));
 
     // Transform activity data
-    const activityDataTransformed: ActivityIndexDataPoint[] = activityData.map((a: any) => ({
+    const activityDataTransformed: ActivityIndexDataPoint[] = activityData.map((a: ActivityIndexDataPoint) => ({
       date: a.date,
       activityIndex: a.activityIndex || a.activityLevel || 0,
       comaContribution: (a.activityIndex || 0) * 0.6,
@@ -371,7 +371,7 @@ export default function AnalyticsPage() {
     }));
 
     // Transform orbital velocity
-    const orbitalVelocityData: OrbitalVelocityDataPoint[] = orbitalVelocity.map((v: any) => ({
+    const orbitalVelocityData: OrbitalVelocityDataPoint[] = orbitalVelocity.map((v: OrbitalVelocityDataPoint) => ({
       date: v.date,
       heliocentric_velocity: v.heliocentric_velocity,
       geocentric_velocity: v.geocentric_velocity,
@@ -380,7 +380,7 @@ export default function AnalyticsPage() {
     }));
 
     // Transform orbital velocity to acceleration data
-    const accelerationData: VelocityDataPoint[] = orbitalVelocity.map((v: any) => ({
+    const accelerationData: VelocityDataPoint[] = orbitalVelocity.map((v: OrbitalVelocityDataPoint) => ({
       date: v.date,
       value: v.acceleration || 0,
       confidence: v.confidence || 0.8,

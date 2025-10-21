@@ -25,8 +25,21 @@ const ModernSolarSystem = dynamic(() => import('../components/visualization/Mode
   ssr: false
 });
 
+// Define observation interface for type safety
+interface Observation {
+  id: string;
+  date: string;
+  magnitude: number;
+  filter?: string;
+  quality?: 'excellent' | 'good' | 'fair' | 'poor';
+  observer?: {
+    name?: string;
+    location?: string;
+  };
+}
+
 // Enhanced Latest Observations Component with rich visual display
-function LatestObservationsCollapsible({ observations }: { observations: any[] }) {
+function LatestObservationsCollapsible({ observations }: { observations: Observation[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const displayedObservations = isExpanded ? observations.slice(0, 5) : observations.slice(0, 1);
 

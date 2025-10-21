@@ -13,10 +13,10 @@ interface ObserversResponse {
   success: boolean;
   data: {
     list?: ObserverInfo[];
-    map?: any;
+    map?: Record<string, ObserverInfo>;
   };
   statistics?: {
-    regional: any;
+    regional: Record<string, unknown>;
     summary: {
       totalObservers: number;
       totalObservations: number;
@@ -29,7 +29,7 @@ interface ObserversResponse {
     totalObservers: number;
     filteredObservers: number;
     returnedObservers: number;
-    filters: any;
+    filters: Record<string, unknown>;
     processingTimeMs: number;
     apiVersion: string;
   };

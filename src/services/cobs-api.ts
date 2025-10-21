@@ -221,7 +221,7 @@ export class COBSApiClient {
    * Parse COBS JSON observation object
    * COBS API v1.5 JSON format is much more reliable than ICQ fixed-width format
    */
-  private parseJSONObservation(jsonObj: any): COBSObservation | null {
+  private parseJSONObservation(jsonObj: Record<string, unknown>): COBSObservation | null {
     try {
       // Validate required fields
       if (!jsonObj.obs_date || !jsonObj.magnitude || !jsonObj.observer) {
@@ -574,9 +574,9 @@ export class COBSApiClient {
         }
 
         // Parse JSON response
-        let jsonData: any;
+        let jsonData: Record<string, unknown>;
         try {
-          jsonData = JSON.parse(text);
+          jsonData = JSON.parse(text) as Record<string, unknown>;
         } catch (parseError) {
           throw new Error(`Failed to parse COBS JSON response: ${parseError}`);
         }

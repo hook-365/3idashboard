@@ -266,6 +266,7 @@ export async function GET(request: NextRequest) {
 
   // Query parameters
   const trailDays = Math.min(Math.max(parseInt(searchParams.get('trail_days') || '60'), 30), 1000);
+  const projectionDays = Math.min(Math.max(parseInt(searchParams.get('projection_days') || '720'), 30), 2000);
   const forceRefresh = searchParams.get('refresh') === 'true';
 
   const cacheKey = `solar_system_position_${trailDays}`;
@@ -310,7 +311,7 @@ export async function GET(request: NextRequest) {
     if (jplData) {
       cometPos = jplData.state_vectors.position;
       cometVel = jplData.state_vectors.velocity;
-      logger.info({ hasPosition: !!atlasPosition, hasVelocity: !!atlasVelocity }, 'Using JPL Horizons data');
+      logger.info({ hasPosition: !!cometPos, hasVelocity: !!cometVel }, 'Using JPL Horizons data');
     } else {
       // 2. Try NASA Small-Body Database as fallback
       logger.warn('JPL Horizons unavailable, trying NASA SBDB');
