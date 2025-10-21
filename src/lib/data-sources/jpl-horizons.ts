@@ -33,6 +33,9 @@ export interface JPLHorizonsData {
     velocity_at_perihelion: number; // km/s
     semi_major_axis: number; // AU
     orbital_period: number; // years
+    longitude_of_ascending_node?: number; // degrees (OM/Ω)
+    argument_of_periapsis?: number; // degrees (W/ω)
+    perihelion_time_jd?: number; // Julian Date (TP)
   };
   ephemeris: {
     ra: number; // right ascension (degrees)
@@ -370,6 +373,30 @@ export function parseHorizonsResponse(response: string): JPLHorizonsData {
     const semiMajorAxisMatch = response.match(semiMajorAxisRegex);
     if (semiMajorAxisMatch) {
       orbital_elements.semi_major_axis = parseFloat(semiMajorAxisMatch[1]);
+    }
+
+    // Parse longitude of ascending node (OM/Ω)
+    const omegaRegex = /OM=\s*([\d.]+)/;
+    const omegaMatch = response.match(omegaRegex);
+    if (omegaMatch) {
+      orbital_elements.longitude_of_ascending_node = parseFloat(omegaMatch[1]);
+      logger.info({ omega: orbital_elements.longitude_of_ascending_node }, 'Parsed longitude of ascending node (Ω)');
+    }
+
+    // Parse argument of periapsis (W/ω)
+    const wRegex = /W=\s*([\d.]+)/;
+    const wMatch = response.match(wRegex);
+    if (wMatch) {
+      orbital_elements.argument_of_periapsis = parseFloat(wMatch[1]);
+      logger.info({ w: orbital_elements.argument_of_periapsis }, 'Parsed argument of periapsis (ω)');
+    }
+
+    // Parse perihelion time (TP) - Julian Date
+    const tpRegex = /TP=\s*([\d.]+)/;
+    const tpMatch = response.match(tpRegex);
+    if (tpMatch) {
+      orbital_elements.perihelion_time_jd = parseFloat(tpMatch[1]);
+      logger.info({ tp_jd: orbital_elements.perihelion_time_jd }, 'Parsed perihelion time (JD)');
     }
 
     // Parse ephemeris data if available

@@ -13,8 +13,8 @@ COPY . .
 # Expose port
 EXPOSE 3000
 
-# Set environment to production
-ENV NODE_ENV=production
+# Set environment to development for dev server
+ENV NODE_ENV=development
 ENV PORT=3000
 
 # Run the Next.js dev server directly

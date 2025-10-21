@@ -7,7 +7,18 @@ import {
   COMET_ORBITAL_ELEMENTS
 } from '@/lib/orbital-path-calculator';
 import { COBSApiClient } from '@/services/cobs-api';
+import { getJPLHorizonsOrbitalData } from '@/lib/data-sources/jpl-horizons';
 import logger from '@/lib/logger';
+
+// In-memory cache for comets comparison data
+interface CacheEntry {
+  data: CometsComparisonResponse;
+  timestamp: number;
+  ttl: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 /**
  * Fetch last 30 days of brightness observations from COBS
@@ -113,34 +124,87 @@ interface CometsComparisonResponse {
   };
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
+  // Check for force refresh parameter
+  const searchParams = request.nextUrl.searchParams;
+  const forceRefresh = searchParams.get('refresh') === 'true';
+
+  // Check cache unless forced refresh
+  const cacheKey = 'comets_comparison';
+  if (!forceRefresh) {
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+      const cacheAge = Date.now() - cached.timestamp;
+      logger.info({ cacheAgeMs: cacheAge }, 'Comets comparison cache hit');
+
+      return NextResponse.json(cached.data, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
+          'X-Cache': 'HIT',
+          'X-Cache-Age': Math.floor(cacheAge / 1000).toString(),
+        }
+      });
+    }
+  }
+
   try {
-    logger.info('Fetching multi-comet comparison data');
-
-    // Fetch 3I/ATLAS data from existing enhanced data source
-    const atlasData = await getEnhancedCometData();
-
-    // Build comparison data
-    const comets: CometInfo[] = [];
+    logger.info({ forceRefresh }, 'Fetching multi-comet comparison data');
 
     // Calculate current date for position calculations
     const now = new Date();
 
+    // Fetch data in parallel for better performance
+    const [atlasData, jplData] = await Promise.all([
+      getEnhancedCometData(),
+      getJPLHorizonsOrbitalData()
+    ]);
+
+    // Build comparison data
+    const comets: CometInfo[] = [];
+
     // Calculate 3I/ATLAS position from orbital elements
-    // Using the exact same parameters as solar-system-position API
+    // Try to use JPL Horizons data first (most accurate, updated with observations)
+    // Fall back to MPC orbital elements if JPL unavailable
     let atlasPosition3D = undefined;
     try {
-      const perihelionDate = new Date('2025-10-29T05:03:46.000Z'); // MPC official perihelion time
-      const orbitalElements = {
-        e: 6.2769203,          // Eccentricity (hyperbolic) - MPC value
-        q: 1.3745928,          // Perihelion distance (AU) - MPC value
-        i: 175.11669,          // Inclination (degrees) - retrograde orbit
-        omega: 12.43534,       // Longitude of ascending node Ω (degrees) - MPC value
-        w: 228.84821,          // Argument of periapsis ω (degrees) - MPC value
-        T: perihelionDate      // Perihelion date
-      };
+      // Use JPL data fetched above in parallel
+
+      let orbitalElements;
+      let dataSource = 'MPC';
+
+      if (jplData && jplData.orbital_elements.longitude_of_ascending_node &&
+          jplData.orbital_elements.argument_of_periapsis &&
+          jplData.orbital_elements.perihelion_time_jd) {
+        // Use JPL orbital elements (updated with observations)
+        // Convert perihelion time from Julian Date to JavaScript Date
+        const jdToDate = (jd: number) => new Date((jd - 2440587.5) * 86400000);
+        const perihelionDate = jdToDate(jplData.orbital_elements.perihelion_time_jd);
+
+        orbitalElements = {
+          e: jplData.orbital_elements.eccentricity,
+          q: jplData.orbital_elements.perihelion_distance,
+          i: jplData.orbital_elements.inclination,
+          omega: jplData.orbital_elements.longitude_of_ascending_node,
+          w: jplData.orbital_elements.argument_of_periapsis,
+          T: perihelionDate
+        };
+        dataSource = 'JPL_Horizons';
+        logger.info({ elements: orbitalElements }, '3I/ATLAS using JPL orbital elements');
+      } else {
+        // Fallback to MPC orbital elements
+        const perihelionDate = new Date('2025-10-29T05:03:46.000Z');
+        orbitalElements = {
+          e: 6.2769203,          // Eccentricity (hyperbolic) - MPC value
+          q: 1.3745928,          // Perihelion distance (AU) - MPC value
+          i: 175.11669,          // Inclination (degrees) - retrograde orbit
+          omega: 12.43534,       // Longitude of ascending node Ω (degrees) - MPC value
+          w: 228.84821,          // Argument of periapsis ω (degrees) - MPC value
+          T: perihelionDate      // Perihelion date
+        };
+        logger.warn({}, '3I/ATLAS using fallback MPC orbital elements - JPL data incomplete');
+      }
 
       const position = calculateEclipticPosition(orbitalElements, now);
       if (position) {
@@ -149,7 +213,7 @@ export async function GET(_request: NextRequest) {
           y: position.y,
           z: position.z
         };
-        logger.info({ position: atlasPosition3D }, '3I/ATLAS position calculated from orbital elements');
+        logger.info({ position: atlasPosition3D, dataSource }, '3I/ATLAS position calculated from orbital elements');
       }
     } catch (err) {
       logger.warn({
@@ -398,11 +462,19 @@ export async function GET(_request: NextRequest) {
 
     logger.info({ processingTimeMs: processingTime, cometCount: comets.length }, 'Comets comparison API completed');
 
+    // Cache the result
+    cache.set(cacheKey, {
+      data: response,
+      timestamp: Date.now(),
+      ttl: CACHE_TTL
+    });
+
     return NextResponse.json(response, {
       headers: {
         'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800',
         'X-Processing-Time': processingTime.toString(),
-        'X-Data-Source': 'Multi-Comet-Comparison-v1.0'
+        'X-Data-Source': 'Multi-Comet-Comparison-v1.0',
+        'X-Cache': 'MISS'
       }
     });
 
