@@ -56,6 +56,18 @@ class MemoryCache {
     return entry.data as T;
   }
 
+  getMetadata(key: string): { timestamp: number; ttl: number } | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return { timestamp: entry.timestamp, ttl: entry.ttl };
+  }
+
   clear(): void {
     this.cache.clear();
   }
@@ -435,15 +447,14 @@ export function getMPCCacheInfo(): {
     return { hasCachedData: false };
   }
 
-  // Type assertion needed for internal cache structure
-  const cacheEntry = (cache as { cache: Map<string, CacheEntry<unknown>> }).cache.get(cacheKey);
-  if (!cacheEntry) {
+  const metadata = cache.getMetadata(cacheKey);
+  if (!metadata) {
     return { hasCachedData: false };
   }
 
   const now = Date.now();
-  const cacheAge = now - cacheEntry.timestamp;
-  const nextRefreshIn = cacheEntry.ttl - cacheAge;
+  const cacheAge = now - metadata.timestamp;
+  const nextRefreshIn = metadata.ttl - cacheAge;
 
   return {
     hasCachedData: true,

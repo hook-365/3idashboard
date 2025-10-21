@@ -55,7 +55,7 @@ export function useVelocity(
   );
 
   return {
-    velocityData: data?.data?.velocityData || [],
+    velocityData: data?.data || [],
     metadata: data?.metadata,
     isLoading,
     error,

@@ -346,7 +346,7 @@ export function parseOrbitalData(html: string): TheSkyLiveData {
   // Calculate derived values
   const orbital_velocity = calculateOrbitalVelocity(heliocentric_distance);
   const heliocentric_velocity = orbital_velocity; // Simplified - same as orbital for this approximation
-  const solar_elongation = calculateSolarElongation(ra, dec);
+  const solar_elongation = calculateSolarElongation(ra);
 
   // Position angle and phase angle are complex calculations requiring ephemeris data
   // For now, we'll use reasonable approximations

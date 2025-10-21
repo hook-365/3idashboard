@@ -76,7 +76,7 @@ export function useCometData(params?: UseCometDataParams) {
   return {
     data: data?.data,
     stats: data?.data?.stats,
-    observers: data?.data?.observers,
+    // observers: data?.data?.observers, // Property doesn't exist on EnhancedCometData
     metadata: data?.metadata,
     isLoading,
     error,

@@ -4,7 +4,7 @@ import * as Astronomy from 'astronomy-engine';
 import { saveSolarSystemCache, loadSolarSystemCache } from '@/lib/cache/persistent-cache';
 import { getSBDBPosition } from '@/lib/data-sources/nasa-sbdb';
 import { CACHE_TTL } from '@/constants/cache';
-import { calculatePositionFromElements } from '@/lib/orbital-calculations';
+import { calculateEclipticPosition } from '@/lib/orbital-path-calculator';
 import logger from '@/lib/logger';
 import {
   calculateAtlasProjectionFromStateVectors,
@@ -151,14 +151,15 @@ async function calculateAtlasProjection(
 
   // Official orbital elements for 3I/ATLAS from Minor Planet Center MPEC 2025-N12
   const elements = {
-    e: 6.2769203,     // Eccentricity (hyperbolic)
-    q: 1.3745928,     // Perihelion distance (AU)
-    i: 175.11669,     // Inclination (degrees) - retrograde, ~5° from ecliptic
-    omega: 127.79317, // Argument of periapsis (degrees)
-    node: 322.27219,  // Longitude of ascending node (degrees)
+    e: 6.2769203,          // Eccentricity (hyperbolic)
+    q: 1.3745928,          // Perihelion distance (AU)
+    i: 175.11669,          // Inclination (degrees) - retrograde
+    omega: 12.43534,       // Longitude of ascending node Ω (degrees) - MPC value
+    w: 228.84821,          // Argument of periapsis ω (degrees) - MPC value
+    T: perihelionDate      // Perihelion date
   };
 
-  // Calculate projection using Kepler mechanics
+  // Calculate projection using improved Kepler mechanics
   // Limit to reasonable solar system distances (100 AU max to show exit trajectory)
   const maxDistance = 100; // AU
   const sampleInterval = 2; // Sample every 2 days for smoother curve
@@ -166,11 +167,12 @@ async function calculateAtlasProjection(
   for (let i = 0; i <= projectionDays; i += sampleInterval) {
     const date = new Date(currentDate.getTime() + (i * 24 * 60 * 60 * 1000));
 
-    // Days from perihelion (negative = before perihelion, positive = after)
-    const daysFromPerihelion = (date.getTime() - perihelionDate.getTime()) / (1000 * 60 * 60 * 24);
-
-    // Calculate position using orbital elements
-    const pos = calculatePositionFromElements(daysFromPerihelion, elements);
+    // Calculate position using improved orbital mechanics
+    const pos = calculateEclipticPosition(elements, date);
+    if (!pos) {
+      logger.warn({ date: date.toISOString() }, 'Failed to calculate position');
+      continue;
+    }
 
     const distance_from_sun = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
 
@@ -329,22 +331,29 @@ export async function GET(request: NextRequest) {
 
         // Official MPC orbital elements (MPEC 2025-N12)
         const perihelionDate = new Date('2025-10-29T05:03:46.000Z'); // Corrected perihelion date
-        const daysFromPerihelion = (currentDate.getTime() - perihelionDate.getTime()) / (1000 * 60 * 60 * 24);
 
         const elements = {
-          e: 6.2769203,     // Eccentricity (official MPC)
-          q: 1.3745928,     // Perihelion distance (AU) (official MPC)
-          i: 175.11669,     // Inclination (degrees)
-          omega: 127.79317, // Argument of periapsis (degrees)
-          node: 322.27219,  // Longitude of ascending node (degrees)
+          e: 6.2769203,          // Eccentricity (official MPC)
+          q: 1.3745928,          // Perihelion distance (AU) (official MPC)
+          i: 175.11669,          // Inclination (degrees)
+          omega: 12.43534,       // Longitude of ascending node Ω (degrees) - MPC value
+          w: 228.84821,          // Argument of periapsis ω (degrees) - MPC value
+          T: perihelionDate      // Perihelion date
         };
 
-        // Calculate position using Kepler orbital mechanics
-        const pos = calculatePositionFromElements(daysFromPerihelion, elements);
+        // Calculate position using improved Kepler orbital mechanics
+        const pos = calculateEclipticPosition(elements, currentDate);
+        if (!pos) {
+          throw new Error('Failed to calculate position from orbital elements');
+        }
         cometPos = [pos.x, pos.y, pos.z];
 
         // Estimate velocity using finite difference (position at t+0.1 days)
-        const posFuture = calculatePositionFromElements(daysFromPerihelion + 0.1, elements);
+        const futureDate = new Date(currentDate.getTime() + 0.1 * 24 * 60 * 60 * 1000);
+        const posFuture = calculateEclipticPosition(elements, futureDate);
+        if (!posFuture) {
+          throw new Error('Failed to calculate future position for velocity');
+        }
         const dt = 0.1; // days
         cometVel = [
           (posFuture.x - pos.x) / dt,

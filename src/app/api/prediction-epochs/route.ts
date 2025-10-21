@@ -14,7 +14,7 @@
 
 import { NextResponse } from 'next/server';
 import pino from 'pino';
-import { calculatePositionFromElements } from '@/lib/orbital-calculations';
+import { calculateEclipticPosition } from '@/lib/orbital-path-calculator';
 
 // Initialize Pino logger
 const logger = pino({
@@ -173,8 +173,20 @@ function calculatePredictedTrajectoryFromEpoch(
     // Calculate days from perihelion
     const daysFromPerihelion = (date.getTime() - perihelionDate.getTime()) / (1000 * 60 * 60 * 24);
 
-    // Calculate position using Kepler mechanics
-    const position = calculatePositionFromElements(daysFromPerihelion, elements);
+    // Calculate position using improved Kepler mechanics
+    const position = calculateEclipticPosition({
+      e: elements.e,
+      q: elements.q,
+      i: elements.i,
+      omega: elements.node,   // longitude of ascending node
+      w: elements.omega,      // argument of periapsis
+      T: perihelionDate
+    }, date);
+
+    if (!position) {
+      logger.warn({ date: date.toISOString() }, 'Failed to calculate position');
+      continue;
+    }
 
     const distance_from_sun = Math.sqrt(
       position.x ** 2 + position.y ** 2 + position.z ** 2

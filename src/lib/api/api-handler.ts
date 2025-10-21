@@ -95,7 +95,7 @@ export function apiHandler<TQuery = unknown, TResponse = unknown>(
         }
 
         query = result.data;
-        logAPI.request(route, query);
+        logAPI.request(route, query as Record<string, unknown>);
       } else {
         query = {} as TQuery;
         logAPI.request(route);

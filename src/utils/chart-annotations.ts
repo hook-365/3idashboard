@@ -96,7 +96,7 @@ export function createEarthBlackoutAnnotation(
       display: true,
       content: 'Not Visible from Earth',
       position: 'center',
-      backgroundColor: labelBg,
+      // backgroundColor: labelBg, // Not available in BoxLabelOptions type
       color: '#ffffff', // Force white text for maximum contrast (like perihelion)
       font: {
         size: 11,

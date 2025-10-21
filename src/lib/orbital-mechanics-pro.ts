@@ -1,5 +1,4 @@
 /**
-import logger from '@/lib/logger';
  * Professional-Grade Orbital Mechanics Library
  *
  * Professional-quality orbital integration for 3I/ATLAS interstellar comet.
@@ -21,6 +20,7 @@ import logger from '@/lib/logger';
  */
 
 import * as Astronomy from 'astronomy-engine';
+import logger from '@/lib/logger';
 
 /**
  * Physical Constants (IAU 2015 values)

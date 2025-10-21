@@ -93,9 +93,8 @@ export default function ScrollHashUpdater({
 
     if (sectionIds && sectionIds.length > 0) {
       // Use provided section IDs
-      sectionsToObserve = sectionIds
-        .map(id => document.getElementById(id))
-        .filter((el): el is Element => el !== null);
+      const elements = sectionIds.map(id => document.getElementById(id));
+      sectionsToObserve = elements.filter((el): el is HTMLElement => el !== null);
     } else {
       // Auto-detect all elements with IDs in the main content area
       // Look for sections, divs, articles with IDs
@@ -167,8 +166,8 @@ export default function ScrollHashUpdater({
           });
 
           // Update hash if we found a visible section
-          if (mostVisibleSection && mostVisibleSection.id) {
-            const newHash = `#${mostVisibleSection.id}`;
+          if (mostVisibleSection && (mostVisibleSection as HTMLElement).id) {
+            const newHash = `#${(mostVisibleSection as HTMLElement).id}`;
 
             // Only update if hash actually changed
             if (window.location.hash !== newHash) {
@@ -179,12 +178,12 @@ export default function ScrollHashUpdater({
               // Dispatch custom event so SectionNavigator can react
               // (replaceState doesn't trigger hashchange event)
               const event = new CustomEvent('hashupdate', {
-                detail: { hash: mostVisibleSection.id }
+                detail: { hash: (mostVisibleSection as HTMLElement).id }
               });
               window.dispatchEvent(event);
 
               // Update previous section reference
-              previousSectionRef.current = mostVisibleSection.id;
+              previousSectionRef.current = (mostVisibleSection as HTMLElement).id;
             }
           } else if (visibilityMap.size > 0) {
             // If no section meets threshold, clear the hash when at top

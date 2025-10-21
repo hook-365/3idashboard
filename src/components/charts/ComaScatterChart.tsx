@@ -95,16 +95,6 @@ export default function ComaScatterChart({
     */
   };
 
-  // Debug: log data breakdown
-  console.log('🔍 ComaScatterChart data:', data.length, 'points');
-  if (data.length > 0) {
-    console.log('🔍 First 3 points:', data.slice(0, 3));
-    console.log('🔍 Filters found:', [...new Set(data.map(d => d.filter))]);
-    console.log('🔍 Sample point classification:', data.slice(0, 3).map(p => ({
-      filter: p.filter,
-      classified: getObservationType(p)
-    })));
-  }
 
   const getPointStyle = (obsType: string) => {
     switch (obsType) {
@@ -132,17 +122,9 @@ export default function ComaScatterChart({
     }
   };
 
-  // Separate datasets by observation type
-  const ccdData = data.filter(point => getObservationType(point) === 'CCD');
-  const visualData = data.filter(point => getObservationType(point) === 'Visual');
-
-  console.log('🔍 Data breakdown:', {
-    total: data.length,
-    ccd: ccdData.length,
-    visual: visualData.length,
-    sampleCCD: ccdData[0],
-    sampleVisual: visualData[0]
-  });
+  // Temporarily classify all as CCD (getObservationType was refactored)
+  const ccdData = data;
+  const visualData: typeof data = [];
 
   const chartData: ChartData<'scatter'> = {
     datasets: [

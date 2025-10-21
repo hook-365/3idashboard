@@ -106,7 +106,7 @@ export default function ComaAndTailChart({
       label: 'Coma Size (arcminutes)',
       data: comaData.map(point => ({
         x: new Date(point.date).getTime(),
-        y: point.comaSize,
+        y: point.comaSize!,  // We filtered for non-null values above
         pointData: point  // Store full point data for tooltip
       })),
       borderColor: chartColors.secondary,
@@ -127,7 +127,7 @@ export default function ComaAndTailChart({
       label: 'Tail Length (degrees)',
       data: tailData.map(point => ({
         x: new Date(point.date).getTime(),
-        y: point.tailLength,
+        y: point.tailLength!,  // We filtered for non-null values above
         pointData: point  // Store full point data for tooltip
       })),
       borderColor: chartColors.quinary,

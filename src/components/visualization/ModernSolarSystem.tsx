@@ -339,13 +339,13 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
 
         scene.background = new THREE.Color(getSceneBackground());
 
-        const width = container.clientWidth || 800;
+        const width = container?.clientWidth || 800;
         const height = containerHeight;
         const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100000);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
-        container.appendChild(renderer.domElement);
+        container?.appendChild(renderer.domElement);
 
         // Setup CSS2D renderer for labels
         const labelRenderer = new CSS2DRenderer();
@@ -353,7 +353,7 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0';
         labelRenderer.domElement.style.pointerEvents = 'none';
-        container.appendChild(labelRenderer.domElement);
+        container?.appendChild(labelRenderer.domElement);
 
         // Enhanced lighting for realistic planet illumination
         // Hemisphere light for ambient fill (sky vs ground) - increased for better planet visibility
@@ -438,10 +438,7 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
             },
             transparent: true,
             depthWrite: false,
-            side: THREE.DoubleSide,
-            extensions: {
-              derivatives: true
-            }
+            side: THREE.DoubleSide
           });
 
           // Large plane for the grid
@@ -752,7 +749,7 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
             arrowLength * 0.25, // Head length
             arrowLength * 0.15  // Head width
           );
-          arrowHelper.line.material.linewidth = 2;
+          (arrowHelper.line.material as THREE.LineBasicMaterial).linewidth = 2;
           (arrowHelper.line.material as THREE.LineBasicMaterial).opacity = 0.9;
           (arrowHelper.line.material as THREE.LineBasicMaterial).transparent = true;
 
@@ -1384,7 +1381,7 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
       }
 
       // Update scene background
-      if (sceneRef.current.scene.background) {
+      if (sceneRef.current?.scene?.background) {
         (sceneRef.current.scene.background as THREE.Color).setHex(bgColor);
       }
 
@@ -1392,7 +1389,7 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
       const atlasColorHex = getThemeAwareColor('atlas');
       const atlasColorNum = parseInt(atlasColorHex.replace('#', '0x'));
 
-      sceneRef.current.scene.traverse((object) => {
+      sceneRef.current?.scene?.traverse((object) => {
         // Update ATLAS nucleus and coma colors
         if (object.userData.isAtlas && object instanceof THREE.Mesh) {
           if (object.material instanceof THREE.MeshPhongMaterial) {
@@ -1513,29 +1510,24 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
     oldTrails.forEach(obj => scene.remove(obj));
 
     // Add new comet trails
-    cometTrails.forEach((cometData, cometId) => {
-      if (!cometData.trail || cometData.trail.length === 0) return;
+    cometTrails.forEach((trail, cometId) => {
+      if (!trail || trail.length === 0) return;
 
-      const points = cometData.trail.map((point: { x: number; y: number; z: number }) =>
-        new THREE.Vector3(
-          point.x * SCALE_FACTOR,
-          point.z * SCALE_FACTOR,
-          -point.y * SCALE_FACTOR
-        )
-      );
+      // Trail is already an array of THREE.Vector3 with scaling applied
+      const points = trail;
 
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       const material = new THREE.LineBasicMaterial({
-        color: cometData.color || '#FFFFFF',
+        color: '#FFFFFF', // Default white color for additional comet trails
         linewidth: 1,
         opacity: 0.6,
         transparent: true
       });
 
-      const trail = new THREE.Line(geometry, material);
-      trail.userData.isAdditionalCometTrail = true;
-      trail.userData.cometId = cometId;
-      scene.add(trail);
+      const trailLine = new THREE.Line(geometry, material);
+      trailLine.userData.isAdditionalCometTrail = true;
+      trailLine.userData.cometId = cometId;
+      scene.add(trailLine);
     });
   }, [cometTrails]);
 

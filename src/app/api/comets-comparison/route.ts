@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEnhancedCometData } from '@/lib/data-sources/source-manager';
-import { calculateEclipticPosition, COMET_ORBITAL_ELEMENTS } from '@/lib/orbital-path-calculator';
+import {
+  calculateEclipticPosition,
+  heliocentricToRADec,
+  calculateEarthDistance,
+  COMET_ORBITAL_ELEMENTS
+} from '@/lib/orbital-path-calculator';
 import { COBSApiClient } from '@/services/cobs-api';
 import logger from '@/lib/logger';
 
@@ -117,33 +122,40 @@ export async function GET(_request: NextRequest) {
     // Fetch 3I/ATLAS data from existing enhanced data source
     const atlasData = await getEnhancedCometData();
 
-    // Fetch solar system position data to get actual 3D coordinates for 3I/ATLAS
-    let atlasPosition3D = undefined;
-    try {
-      const solarSystemResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3020'}/api/solar-system-position`);
-      if (solarSystemResponse.ok) {
-        const solarSystemData = await solarSystemResponse.json();
-        if (solarSystemData.success && solarSystemData.data?.comet_position) {
-          const pos = solarSystemData.data.comet_position;
-          atlasPosition3D = {
-            x: pos.x,
-            y: pos.y,
-            z: pos.z
-          };
-          logger.info({ position: atlasPosition3D }, '3I/ATLAS position from solar-system API');
-        }
-      }
-    } catch (err) {
-      logger.warn({
-        error: err instanceof Error ? err.message : String(err)
-      }, 'Failed to fetch 3I/ATLAS 3D position');
-    }
-
     // Build comparison data
     const comets: CometInfo[] = [];
 
     // Calculate current date for position calculations
     const now = new Date();
+
+    // Calculate 3I/ATLAS position from orbital elements
+    // Using the exact same parameters as solar-system-position API
+    let atlasPosition3D = undefined;
+    try {
+      const perihelionDate = new Date('2025-10-29T05:03:46.000Z'); // MPC official perihelion time
+      const orbitalElements = {
+        e: 6.2769203,          // Eccentricity (hyperbolic) - MPC value
+        q: 1.3745928,          // Perihelion distance (AU) - MPC value
+        i: 175.11669,          // Inclination (degrees) - retrograde orbit
+        omega: 12.43534,       // Longitude of ascending node Ω (degrees) - MPC value
+        w: 228.84821,          // Argument of periapsis ω (degrees) - MPC value
+        T: perihelionDate      // Perihelion date
+      };
+
+      const position = calculateEclipticPosition(orbitalElements, now);
+      if (position) {
+        atlasPosition3D = {
+          x: position.x,
+          y: position.y,
+          z: position.z
+        };
+        logger.info({ position: atlasPosition3D }, '3I/ATLAS position calculated from orbital elements');
+      }
+    } catch (err) {
+      logger.warn({
+        error: err instanceof Error ? err.message : String(err)
+      }, 'Failed to calculate 3I/ATLAS position');
+    }
 
     // Fetch COBS light curve data for all comets in parallel
     // COBSApiClient now automatically normalizes designations:
@@ -170,6 +182,12 @@ export async function GET(_request: NextRequest) {
       now
     );
 
+    // Calculate geocentric RA/Dec and distances
+    const swanEquatorial = swanPosition ? heliocentricToRADec(swanPosition, now) : null;
+    const swanSunDistance = swanPosition ?
+      Math.sqrt(swanPosition.x ** 2 + swanPosition.y ** 2 + swanPosition.z ** 2) : null;
+    const swanEarthDistance = swanPosition ? calculateEarthDistance(swanPosition, now) : null;
+
     comets.push({
       designation: 'C/2025 R2',
       name: 'SWAN',
@@ -179,10 +197,10 @@ export async function GET(_request: NextRequest) {
         distance_au: 0.50
       },
       current: {
-        earthDistance: 0.28,
-        sunDistance: 0.82, // Post-perihelion, moving away
-        ra: 195.2, // Approximate RA in Virgo
-        dec: -8.5,  // Approximate Dec
+        earthDistance: swanEarthDistance || 0.28,
+        sunDistance: swanSunDistance || 0.82,
+        ra: swanEquatorial?.ra || 0,
+        dec: swanEquatorial?.dec || 0,
         position_3d: swanPosition ? {
           x: swanPosition.x,
           y: swanPosition.y,
@@ -205,6 +223,12 @@ export async function GET(_request: NextRequest) {
       now
     );
 
+    // Calculate geocentric RA/Dec and distances
+    const lemmonEquatorial = lemmonPosition ? heliocentricToRADec(lemmonPosition, now) : null;
+    const lemmonSunDistance = lemmonPosition ?
+      Math.sqrt(lemmonPosition.x ** 2 + lemmonPosition.y ** 2 + lemmonPosition.z ** 2) : null;
+    const lemmonEarthDistance = lemmonPosition ? calculateEarthDistance(lemmonPosition, now) : null;
+
     comets.push({
       designation: 'C/2025 A6',
       name: 'Lemmon',
@@ -214,10 +238,10 @@ export async function GET(_request: NextRequest) {
         distance_au: 0.53
       },
       current: {
-        earthDistance: 0.61,
-        sunDistance: 0.89, // Approaching perihelion
-        ra: 225.8, // Approximate RA in Libra
-        dec: -18.2, // Approximate Dec
+        earthDistance: lemmonEarthDistance || 0.61,
+        sunDistance: lemmonSunDistance || 0.89,
+        ra: lemmonEquatorial?.ra || 0,
+        dec: lemmonEquatorial?.dec || 0,
         position_3d: lemmonPosition ? {
           x: lemmonPosition.x,
           y: lemmonPosition.y,
@@ -238,6 +262,11 @@ export async function GET(_request: NextRequest) {
     const atlasCurrentPosition = atlasData.jpl_ephemeris?.current_position;
     const atlasOrbitalMechanics = atlasData.orbital_mechanics;
 
+    // Calculate sunDistance from position_3d for consistency
+    const atlasSunDistance = atlasPosition3D
+      ? Math.sqrt(atlasPosition3D.x ** 2 + atlasPosition3D.y ** 2 + atlasPosition3D.z ** 2)
+      : (atlasOrbitalMechanics?.current_distance.heliocentric || 1.43);
+
     comets.push({
       designation: 'C/2025 N1',
       name: '3I/ATLAS',
@@ -248,7 +277,7 @@ export async function GET(_request: NextRequest) {
       },
       current: {
         earthDistance: atlasOrbitalMechanics?.current_distance.geocentric || 1.43,
-        sunDistance: atlasOrbitalMechanics?.current_distance.heliocentric || 1.43,
+        sunDistance: atlasSunDistance,
         ra: atlasCurrentPosition?.ra || 0,
         dec: atlasCurrentPosition?.dec || 0,
         position_3d: atlasPosition3D
@@ -272,6 +301,12 @@ export async function GET(_request: NextRequest) {
       now
     );
 
+    // Calculate geocentric RA/Dec and distances
+    const k1Equatorial = k1Position ? heliocentricToRADec(k1Position, now) : null;
+    const k1SunDistance = k1Position ?
+      Math.sqrt(k1Position.x ** 2 + k1Position.y ** 2 + k1Position.z ** 2) : null;
+    const k1EarthDistance = k1Position ? calculateEarthDistance(k1Position, now) : null;
+
     comets.push({
       designation: 'C/2025 K1',
       name: 'K1 ATLAS', // Display name (will be uppercased to K1 for lookup)
@@ -281,10 +316,10 @@ export async function GET(_request: NextRequest) {
         distance_au: 0.34
       },
       current: {
-        earthDistance: 0.40, // Approximate - closest approach Nov 25, 2025
-        sunDistance: 0.82, // Post-perihelion
-        ra: 180.5, // Approximate RA in Virgo
-        dec: -5.2,  // Approximate Dec
+        earthDistance: k1EarthDistance || 0.40,
+        sunDistance: k1SunDistance || 0.82,
+        ra: k1Equatorial?.ra || 0,
+        dec: k1Equatorial?.dec || 0,
         position_3d: k1Position ? {
           x: k1Position.x,
           y: k1Position.y,
@@ -307,6 +342,12 @@ export async function GET(_request: NextRequest) {
       now
     );
 
+    // Calculate geocentric RA/Dec and distances
+    const wierzchosEquatorial = wierzchosPosition ? heliocentricToRADec(wierzchosPosition, now) : null;
+    const wierzchosSunDistance = wierzchosPosition ?
+      Math.sqrt(wierzchosPosition.x ** 2 + wierzchosPosition.y ** 2 + wierzchosPosition.z ** 2) : null;
+    const wierzchosEarthDistance = wierzchosPosition ? calculateEarthDistance(wierzchosPosition, now) : null;
+
     comets.push({
       designation: 'C/2024 E1',
       name: 'Wierzchos',
@@ -316,10 +357,10 @@ export async function GET(_request: NextRequest) {
         distance_au: 0.57
       },
       current: {
-        earthDistance: 1.15, // Approximate
-        sunDistance: 1.08, // Approaching perihelion
-        ra: 240.2, // Approximate RA
-        dec: -22.5, // Approximate Dec
+        earthDistance: wierzchosEarthDistance || 1.15,
+        sunDistance: wierzchosSunDistance || 1.08,
+        ra: wierzchosEquatorial?.ra || 0,
+        dec: wierzchosEquatorial?.dec || 0,
         position_3d: wierzchosPosition ? {
           x: wierzchosPosition.x,
           y: wierzchosPosition.y,

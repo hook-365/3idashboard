@@ -16,11 +16,11 @@
 import { NextResponse } from 'next/server';
 import pino from 'pino';
 import {
-  calculatePositionFromElements,
   raDecToHeliocentric,
   calculateAngularSeparation,
   angularToLinearDistance
 } from '@/lib/orbital-calculations';
+import { calculateEclipticPosition } from '@/lib/orbital-path-calculator';
 import { fetchEphemerisTable, fetchTheSkyLiveData } from '@/lib/data-sources/theskylive';
 import { fetchJPLEphemerisData } from '@/lib/data-sources/jpl-horizons';
 
@@ -45,13 +45,13 @@ interface CacheEntry<T> {
 const cache = new Map<string, CacheEntry<unknown>>();
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
-// 3I/ATLAS orbital elements from MPC MPEC 2025-N12 (July 18, 2025)
+// 3I/ATLAS orbital elements from MPC MPEC 2025-N12 (Official MPC values)
 const MPC_ORBITAL_ELEMENTS = {
   e: 6.2769203,      // Eccentricity (hyperbolic)
   q: 1.3745928,      // Perihelion distance (AU)
   i: 175.11669,      // Inclination (degrees)
-  omega: 127.79317,  // Argument of periapsis (degrees)
-  node: 322.27219,   // Longitude of ascending node (degrees)
+  omega: 228.84821,  // Argument of periapsis ω (degrees) - corrected MPC value
+  node: 12.43534,    // Longitude of ascending node Ω (degrees) - corrected MPC value
   perihelion: new Date('2025-10-29T05:03:46.000Z'), // Perihelion date
   epoch: '2025-07-18', // Epoch of orbital elements
   source: 'MPC MPEC 2025-N12'
@@ -133,14 +133,20 @@ function calculatePredictedTrajectory(days: number): TrajectoryPoint[] {
     // Calculate days from perihelion
     const daysFromPerihelion = (date.getTime() - perihelion.getTime()) / (1000 * 60 * 60 * 24);
 
-    // Calculate position using Kepler mechanics
-    const position = calculatePositionFromElements(daysFromPerihelion, {
+    // Calculate position using improved Kepler mechanics
+    const position = calculateEclipticPosition({
       e: MPC_ORBITAL_ELEMENTS.e,
       q: MPC_ORBITAL_ELEMENTS.q,
       i: MPC_ORBITAL_ELEMENTS.i,
-      omega: MPC_ORBITAL_ELEMENTS.omega,
-      node: MPC_ORBITAL_ELEMENTS.node
-    });
+      omega: MPC_ORBITAL_ELEMENTS.node,  // longitude of ascending node
+      w: MPC_ORBITAL_ELEMENTS.omega,     // argument of periapsis
+      T: MPC_ORBITAL_ELEMENTS.perihelion
+    }, date);
+
+    if (!position) {
+      logger.warn({ date: date.toISOString() }, 'Failed to calculate position for date');
+      continue;
+    }
 
     const distance_from_sun = Math.sqrt(
       position.x ** 2 + position.y ** 2 + position.z ** 2

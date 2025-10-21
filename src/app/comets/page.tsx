@@ -12,9 +12,9 @@ import CardSkeleton from '@/components/common/CardSkeleton';
 import ExtensionSafeWrapper from '@/components/ExtensionSafeWrapper';
 import ScrollHashUpdater from '@/components/common/ScrollHashUpdater';
 
-// Dynamically import ModernSolarSystem to avoid SSR issues with Three.js
-const ModernSolarSystem = dynamic(
-  () => import('@/components/visualization/ModernSolarSystem'),
+// Dynamically import MultiCometView to avoid SSR issues with Three.js
+const MultiCometView = dynamic(
+  () => import('@/components/visualization/MultiCometView'),
   {
     ssr: false,
     loading: () => (
@@ -41,6 +41,11 @@ interface CometInfo {
     sunDistance: number;
     ra: number;
     dec: number;
+    position_3d?: {
+      x: number;
+      y: number;
+      z: number;
+    };
   };
   orbital: {
     eccentricity: number;
@@ -172,11 +177,26 @@ export default function CometsPage() {
                   <span>🌌</span> 3D Orbital Positions
                 </h2>
                 <div className="rounded-lg overflow-hidden border border-[var(--color-border-primary)]">
-                  <ModernSolarSystem
-                    centerMode="sun"
-                    autoPlay={false}
-                    showControls={true}
-                    followComet={false}
+                  <MultiCometView
+                    comets={data.comets.map(comet => ({
+                      name: comet.name,
+                      color: comet.name === '3I/ATLAS' ? '#ff6b6b' :
+                             comet.name === 'SWAN' ? '#4ecdc4' :
+                             comet.name === 'Lemmon' ? '#95e77e' :
+                             comet.name === 'K1 ATLAS' ? '#ffd93d' :
+                             comet.name === 'Wierzchos' ? '#a8e6cf' : '#dda0dd',
+                      currentPosition: comet.current.position_3d || {
+                        // Fallback if position_3d is not available (should not happen with updated API)
+                        x: comet.current.sunDistance,
+                        y: 0,
+                        z: 0
+                      },
+                      // Note: trail is calculated from orbital elements in MultiCometView component
+                      // so we don't need to pass incorrect trail data here
+                      trail: undefined
+                    }))}
+                    showSun={true}
+                    showEarth={true}
                   />
                 </div>
               </section>

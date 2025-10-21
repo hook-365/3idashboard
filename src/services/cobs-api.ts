@@ -228,13 +228,13 @@ export class COBSApiClient {
         return null;
       }
 
-      const magnitude = parseFloat(jsonObj.magnitude);
+      const magnitude = parseFloat(String(jsonObj.magnitude));
       if (isNaN(magnitude) || magnitude < 5 || magnitude > 20) {
         return null; // Invalid magnitude range
       }
 
       // Parse observation date (ISO format from JSON)
-      const observationDate = new Date(jsonObj.obs_date);
+      const observationDate = new Date(String(jsonObj.obs_date));
 
       // Validate date is reasonable
       const now = new Date();
@@ -244,42 +244,46 @@ export class COBSApiClient {
       }
 
       // Extract observer information
-      const observer = jsonObj.observer;
+      const observer = jsonObj.observer as Record<string, unknown>;
       const observerName = `${observer.first_name || ''} ${observer.last_name || ''}`.trim();
-      const observerICQ = observer.icq_name || 'UNKNOWN';
-      const location = jsonObj.location || '';
+      const observerICQ = String(observer.icq_name || 'UNKNOWN');
+      const location = String(jsonObj.location || '');
 
       // Extract coma and tail measurements
-      const coma = jsonObj.coma_diameter ? parseFloat(jsonObj.coma_diameter) : undefined;
-      const tailLength = jsonObj.tail_length ? parseFloat(jsonObj.tail_length) : undefined;
+      const coma = jsonObj.coma_diameter ? parseFloat(String(jsonObj.coma_diameter)) : undefined;
+      const tailLength = jsonObj.tail_length ? parseFloat(String(jsonObj.tail_length)) : undefined;
 
       // Convert tail units if needed (m = arcminutes, d = degrees)
       let tail: number | undefined = undefined;
       if (tailLength !== undefined && !isNaN(tailLength)) {
-        if (jsonObj.tail_length_unit === 'm') {
+        if (String(jsonObj.tail_length_unit) === 'm') {
           // Convert arcminutes to degrees
           tail = tailLength / 60;
-        } else if (jsonObj.tail_length_unit === 'd') {
+        } else if (String(jsonObj.tail_length_unit) === 'd') {
           tail = tailLength;
         }
       }
 
       // Extract uncertainty from magnitude_error field
-      const uncertainty = jsonObj.magnitude_error ? parseFloat(jsonObj.magnitude_error) : undefined;
+      const uncertainty = jsonObj.magnitude_error ? parseFloat(String(jsonObj.magnitude_error)) : undefined;
 
       // Extract aperture and instrument info
-      const aperture = jsonObj.instrument_aperture ? parseFloat(jsonObj.instrument_aperture) : 0;
-      const telescope = jsonObj.instrument_type?.name || '';
-      const filter = jsonObj.obs_method?.key || jsonObj.ref_catalog?.key || 'V';
+      const aperture = jsonObj.instrument_aperture ? parseFloat(String(jsonObj.instrument_aperture)) : 0;
+      const instrument = jsonObj.instrument_type as Record<string, unknown> | undefined;
+      const telescope = String(instrument?.name || '');
+      const obsMethod = jsonObj.obs_method as Record<string, unknown> | undefined;
+      const refCatalog = jsonObj.ref_catalog as Record<string, unknown> | undefined;
+      const filter = String(obsMethod?.key || refCatalog?.key || 'V');
 
       // Generate unique ID
       const dateStr = observationDate.toISOString().split('T')[0].replace(/-/g, '');
-      const cometName = jsonObj.comet?.name || this.cometDesignation;
+      const comet = jsonObj.comet as Record<string, unknown> | undefined;
+      const cometName = String(comet?.name || this.cometDesignation);
       const id = `${cometName}-${dateStr}-${observerICQ}`;
 
       return {
         id,
-        designation: jsonObj.comet?.fullname || cometName,
+        designation: String(comet?.fullname || cometName),
         date: observationDate.toISOString().split('T')[0], // Store as YYYY-MM-DD
         filter,
         magnitude,
@@ -291,15 +295,15 @@ export class COBSApiClient {
           location,
         },
         telescope,
-        notes: jsonObj.obs_comment || '',
+        notes: String(jsonObj.obs_comment || ''),
         source: 'COBS',
         coma,
         tail,
       };
     } catch (_error) {
       logger.error({
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
+        error: _error instanceof Error ? _error.message : String(_error),
+        stack: _error instanceof Error ? _error.stack : undefined
       }, 'Error parsing JSON observation');
       return null;
     }
@@ -402,8 +406,8 @@ export class COBSApiClient {
       };
     } catch (_error) {
       logger.error({
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
+        error: _error instanceof Error ? _error.message : String(_error),
+        stack: _error instanceof Error ? _error.stack : undefined
       }, 'Error parsing observation line');
       return null;
     }
@@ -587,7 +591,7 @@ export class COBSApiClient {
         }
 
         // Extract observations from JSON response
-        const objects = jsonData.objects || [];
+        const objects = Array.isArray(jsonData.objects) ? jsonData.objects : [];
         logger.info({
           objectCount: objects.length,
           format: 'json'
@@ -599,7 +603,7 @@ export class COBSApiClient {
 
         for (const obj of objects) {
           try {
-            const obs = this.parseJSONObservation(obj);
+            const obs = this.parseJSONObservation(obj as Record<string, unknown>);
             if (obs) {
               observations.push(obs);
               parsedCount++;
@@ -637,7 +641,7 @@ export class COBSApiClient {
         return observations;
 
       } catch (_error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = _error instanceof Error ? _error : new Error(String(_error));
         logger.error({
           error: lastError.message,
           stack: lastError.stack,

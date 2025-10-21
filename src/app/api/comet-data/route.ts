@@ -3,6 +3,8 @@ import { cobsApi } from '@/services/cobs-api';
 import { analyzeTrend, calculateRunningAverage } from '@/services/data-transforms';
 import { getEnhancedCometData, type EnhancedCometData } from '@/lib/data-sources/source-manager';
 import logger from '@/lib/logger';
+import { redisCache, cacheKeys, cacheTTL } from '@/lib/cache/redis-client';
+import { sqliteDB } from '@/lib/database/sqlite-client';
 
 // Helper function to build COBS-only response data
 async function buildCOBSOnlyData(params: {
@@ -117,6 +119,48 @@ export async function GET(request: NextRequest) {
       trendDays,
       forceRefresh
     }, 'Starting comet-data API request');
+
+    // Generate cache key based on parameters
+    const cacheKey = cacheKeys.cometData(forceRefresh);
+    const paramsKey = `${cacheKey}:${includeSmoothed}:${maxObservations}:${trendDays}`;
+
+    // Step 1: Check Redis cache (unless force refresh)
+    if (!forceRefresh) {
+      const cachedData = await redisCache.get(paramsKey);
+      if (cachedData) {
+        logger.info('Redis cache hit for comet-data');
+        return NextResponse.json(cachedData, {
+          headers: {
+            'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
+            'X-Cache': 'HIT-REDIS',
+            'X-Processing-Time': (Date.now() - startTime).toString(),
+          },
+        });
+      }
+    }
+
+    // Step 2: Check SQLite fallback cache (unless force refresh)
+    if (!forceRefresh) {
+      const fallbackData = sqliteDB.getAPICache('/api/comet-data', {
+        smooth: includeSmoothed,
+        limit: maxObservations,
+        trendDays
+      });
+
+      if (fallbackData) {
+        logger.info('SQLite fallback cache hit for comet-data');
+        // Store in Redis for faster subsequent access
+        await redisCache.set(paramsKey, fallbackData, cacheTTL.cometData);
+
+        return NextResponse.json(fallbackData, {
+          headers: {
+            'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600',
+            'X-Cache': 'HIT-SQLITE-FALLBACK',
+            'X-Processing-Time': (Date.now() - startTime).toString(),
+          },
+        });
+      }
+    }
 
     // OPTIMIZATION: Start both COBS and enhanced data fetches in parallel
     logger.info('Starting parallel data fetch: COBS + enhanced multi-source');
@@ -252,6 +296,21 @@ export async function GET(request: NextRequest) {
         activeSources: activeSources
       }, 'Enhanced comet-data API completed');
 
+      // Store in both caches for future use
+      await Promise.all([
+        redisCache.set(paramsKey, response, cacheTTL.cometData),
+        sqliteDB.storeAPICache('/api/comet-data', {
+          smooth: includeSmoothed,
+          limit: maxObservations,
+          trendDays
+        }, response, cacheTTL.cometData / 1000) // Convert ms to seconds
+      ]);
+
+      // Store raw COBS observations in SQLite for historical data
+      if (enhancedData.comet.observations.length > 0) {
+        sqliteDB.storeCOBSObservations(enhancedData.comet.observations);
+      }
+
       return NextResponse.json(response, {
         headers: {
           // Browser cache for 5 minutes, CDN for 5 min, revalidate in background for 10 min
@@ -291,6 +350,21 @@ export async function GET(request: NextRequest) {
         processingTimeMs: processingTime
       }, 'COBS-only fallback completed');
 
+      // Store in both caches for future use
+      await Promise.all([
+        redisCache.set(paramsKey, responseWithFallbackInfo, cacheTTL.cometData),
+        sqliteDB.storeAPICache('/api/comet-data', {
+          smooth: includeSmoothed,
+          limit: maxObservations,
+          trendDays
+        }, responseWithFallbackInfo, cacheTTL.cometData / 1000)
+      ]);
+
+      // Store raw COBS observations if available
+      if (cobsData.data.comet.observations.length > 0) {
+        sqliteDB.storeCOBSObservations(cobsData.data.comet.observations);
+      }
+
       return NextResponse.json(responseWithFallbackInfo, {
         headers: {
           // Browser + CDN cache for 5 minutes, revalidate in background for 10 min
@@ -315,6 +389,31 @@ export async function GET(request: NextRequest) {
       processingTimeMs: processingTime,
       timestamp: new Date().toISOString(),
     }, 'Error fetching comet data - COBS API failed');
+
+    // Try to return stale cached data as last resort
+    const staleData = sqliteDB.getAPICache('/api/comet-data', {
+      smooth: includeSmoothed,
+      limit: maxObservations,
+      trendDays
+    });
+
+    if (staleData) {
+      logger.warn('Returning stale cached data due to API failure');
+      return NextResponse.json({
+        ...staleData,
+        metadata: {
+          ...staleData.metadata,
+          stale: true,
+          staleness_reason: 'API failure - using cached data',
+        }
+      }, {
+        headers: {
+          'Cache-Control': 'public, max-age=60, s-maxage=60',
+          'X-Cache': 'STALE-FALLBACK',
+          'X-Processing-Time': processingTime.toString(),
+        },
+      });
+    }
 
     return NextResponse.json(
       {

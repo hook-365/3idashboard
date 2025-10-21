@@ -222,10 +222,7 @@ export default function MultiCometView({ comets, showSun = true, showEarth = tru
           },
           transparent: true,
           depthWrite: false,
-          side: THREE.DoubleSide,
-          extensions: {
-            derivatives: true
-          }
+          side: THREE.DoubleSide
         });
 
         // Large plane for the grid
@@ -467,11 +464,13 @@ export default function MultiCometView({ comets, showSun = true, showEarth = tru
             'K1 ATLAS': 'K1',
             'SWAN': 'SWAN',
             'LEMMON': 'LEMMON',
-            'WIERZCHOS': 'WIERZCHOS'
+            'Lemmon': 'LEMMON',  // Handle mixed case from API
+            'WIERZCHOS': 'WIERZCHOS',
+            'Wierzchos': 'WIERZCHOS'  // Handle mixed case from API
           };
 
           const upperName = comet.name.toUpperCase();
-          const cometKey = nameMap[upperName] || upperName;
+          const cometKey = nameMap[comet.name] || nameMap[upperName] || upperName;
           const elements = COMET_ORBITAL_ELEMENTS[cometKey];
 
           if (elements) {

@@ -155,7 +155,7 @@ export function useStandardizedChart(config: StandardChartConfig) {
           color: '#e5e7eb',
           font: { size: 12 },
           filter: (item) => {
-            return item.text && item.text !== 'undefined' && item.text !== '';
+            return !!(item.text && item.text !== 'undefined' && item.text !== '');
           },
         },
       },

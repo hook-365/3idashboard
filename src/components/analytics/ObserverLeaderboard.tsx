@@ -438,7 +438,7 @@ const ObserverLeaderboard = React.memo(function ObserverLeaderboard({ observers 
               rowCount={paginatedObservers.length}
               rowHeight={72}
               rowComponent={VirtualRow}
-              rowProps={{} as any}
+              rowProps={{} as any} // eslint-disable-line @typescript-eslint/no-explicit-any
               style={{ width: '100%' }}
             />
           ) : (

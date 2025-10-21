@@ -20,9 +20,11 @@
     "docker:db": "docker-compose --profile db up -d"
   },
   "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/leaflet": "^1.9.20",
     "@types/react-window": "^1.8.8",
     "astronomy-engine": "^2.1.19",
+    "better-sqlite3": "^12.4.1",
     "bluebird": "^3.7.2",
     "chart.js": "^4.5.0",
     "chartjs-adapter-date-fns": "^3.0.0",
@@ -31,6 +33,7 @@
     "compression": "^1.8.1",
     "date-fns": "^4.1.0",
     "gsap": "^3.13.0",
+    "ioredis": "^5.8.2",
     "jquery": "^3.7.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.544.0",
@@ -43,12 +46,16 @@
     "react-dom": "19.1.0",
     "react-leaflet": "^5.0.0",
     "react-window": "^2.2.0",
+    "redis": "^5.8.3",
+    "sonner": "^2.0.7",
+    "sqlite3": "^5.1.7",
     "swr": "^2.3.6",
     "three": "^0.180.0",
     "zod": "^4.1.11"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@next/bundle-analyzer": "^15.5.6",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.0",
     "@testing-library/react": "^16.3.0",

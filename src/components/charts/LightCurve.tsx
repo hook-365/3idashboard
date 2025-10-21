@@ -287,7 +287,7 @@ const LightCurve = memo(function LightCurve({
             color: textColors.tertiary,
             stepSize: 1,
             callback: function(value) {
-              return value.toFixed(1);
+              return typeof value === 'number' ? value.toFixed(1) : value;
             },
           },
           grid: {

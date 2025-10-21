@@ -134,7 +134,7 @@ export function createBaseChartOptions<T extends 'line' | 'scatter' | 'bar'>(
   chartType: T,
   overrides?: Partial<ChartOptions<T>>
 ): ChartOptions<T> {
-  const baseOptions: ChartOptions<T> = {
+  const baseOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -182,14 +182,14 @@ export function createBaseChartOptions<T extends 'line' | 'scatter' | 'bar'>(
       intersect: false,
       mode: 'index'
     }
-  } as ChartOptions<T>;
+  } as unknown as ChartOptions<T>;
 
   // Deep merge overrides
   if (overrides) {
-    return mergeChartOptions(baseOptions, overrides);
+    return mergeChartOptions(baseOptions as ChartOptions<T>, overrides) as ChartOptions<T>;
   }
 
-  return baseOptions;
+  return baseOptions as ChartOptions<T>;
 }
 
 /**
@@ -203,14 +203,14 @@ function mergeChartOptions<T extends 'line' | 'scatter' | 'bar'>(
     ...base,
     ...overrides,
     plugins: {
-      ...base.plugins,
-      ...overrides.plugins
+      ...base?.plugins,
+      ...((overrides as any)?.plugins || {})
     },
     scales: {
-      ...base.scales,
-      ...overrides.scales
+      ...base?.scales,
+      ...((overrides as any)?.scales || {})
     }
-  };
+  } as ChartOptions<T>;
 }
 
 export default STANDARD_CHART_CONFIG;

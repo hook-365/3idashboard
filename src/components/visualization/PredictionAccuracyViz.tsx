@@ -385,10 +385,7 @@ export default function PredictionAccuracyViz({ epochsData }: PredictionAccuracy
         },
         transparent: true,
         depthWrite: false,
-        side: THREE.DoubleSide,
-        extensions: {
-          derivatives: true
-        }
+        side: THREE.DoubleSide
       });
 
       // Large plane for the grid
@@ -993,7 +990,7 @@ export default function PredictionAccuracyViz({ epochsData }: PredictionAccuracy
                 className="absolute top-0 w-1 h-3 pointer-events-none z-10"
                 style={{
                   left: `${((approach.date.getTime() - timelineStart.getTime()) / (timelineEnd.getTime() - timelineStart.getTime())) * 100}%`,
-                  backgroundColor: approach.color,
+                  backgroundColor: '#4a5568', // Default gray color for approaches
                 }}
                 title={`Closest to ${approach.planet}: ${approach.date.toISOString().split('T')[0]} (${(approach.distance).toFixed(3)} AU)`}
               />
@@ -1044,8 +1041,8 @@ export default function PredictionAccuracyViz({ epochsData }: PredictionAccuracy
                 if (Math.abs(currentTime - approach.date.getTime()) < threshold) {
                   return (
                     <span className="text-xs font-semibold" style={{
-                      color: approach.color,
-                      textShadow: `0 0 8px ${approach.color}99`
+                      color: '#4a5568',
+                      textShadow: `0 0 8px #4a556899`
                     }}>
                       Closest to {approach.planet} ({approach.date.toISOString().split('T')[0]} • {approach.distance.toFixed(2)} AU)
                     </span>

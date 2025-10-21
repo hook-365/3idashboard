@@ -28,12 +28,13 @@ import {
   type JPLEphemerisData,
   calculateOrbitalParameters
 } from './jpl-horizons';
-import { getMPCOrbitalData, type MPCSourceData } from './mpc';
+import { getMPCOrbitalData } from './mpc';
 import { calculateAtlasRADEC } from '../orbital-calculations';
 import type {
   EnhancedCometData,
   CacheEntry,
   CacheStatus,
+  MPCSourceData,
 } from '../../types/enhanced-comet-data';
 import logger from '@/lib/logger';
 
@@ -361,10 +362,6 @@ export class DataSourceManager {
         daysUntilPerihelion: Math.floor(
           (new Date('2025-10-30').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
         ),
-        observationDateRange: baseData.stats?.observationDateRange || {
-          earliest: '',
-          latest: '',
-        },
       },
 
       // Enhanced multi-source data
@@ -420,13 +417,13 @@ export class DataSourceManager {
       logger.info({
         ra: theSkyData.ra,
         dec: theSkyData.dec,
-        magnitude: theSkyData.magnitude
+        magnitude: theSkyData.magnitude_estimate
       }, 'Using TheSkyLive ephemeris data');
       return {
         current_position: {
           ra: theSkyData.ra,
           dec: theSkyData.dec,
-          magnitude: theSkyData.magnitude || 0,
+          magnitude: theSkyData.magnitude_estimate || 0,
           last_updated: new Date().toISOString(),
         },
         time_series: undefined,

@@ -126,6 +126,18 @@ class MemoryCache {
     return entry.data as T;
   }
 
+  getMetadata(key: string): { timestamp: number; ttl: number } | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return { timestamp: entry.timestamp, ttl: entry.ttl };
+  }
+
   clear(): void {
     this.cache.clear();
   }
@@ -599,12 +611,12 @@ export function getJPLHorizonsCacheInfo(): {
     return { hasCachedData: false };
   }
 
-  const now = Date.now();
-  const entry = (cache as { cache: Map<string, { timestamp: number; ttl: number; data: unknown }> }).cache.get(cacheKey);
-  if (!entry) return { hasCachedData: false };
+  const metadata = cache.getMetadata(cacheKey);
+  if (!metadata) return { hasCachedData: false };
 
-  const cacheAge = now - entry.timestamp;
-  const nextRefreshIn = entry.ttl - cacheAge;
+  const now = Date.now();
+  const cacheAge = now - metadata.timestamp;
+  const nextRefreshIn = metadata.ttl - cacheAge;
 
   return {
     hasCachedData: true,
@@ -1185,7 +1197,7 @@ export async function fetchCometOrbitalTrail(
   // Check cache
   const cached = cache.get<CometOrbitalData>(cacheKey);
   if (cached) {
-    logger.info({ target, cacheKey: key }, 'Cache hit for comet trail');
+    logger.info({ target, cacheKey }, 'Cache hit for comet trail');
     return cached;
   }
 

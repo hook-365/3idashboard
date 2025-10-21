@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import * as Astronomy from 'astronomy-engine';
 import logger from '@/lib/logger';
 
 export interface OrbitalElements {
@@ -54,21 +55,26 @@ function rotateToEcliptic(
   const cos_omega = Math.cos(omega_rad);
   const sin_omega = Math.sin(omega_rad);
 
-  // Apply rotations: argument of periapsis → inclination → ascending node
-  // Step 1: Rotate by argument of periapsis (w)
-  const x1 = x_orb * cos_w - y_orb * sin_w;
-  const y1 = x_orb * sin_w + y_orb * cos_w;
-  const z1 = z_orb;
+  // Proper orbital mechanics rotation: P = R_z(Ω) * R_x(i) * R_z(ω) * r_orb
+  // Where r_orb = [x_orb, y_orb, 0] in the orbital plane
 
-  // Step 2: Rotate by inclination (i)
-  const x2 = x1;
-  const y2 = y1 * cos_i - z1 * sin_i;
-  const z2 = y1 * sin_i + z1 * cos_i;
+  // Combined rotation matrix elements (more accurate for high inclinations)
+  const P11 = cos_omega * cos_w - sin_omega * cos_i * sin_w;
+  const P12 = -cos_omega * sin_w - sin_omega * cos_i * cos_w;
+  const P13 = sin_omega * sin_i;
 
-  // Step 3: Rotate by ascending node (omega)
-  const x3 = x2 * cos_omega - y2 * sin_omega;
-  const y3 = x2 * sin_omega + y2 * cos_omega;
-  const z3 = z2;
+  const P21 = sin_omega * cos_w + cos_omega * cos_i * sin_w;
+  const P22 = -sin_omega * sin_w + cos_omega * cos_i * cos_w;
+  const P23 = -cos_omega * sin_i;
+
+  const P31 = sin_i * sin_w;
+  const P32 = sin_i * cos_w;
+  const P33 = cos_i;
+
+  // Apply the combined transformation matrix
+  const x3 = P11 * x_orb + P12 * y_orb + P13 * z_orb;
+  const y3 = P21 * x_orb + P22 * y_orb + P23 * z_orb;
+  const z3 = P31 * x_orb + P32 * y_orb + P33 * z_orb;
 
   return { x: x3, y: y3, z: z3 };
 }
@@ -162,44 +168,68 @@ export function calculateEclipticPosition(
     return null;
   }
 
-  // Days from perihelion
+  // Days from perihelion (use precise time calculation)
   const daysFromPerihelion =
     (date.getTime() - T.getTime()) / (1000 * 60 * 60 * 24);
 
   // Semi-major axis (negative for hyperbolic)
   const a = q / (1 - e);
 
+  // Gaussian gravitational constant for solar system
+  // k = 0.01720209895 radians/day (IAU standard)
+  // GM_sun = k^2 AU^3/day^2
+  const k = 0.01720209895;
+  const mu = k * k; // = 2.9591220828559115e-4 AU^3/day^2
+
   // Mean motion (radians per day)
-  const mu = 2.959122082855911e-4; // GM_sun in AU^3/day^2
-  const n = Math.sqrt(Math.abs(mu / (a * a * a)));
+  const n = e >= 1.0 ?
+    Math.sqrt(mu / Math.abs(a * a * a)) : // Hyperbolic
+    Math.sqrt(mu / (a * a * a));          // Elliptical
 
   // Mean anomaly
   const M = n * daysFromPerihelion;
 
-  // Solve Kepler's equation using Newton-Raphson
+  // Solve Kepler's equation using Newton-Raphson with improved convergence
   let nu: number; // true anomaly
 
   if (e >= 1.0) {
-    // Hyperbolic anomaly H
+    // Hyperbolic orbit
+    // Initial guess for hyperbolic anomaly
     let H = M;
-    for (let iter = 0; iter < 20; iter++) {
-      const f = e * Math.sinh(H) - H - M;
-      const df = e * Math.cosh(H) - 1;
-      H = H - f / df;
-      if (Math.abs(f) < 1e-10) break;
+    if (M !== 0) {
+      // Better initial guess for hyperbolic case
+      H = Math.log(2 * Math.abs(M) / e + 1.8);
+      if (M < 0) H = -H;
+    }
+
+    // Newton-Raphson iteration
+    for (let iter = 0; iter < 30; iter++) {
+      const sinhH = Math.sinh(H);
+      const coshH = Math.cosh(H);
+      const f = e * sinhH - H - M;
+      const df = e * coshH - 1;
+      const dH = -f / df;
+      H += dH;
+      if (Math.abs(dH) < 1e-12) break;
     }
 
     // True anomaly from hyperbolic anomaly
     const tanHalfNu = Math.sqrt((e + 1) / (e - 1)) * Math.tanh(H / 2);
     nu = 2 * Math.atan(tanHalfNu);
   } else {
-    // Eccentric anomaly E
-    let E = M;
-    for (let iter = 0; iter < 20; iter++) {
-      const f = E - e * Math.sin(E) - M;
-      const df = 1 - e * Math.cos(E);
-      E = E - f / df;
-      if (Math.abs(f) < 1e-10) break;
+    // Elliptical orbit
+    // Improved initial guess for eccentric anomaly
+    let E = M + e * Math.sin(M) * (1 + e * Math.cos(M));
+
+    // Newton-Raphson iteration with better convergence
+    for (let iter = 0; iter < 30; iter++) {
+      const sinE = Math.sin(E);
+      const cosE = Math.cos(E);
+      const f = E - e * sinE - M;
+      const df = 1 - e * cosE;
+      const dE = -f / df;
+      E += dE;
+      if (Math.abs(dE) < 1e-12) break;
     }
 
     // True anomaly from eccentric anomaly
@@ -217,6 +247,116 @@ export function calculateEclipticPosition(
 
   // Rotate to ecliptic coordinates (no Three.js transformation)
   return rotateToEcliptic(x_orb, y_orb, z_orb, i, omega, w);
+}
+
+/**
+ * Calculate Earth's position in ecliptic coordinates using JPL ephemeris
+ *
+ * @param date - Date to calculate Earth's position
+ * @returns Position in ecliptic coordinates (AU)
+ */
+export function calculateEarthPosition(date: Date): { x: number; y: number; z: number } {
+  // Get Earth's heliocentric position from astronomy-engine (JPL ephemeris)
+  // This returns J2000 equatorial coordinates
+  const position = Astronomy.HelioVector(Astronomy.Body.Earth, date);
+
+  // Obliquity of ecliptic at J2000.0 epoch (23.43929111 degrees)
+  const epsilon = 23.43929111 * Math.PI / 180;
+  const cos_eps = Math.cos(epsilon);
+  const sin_eps = Math.sin(epsilon);
+
+  // Convert from J2000 equatorial to ecliptic coordinates
+  // Rotation around X-axis by obliquity angle
+  const x_ecl = position.x;
+  const y_ecl = position.y * cos_eps + position.z * sin_eps;
+  const z_ecl = -position.y * sin_eps + position.z * cos_eps;
+
+  return { x: x_ecl, y: y_ecl, z: z_ecl };
+}
+
+/**
+ * Convert heliocentric ecliptic to geocentric equatorial coordinates (RA/Dec)
+ *
+ * @param heliocentric - Position in heliocentric ecliptic coordinates (AU)
+ * @param date - Date for Earth position calculation
+ * @returns Right Ascension (degrees) and Declination (degrees) as seen from Earth
+ */
+export function heliocentricToRADec(heliocentric: { x: number; y: number; z: number }, date: Date): { ra: number; dec: number } {
+  // Get Earth's position
+  const earth = calculateEarthPosition(date);
+
+  // Convert to geocentric coordinates
+  const geo_x = heliocentric.x - earth.x;
+  const geo_y = heliocentric.y - earth.y;
+  const geo_z = heliocentric.z - earth.z;
+
+  // Obliquity of the ecliptic for J2000.0 epoch (23.43929 degrees)
+  const epsilon = 23.43929 * Math.PI / 180;
+  const cos_eps = Math.cos(epsilon);
+  const sin_eps = Math.sin(epsilon);
+
+  // Transform from ecliptic to equatorial
+  const x_eq = geo_x;
+  const y_eq = geo_y * cos_eps - geo_z * sin_eps;
+  const z_eq = geo_y * sin_eps + geo_z * cos_eps;
+
+  // Calculate RA and Dec
+  const r = Math.sqrt(x_eq * x_eq + y_eq * y_eq);
+
+  // Right Ascension (0 to 360 degrees)
+  let ra = Math.atan2(y_eq, x_eq) * 180 / Math.PI;
+  if (ra < 0) ra += 360;
+
+  // Declination (-90 to +90 degrees)
+  const dec = Math.atan2(z_eq, r) * 180 / Math.PI;
+
+  return { ra, dec };
+}
+
+/**
+ * Calculate Earth distance from heliocentric position
+ *
+ * @param heliocentric - Position in heliocentric ecliptic coordinates (AU)
+ * @param date - Date for Earth position calculation
+ * @returns Distance from Earth in AU
+ */
+export function calculateEarthDistance(heliocentric: { x: number; y: number; z: number }, date: Date): number {
+  const earth = calculateEarthPosition(date);
+  const dx = heliocentric.x - earth.x;
+  const dy = heliocentric.y - earth.y;
+  const dz = heliocentric.z - earth.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Convert ecliptic coordinates to equatorial coordinates (RA/Dec)
+ * @deprecated Use heliocentricToRADec for accurate geocentric coordinates
+ *
+ * @param ecliptic - Position in ecliptic coordinates (AU)
+ * @returns Right Ascension (degrees) and Declination (degrees)
+ */
+export function eclipticToEquatorial(ecliptic: { x: number; y: number; z: number }): { ra: number; dec: number } {
+  // Obliquity of the ecliptic for J2000.0 epoch (23.43929 degrees)
+  const epsilon = 23.43929 * Math.PI / 180;
+  const cos_eps = Math.cos(epsilon);
+  const sin_eps = Math.sin(epsilon);
+
+  // Transform from ecliptic to equatorial
+  const x_eq = ecliptic.x;
+  const y_eq = ecliptic.y * cos_eps - ecliptic.z * sin_eps;
+  const z_eq = ecliptic.y * sin_eps + ecliptic.z * cos_eps;
+
+  // Calculate RA and Dec
+  const r = Math.sqrt(x_eq * x_eq + y_eq * y_eq);
+
+  // Right Ascension (0 to 360 degrees)
+  let ra = Math.atan2(y_eq, x_eq) * 180 / Math.PI;
+  if (ra < 0) ra += 360;
+
+  // Declination (-90 to +90 degrees)
+  const dec = Math.atan2(z_eq, r) * 180 / Math.PI;
+
+  return { ra, dec };
 }
 
 /**
@@ -346,35 +486,35 @@ export function calculateOrbitPointsWithDates(
  */
 export const COMET_ORBITAL_ELEMENTS: Record<string, OrbitalElements> = {
   SWAN: {
-    e: 0.99936929,           // Eccentricity (near-parabolic)
-    q: 0.50347198,           // Perihelion distance (AU)
-    i: 4.47016709,           // Inclination (degrees)
-    omega: 335.67455839,     // Longitude of ascending node Ω (degrees)
-    w: 307.76903517,         // Argument of periapsis ω (degrees)
+    e: 0.9993612,            // Eccentricity (near-parabolic) - MPC corrected
+    q: 0.5034634,            // Perihelion distance (AU) - MPC corrected
+    i: 4.4706,               // Inclination (degrees) - low inclination, prograde
+    omega: 335.6732,         // Longitude of ascending node Ω (degrees)
+    w: 307.7653,             // Argument of periapsis ω (degrees)
     T: new Date('2025-09-12T00:00:00Z'), // Perihelion Sep 12, 2025
   },
   LEMMON: {
-    e: 0.99576389,           // Eccentricity (near-parabolic)
-    q: 0.52918319,           // Perihelion distance (AU)
-    i: 143.63261677,         // Inclination (degrees)
-    omega: 108.09789996,     // Longitude of ascending node Ω (degrees)
-    w: 132.99513300,         // Argument of periapsis ω (degrees)
+    e: 0.9957568,            // Eccentricity (near-parabolic) - MPC corrected
+    q: 0.5291772,            // Perihelion distance (AU) - MPC corrected
+    i: 143.6313,             // Inclination (degrees) - retrograde orbit
+    omega: 108.0991,         // Longitude of ascending node Ω (degrees)
+    w: 132.9936,             // Argument of periapsis ω (degrees)
     T: new Date('2025-11-08T00:00:00Z'), // Perihelion Nov 8, 2025
   },
   K1: {
-    e: 1.00153256,           // Eccentricity (hyperbolic - will escape solar system)
-    q: 0.33543043,           // Perihelion distance (AU)
-    i: 147.90080333,         // Inclination (degrees)
-    omega: 97.48797247,      // Longitude of ascending node Ω (degrees)
-    w: 270.79200919,         // Argument of periapsis ω (degrees)
+    e: 1.0013922,            // Eccentricity (hyperbolic) - MPC corrected
+    q: 0.3354431,            // Perihelion distance (AU) - MPC corrected
+    i: 147.89890,            // Inclination (degrees) - retrograde orbit
+    omega: 97.49385,         // Longitude of ascending node Ω (degrees) - MPC
+    w: 270.78989,            // Argument of periapsis ω (degrees) - MPC
     T: new Date('2025-10-08T00:00:00Z'), // Perihelion Oct 8, 2025
   },
   WIERZCHOS: {
-    e: 1.00004883,           // Eccentricity (hyperbolic - will escape solar system)
+    e: 1.00004883,           // Eccentricity (marginally hyperbolic)
     q: 0.56584101,           // Perihelion distance (AU)
-    i: 75.23838445,          // Inclination (degrees)
-    omega: 108.08299210,     // Longitude of ascending node Ω (degrees)
-    w: 243.63942205,         // Argument of periapsis ω (degrees)
+    i: 75.23838,             // Inclination (degrees) - high but not retrograde
+    omega: 108.08299,        // Longitude of ascending node Ω (degrees)
+    w: 243.63942,            // Argument of periapsis ω (degrees)
     T: new Date('2026-01-20T00:00:00Z'), // Perihelion Jan 20, 2026
   },
 };

@@ -292,7 +292,7 @@ const VelocityChart = memo(function VelocityChart({
 
 export default VelocityChart;
 
-function calculateTrendLine(data: VelocityDataPoint[]): Array<{ x: string; y: number }> {
+function calculateTrendLine(data: VelocityDataPoint[]): Array<{ x: number; y: number }> {
   if (data.length < 2) return [];
 
   const points = data.map((point, index) => ({
