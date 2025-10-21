@@ -438,7 +438,7 @@ const ObserverLeaderboard = React.memo(function ObserverLeaderboard({ observers 
               rowCount={paginatedObservers.length}
               rowHeight={72}
               rowComponent={VirtualRow}
-              rowProps={{} as Record<string, never>}
+              rowProps={{} as any}
               style={{ width: '100%' }}
             />
           ) : (

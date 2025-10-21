@@ -296,7 +296,7 @@ export class COBSApiClient {
         coma,
         tail,
       };
-    } catch (error) {
+    } catch (_error) {
       logger.error({
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
@@ -400,7 +400,7 @@ export class COBSApiClient {
         coma,
         tail,
       };
-    } catch (error) {
+    } catch (_error) {
       logger.error({
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
@@ -444,7 +444,7 @@ export class COBSApiClient {
           return parseFloat(value.toFixed(2));
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Silently fail if parsing error occurs
     }
     return undefined;
@@ -487,7 +487,7 @@ export class COBSApiClient {
           return parseFloat(tailValue.toFixed(2));
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Silently fail if parsing error occurs
     }
     return undefined;
@@ -636,7 +636,7 @@ export class COBSApiClient {
         }, 'Successfully cached COBS observations');
         return observations;
 
-      } catch (error) {
+      } catch (_error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         logger.error({
           error: lastError.message,

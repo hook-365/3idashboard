@@ -115,9 +115,10 @@ export const CHART_STYLE_CONFIG = {
   }
 };
 
-export default {
+const analyticsConfig = {
   ANALYTICS_DATE_CONFIG,
   COMA_CONVERSIONS,
   ORBITAL_VIZ_CONFIG,
   CHART_STYLE_CONFIG
 };
+export default analyticsConfig;

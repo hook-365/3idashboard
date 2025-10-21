@@ -272,7 +272,7 @@ export function calculateAtlasRADEC(date: Date = new Date()): { ra: number; dec:
   // Source: https://minorplanetcenter.net/mpec/K25/K25N12.html
   const q = 1.3745928;  // Perihelion distance (AU) - official MPC value
   const e = 6.2769203;  // Eccentricity (highly hyperbolic - fastest interstellar object known)
-  const a = q / (1 - e); // Semi-major axis: a = q/(1-e) = -0.26044 AU (negative for hyperbolic)
+  const _a = q / (1 - e); // Semi-major axis: a = q/(1-e) = -0.26044 AU (negative for hyperbolic)
 
   const elements = {
     e: e,             // Eccentricity (hyperbolic)

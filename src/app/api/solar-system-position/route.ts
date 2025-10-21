@@ -523,15 +523,15 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error) {
+  } catch (_error) {
     const processingTime = Date.now() - startTime;
     logger.error({
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
+      error: _error instanceof Error ? _error.message : 'Unknown error',
+      stack: _error instanceof Error ? _error.stack : undefined,
       processingTimeMs: Date.now() - startTime
     }, 'Error in solar system position API');
 
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = _error instanceof Error ? _error.message : 'Unknown error';
 
     // Try to load from persistent cache as fallback
     const cachedData = loadSolarSystemCache();
