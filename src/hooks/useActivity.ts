@@ -39,7 +39,7 @@ const fetcher = (url: string) => fetch(url).then(r => {
  *
  * Caches physics-based activity calculations to avoid recomputation
  */
-export function useActivity(days: number = 180) {
+export function useActivity(days: number = 90) {
   const { data, error, isLoading, mutate } = useSWR<ActivityResponse>(
     `/api/simple-activity?days=${days}`,
     fetcher,

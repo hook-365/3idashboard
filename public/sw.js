@@ -3,9 +3,9 @@
  * Provides offline capability, caching, and PWA features
  */
 
-const CACHE_NAME = 'comet-dashboard-v1';
-const RUNTIME_CACHE = 'comet-runtime-v1';
-const API_CACHE = 'comet-api-v1';
+const CACHE_NAME = 'comet-dashboard-v2';
+const RUNTIME_CACHE = 'comet-runtime-v2';
+const API_CACHE = 'comet-api-v2';
 
 // Static assets to cache on install
 const STATIC_ASSETS = [

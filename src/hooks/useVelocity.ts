@@ -9,7 +9,15 @@ interface VelocityDataPoint {
 
 interface VelocityResponse {
   success: boolean;
-  data: VelocityDataPoint[];
+  data: {
+    velocityData: VelocityDataPoint[];
+    type: string;
+    parameters: {
+      smoothingWindow: number;
+      limit: number;
+      days: number;
+    };
+  };
   metadata: {
     processingTimeMs: number;
     dataPoints: number;
@@ -40,7 +48,7 @@ export function useVelocity(
     type,
     smoothingWindow: String(params?.smoothingWindow || 7),
     limit: String(params?.limit || 200),
-    days: String(params?.days || 180),
+    days: String(params?.days || 90),
   });
 
   const { data, error, isLoading, mutate } = useSWR<VelocityResponse>(
@@ -55,7 +63,7 @@ export function useVelocity(
   );
 
   return {
-    velocityData: data?.data || [],
+    velocityData: data?.data?.velocityData || [],
     metadata: data?.metadata,
     isLoading,
     error,

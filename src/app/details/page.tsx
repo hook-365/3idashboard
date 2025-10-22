@@ -260,6 +260,40 @@ export default function AnalyticsPage() {
   // Combine loading states
   const loading = cometLoading || observersLoading || activityLoading || velocityLoading || orbitalVelocityLoading;
 
+  // DEBUG: Log loading states to identify stuck hook
+  useEffect(() => {
+    console.log('[DEBUG] Loading states:', {
+      cometLoading,
+      observersLoading,
+      activityLoading,
+      velocityLoading,
+      orbitalVelocityLoading,
+      overall: loading
+    });
+    console.log('[DEBUG] Data states:', {
+      hasCometData: !!cometData,
+      hasObserverMap: !!observerMap,
+      hasActivityData: !!activityData,
+      hasBrightnessVelocity: !!brightnessVelocity,
+      hasOrbitalVelocity: !!orbitalVelocity
+    });
+    console.log('[DEBUG] Error states:', {
+      cometError,
+      observersError,
+      activityError,
+      velocityError,
+      orbitalVelocityError
+    });
+    console.log('[DEBUG] Data type check:', {
+      isArrayActivity: Array.isArray(activityData),
+      isArrayBrightness: Array.isArray(brightnessVelocity),
+      isArrayOrbital: Array.isArray(orbitalVelocity),
+      activityLength: activityData?.length,
+      brightnessLength: brightnessVelocity?.length,
+      orbitalLength: orbitalVelocity?.length
+    });
+  }, [cometLoading, observersLoading, activityLoading, velocityLoading, orbitalVelocityLoading, cometData, observerMap, activityData, brightnessVelocity, orbitalVelocity, cometError, observersError, activityError, velocityError, orbitalVelocityError]);
+
   // Combine all errors for comprehensive error display
   const errors = [
     cometError ? 'Comet data: ' + (cometError instanceof Error ? cometError.message : String(cometError)) : null,
@@ -429,6 +463,15 @@ export default function AnalyticsPage() {
       ephemerisPosition: cometData.jpl_ephemeris?.current_position || undefined
     };
   }, [cometData, activityData, brightnessVelocity, orbitalVelocity, currentActivity]);
+
+  // DEBUG: Check state after useMemo
+  useEffect(() => {
+    console.log('[DEBUG] Final state check:', {
+      hasState: !!state,
+      loading,
+      willShowSpinner: loading || !state
+    });
+  }, [state, loading]);
 
   // Show loading state
   if (loading || !state) {
