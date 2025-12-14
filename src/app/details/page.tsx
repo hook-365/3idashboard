@@ -891,18 +891,18 @@ export default function AnalyticsPage() {
                       <p className="text-[var(--color-text-secondary)] mb-3">
                         The &quot;backwards tail&quot; is made of <strong className="text-cyan-400">tiny ice crystals</strong> (think: frozen water vapor, not rocks).
                         These ice crystals last longer when heading toward the Sun because of how the comet is venting gas.
-                        Hubble Space Telescope confirmed this isn&apos;t a trick of the camera angle - it&apos;s real, stretching about
-                        <strong className="text-cyan-400"> 18,000 miles</strong> toward the Sun.
+                        Hubble Space Telescope confirmed this isn&apos;t a trick of the camera angle - it&apos;s real, with anti-tail jets extending up to
+                        <strong className="text-cyan-400"> ~1 million km</strong> (~620,000 miles) toward the Sun.
                       </p>
                       <div className="text-sm text-[var(--color-text-tertiary)] border-l-2 border-cyan-500/50 pl-4 mb-3 italic">
-                        &quot;Ice grains survive longer in the Sun-facing direction because that&apos;s where the most gas is venting out.
-                        It&apos;s like a protective cloud that keeps them frozen longer.&quot;
-                        <div className="mt-2 text-xs">- Harvard astronomers Avi Loeb & Eric Keto</div>
+                        &quot;The anti-tail jets are only stopped at a distance of ~1 million kilometers, implying their ram-pressure exceeds that of the solar wind out to that distance.&quot;
+                        <div className="mt-2 text-xs">- Avi Loeb, <a href="https://avi-loeb.medium.com/the-remarkable-large-scale-structure-of-anti-tail-and-tail-jets-from-3i-atlas-242c534cf7b3" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">Medium (Nov 2025)</a></div>
                       </div>
                       <div className="bg-purple-500/10 border border-purple-500/30 rounded p-3 text-xs text-[var(--color-text-secondary)]">
-                        <strong className="text-purple-300">How small is this comet?</strong> The icy core is probably smaller than
-                        <strong> 2 miles across</strong> (possibly as small as 0.2 miles). It&apos;s so tiny and surrounded by so much
-                        ice and dust that we can&apos;t even see the nucleus itself!
+                        <strong className="text-purple-300">How small is this comet?</strong> Hubble estimates the nucleus is
+                        <strong> less than 1 km</strong> (0.62 mi) across, with upper bounds of 5.6 km and lower bounds of 440 m.
+                        It&apos;s so tiny and surrounded by so much dust that we can&apos;t directly image the nucleus itself!
+                        <div className="mt-1 text-[10px]">Source: <a href="https://science.nasa.gov/missions/hubble/as-nasa-missions-study-interstellar-comet-hubble-makes-size-estimate/" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">NASA Hubble (Aug 2025)</a></div>
                       </div>
                     </div>
                   </div>
@@ -989,29 +989,37 @@ export default function AnalyticsPage() {
                     </div>
 
                     <div className="bg-blue-500/10 border border-blue-500/30 rounded p-4">
-                      <h5 className="font-semibold text-blue-300 mb-2">What&apos;s It Made Of? (Webb Telescope Data):</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <h5 className="font-semibold text-blue-300 mb-2">What&apos;s It Made Of? (JWST NIRSpec Data, Aug 6, 2025):</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
                         <div className="text-center p-2 bg-orange-500/10 rounded border border-orange-500/30">
-                          <div className="text-2xl font-bold text-orange-400">87%</div>
-                          <div className="text-orange-300">Dry Ice</div>
-                          <div className="text-[var(--color-text-tertiary)] mt-1">(CO₂ gas)</div>
-                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Creates the main gas cloud</div>
+                          <div className="text-2xl font-bold text-orange-400">129</div>
+                          <div className="text-orange-300">kg/s CO₂</div>
+                          <div className="text-[var(--color-text-tertiary)] mt-1">(Carbon Dioxide)</div>
+                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Dominant outgassing</div>
                         </div>
                         <div className="text-center p-2 bg-blue-500/10 rounded border border-blue-500/30">
-                          <div className="text-2xl font-bold text-blue-400">9%</div>
-                          <div className="text-blue-300">Other Gases</div>
-                          <div className="text-[var(--color-text-tertiary)] mt-1">(CO, etc.)</div>
-                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Minor components</div>
+                          <div className="text-2xl font-bold text-blue-400">14</div>
+                          <div className="text-blue-300">kg/s CO</div>
+                          <div className="text-[var(--color-text-tertiary)] mt-1">(Carbon Monoxide)</div>
+                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Second highest</div>
                         </div>
                         <div className="text-center p-2 bg-cyan-500/10 rounded border border-cyan-500/30">
-                          <div className="text-2xl font-bold text-cyan-400">4%</div>
-                          <div className="text-cyan-300">Water Ice</div>
-                          <div className="text-[var(--color-text-tertiary)] mt-1">(H₂O crystals)</div>
-                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1">What we actually see glowing</div>
+                          <div className="text-2xl font-bold text-cyan-400">6.6</div>
+                          <div className="text-cyan-300">kg/s H₂O</div>
+                          <div className="text-[var(--color-text-tertiary)] mt-1">(Water)</div>
+                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Unusually low</div>
+                        </div>
+                        <div className="text-center p-2 bg-purple-500/10 rounded border border-purple-500/30">
+                          <div className="text-2xl font-bold text-purple-400">~8:1</div>
+                          <div className="text-purple-300">CO₂/H₂O</div>
+                          <div className="text-[var(--color-text-tertiary)] mt-1">(Mixing ratio)</div>
+                          <div className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Highest ever seen!</div>
                         </div>
                       </div>
                       <div className="mt-3 text-xs text-center text-[var(--color-text-tertiary)]">
-                        ⚠️ Mostly dry ice by weight, but the water ice crystals create most of the visible glow
+                        📊 The CO₂/H₂O ratio of ~7.6 is among the highest ever observed in a comet — 4.5σ above typical values
+                        <br />
+                        <span className="text-[10px]">Source: <a href="https://arxiv.org/abs/2508.18209" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">JWST Detection Paper (arXiv:2508.18209)</a></span>
                       </div>
                     </div>
                   </div>
@@ -1412,11 +1420,11 @@ export default function AnalyticsPage() {
                           <InfoTooltip content="Geocentric distance - how far 3I/ATLAS is from Earth. This affects how bright it appears to us, along with its actual brightness." />
                         </div>
                         <div><span className="text-[var(--color-text-tertiary)]">Days to closest:</span> <span className="text-[var(--color-status-success)]">{state.missionStatus?.days_to_perihelion !== undefined ? state.missionStatus.days_to_perihelion : 'N/A'}</span></div>
-                        <div><span className="text-[var(--color-text-tertiary)]">Closest approach:</span> <span className="text-[var(--color-status-success)]">Oct 30, 2025</span></div>
+                        <div><span className="text-[var(--color-text-tertiary)]">Perihelion:</span> <span className="text-[var(--color-status-success)]">Oct 29, 2025 (11:44 UT)</span></div>
                         <div>
-                          <span className="text-[var(--color-text-tertiary)]">Escape speed:</span>{' '}
-                          <span className="text-[var(--color-status-success)]">58 km/s</span>
-                          <InfoTooltip content="The speed at which 3I/ATLAS will leave the solar system after perihelion. It has enough energy to escape forever." />
+                          <span className="text-[var(--color-text-tertiary)]">v∞ (excess velocity):</span>{' '}
+                          <span className="text-[var(--color-status-success)]">57 km/s</span>
+                          <InfoTooltip content="Hyperbolic excess velocity - the speed 3I/ATLAS will have when far from the Sun's gravity. This is the fastest of any known interstellar object." />
                         </div>
                       </div>
                     </div>

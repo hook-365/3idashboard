@@ -303,7 +303,7 @@ export default function ScientificControversySection({ className = '' }: Scienti
                   What will post-perihelion reveal?
                 </h4>
                 <p className="text-sm text-[var(--color-text-secondary)]">
-                  After October 30, 2025 perihelion, peak heating may reveal new spectral features or
+                  After October 29, 2025 perihelion, peak heating may reveal new spectral features or
                   change the Ni/Fe ratio. Continuous monitoring is critical.
                 </p>
               </div>

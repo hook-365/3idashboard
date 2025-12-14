@@ -951,7 +951,8 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
           }
 
           // Add perihelion marker - find the point closest to perihelion date
-          const perihelionDate = new Date('2025-10-30T00:00:00Z');
+          // Perihelion: October 29, 2025 at 11:44 UT (Source: MPC, NASA)
+          const perihelionDate = new Date('2025-10-29T11:44:00Z');
           const perihelionPoint = apiData.orbital_projection.reduce((closest, point) => {
             const pointDate = new Date(point.date || '');
             const closestDate = new Date(closest.date || '');
@@ -1020,7 +1021,6 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
             labels.set('Perihelion', perihelionLabel);
 
             const now = new Date();
-            const perihelionDate = new Date('2025-10-30T00:00:00Z');
             const daysUntilPerihelion = Math.round((perihelionDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             console.log(`Added perihelion marker at ${daysUntilPerihelion} days from now`);
             console.log(`Perihelion position: (${perihelionX.toFixed(1)}, ${perihelionY.toFixed(1)}, ${perihelionZ.toFixed(1)})`);
@@ -1722,7 +1722,7 @@ const ModernSolarSystem = memo(function ModernSolarSystem({
             <div className="space-y-1 mb-1.5 pb-1.5 border-b border-[var(--color-border-secondary)]">
               <div className="flex justify-between items-center gap-3">
                 <span className="text-[var(--color-text-secondary)]">Perihelion:</span>
-                <span className="text-yellow-700 dark:text-yellow-300">Oct 30, 2025</span>
+                <span className="text-yellow-700 dark:text-yellow-300">Oct 29, 2025</span>
               </div>
             </div>
 

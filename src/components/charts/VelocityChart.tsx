@@ -138,6 +138,7 @@ const VelocityChart = memo(function VelocityChart({
           label: (context) => {
             const value = context.parsed.y;
             const point = data[context.dataIndex];
+            if (value === null || value === undefined) return `N/A ${unit}`;
             // Use scientific notation for very small values
             const formattedValue = Math.abs(value) < 0.001
               ? value.toExponential(3)

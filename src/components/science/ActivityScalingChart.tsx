@@ -185,7 +185,7 @@ export default function ActivityScalingChart({ className = '' }: ActivityScaling
             },
             label: (context) => {
               const value = context.parsed.y;
-              return `${context.dataset.label}: ${value.toFixed(2)}x relative`;
+              return `${context.dataset.label}: ${value?.toFixed(2) ?? 'N/A'}x relative`;
             },
             afterBody: () => {
               return '\n(All curves normalized to 1.0 at 2.0 AU)';

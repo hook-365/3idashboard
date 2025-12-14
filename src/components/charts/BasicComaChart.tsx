@@ -139,7 +139,7 @@ export default function BasicComaChart({
         callbacks: {
           label: (context) => {
             const value = context.parsed.y;
-            return `${value.toFixed(2)} arcminutes`;
+            return `${value?.toFixed(2) ?? 'N/A'} arcminutes`;
           }
         }
       }

@@ -201,15 +201,22 @@ export function calculateAtlasTrailFromOrbit(
   const currentDate = new Date();
   const sampleInterval = 2; // days
 
-  // Discovery date: June 14, 2025 (earliest pre-discovery observations)
-  const discoveryDate = new Date('2025-06-14T00:00:00Z');
-  const daysSinceDiscovery = (currentDate.getTime() - discoveryDate.getTime()) / (1000 * 60 * 60 * 24);
+  // Discovery & Pre-discovery Timeline (Source: NASA Science, Wikipedia)
+  // - May 7, 2025: Earliest activity detected (TESS, at 6.4 AU)
+  // - May 21, 2025: Earliest precovery image (Weizmann Observatory)
+  // - June 5-25, 2025: Pre-discovery observations (ATLAS, ZTF)
+  // - July 1, 2025: Official discovery by ATLAS Chile (W68)
+  // - July 2, 2025: MPC announcement, designated 3I/ATLAS
+  //
+  // Using earliest precovery date for trail visualization
+  const earliestObservation = new Date('2025-05-21T00:00:00Z');
+  const daysSinceEarliestObs = (currentDate.getTime() - earliestObservation.getTime()) / (1000 * 60 * 60 * 24);
 
-  // Limit trail to discovery date (don't extrapolate before we have data)
-  const effectiveTrailDays = Math.min(trailDays, Math.floor(daysSinceDiscovery));
+  // Limit trail to earliest observation (don't extrapolate before we have data)
+  const effectiveTrailDays = Math.min(trailDays, Math.floor(daysSinceEarliestObs));
   const numSteps = Math.floor(effectiveTrailDays / sampleInterval);
 
-  logger.info({ effectiveTrailDays, discoveryDate: '2025-06-14' }, 'Trail limited to days since discovery');
+  logger.info({ effectiveTrailDays, earliestObservation: '2025-05-21' }, 'Trail limited to days since earliest observation');
 
   // Integrate backward in time
   for (let step = 0; step <= numSteps; step++) {
@@ -267,23 +274,35 @@ export function calculateAtlasTrailFromOrbit(
  * @returns Object with RA (degrees), DEC (degrees), and last_updated timestamp
  */
 export function calculateAtlasRADEC(date: Date = new Date()): { ra: number; dec: number; last_updated: string } {
-  // 3I/ATLAS orbital elements from Minor Planet Center MPEC 2025-N12 (Official)
+  // 3I/ATLAS orbital elements - UPDATED December 2025
   // IMPORTANT: Must match values in /src/lib/jsorrery/scenario/scenarios/bodies/atlas3i.js
-  // Source: https://minorplanetcenter.net/mpec/K25/K25N12.html
-  const q = 1.3745928;  // Perihelion distance (AU) - official MPC value
-  const e = 6.2769203;  // Eccentricity (highly hyperbolic - fastest interstellar object known)
-  const _a = q / (1 - e); // Semi-major axis: a = q/(1-e) = -0.26044 AU (negative for hyperbolic)
+  //
+  // Sources:
+  // - MPC MPEC 2025-N89: https://minorplanetcenter.net/mpec/K25/K25N89.html
+  // - NASA Science: https://science.nasa.gov/solar-system/comets/3i-atlas/
+  // - Wikipedia (compiled from MPC): https://en.wikipedia.org/wiki/3I/ATLAS
+  //
+  // Orbital characteristics (highest eccentricity of any known object):
+  // - Eccentricity: 6.139 ± 0.00003 (hyperbolic, fastest interstellar object)
+  // - Perihelion: 1.36 AU (203 million km), between Earth and Mars orbits
+  // - Inclination: 175° (retrograde orbit, ~5° from ecliptic)
+  // - Hyperbolic excess velocity (v∞): 57 km/s
+  // - Velocity at perihelion: 68 km/s
+  const q = 1.36;       // Perihelion distance (AU) - MPC refined value
+  const e = 6.139;      // Eccentricity (hyperbolic - highest of any known ISO)
+  const _a = q / (1 - e); // Semi-major axis: a = q/(1-e) ≈ -0.265 AU (negative for hyperbolic)
 
   const elements = {
-    e: e,             // Eccentricity (hyperbolic)
-    q: q,             // Perihelion distance (AU)
-    i: 175.11669,     // Inclination (degrees) - retrograde, ~5° from ecliptic plane
-    omega: 127.79317, // Argument of periapsis (degrees)
-    node: 322.27219,  // Longitude of ascending node (degrees)
+    e: e,             // Eccentricity (hyperbolic) - Source: MPC MPEC 2025-N89
+    q: q,             // Perihelion distance (AU) - Source: NASA/MPC
+    i: 175.0,         // Inclination (degrees) - retrograde, ~5° from ecliptic plane
+    omega: 127.79,    // Argument of periapsis (degrees)
+    node: 322.27,     // Longitude of ascending node (degrees)
   };
 
-  // Perihelion date: October 29, 2025 05:03:46 UTC (2025 Oct. 29.21095 TT from MPC)
-  const perihelion = new Date('2025-10-29T05:03:46.000Z');
+  // Perihelion: October 29, 2025 at 11:44 UT
+  // Source: TheSkyLive, NASA Science, MPC
+  const perihelion = new Date('2025-10-29T11:44:00.000Z');
   const daysFromPerihelion = (date.getTime() - perihelion.getTime()) / (1000 * 60 * 60 * 24);
 
   // Calculate comet's heliocentric ecliptic position

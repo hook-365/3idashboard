@@ -1,9 +1,9 @@
 # Dependencies
-# node_modules  # Need for simple Dockerfile
+node_modules
 npm-debug.log*
 
 # Next.js
-# .next/  # Need for simple Dockerfile
+.next/
 out/
 
 # Production build

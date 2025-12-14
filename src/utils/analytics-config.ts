@@ -1,21 +1,33 @@
 /**
  * Standardized configuration for analytics charts
  * Ensures all charts use consistent date ranges and parameters
+ *
+ * Sources for orbital data:
+ * - MPC MPEC 2025-N89: https://minorplanetcenter.net/mpec/K25/K25N89.html
+ * - NASA Science: https://science.nasa.gov/solar-system/comets/3i-atlas/
+ * - Wikipedia: https://en.wikipedia.org/wiki/3I/ATLAS
+ *
+ * Last updated: December 14, 2025
  */
 
 // Standard date ranges for all analytics charts
 export const ANALYTICS_DATE_CONFIG = {
-  // Standard start date - data collection began
+  // Discovery timeline:
+  // - May 21, 2025: Earliest precovery (Weizmann Observatory)
+  // - July 1, 2025: Official discovery (ATLAS Chile)
+  // - July 2, 2025: MPC announcement, designated 3I/ATLAS
   START_DATE: '2025-07-01T00:00:00.000Z',
 
-  // Perihelion date - scientific milestone
-  PERIHELION_DATE: '2025-10-30T00:00:00.000Z',
+  // Perihelion: October 29, 2025 at 11:44 UT
+  // Source: NASA, MPC, TheSkyLive
+  // Note: Rounded to Oct 29 for chart display (actual time 11:44 UT)
+  PERIHELION_DATE: '2025-10-29T11:44:00.000Z',
 
   // Standard end date - end of year for consistency
   END_DATE: '2025-12-31T23:59:59.999Z',
 
   // Days from start to perihelion
-  DAYS_TO_PERIHELION: 121, // July 1 to Oct 30
+  DAYS_TO_PERIHELION: 120, // July 1 to Oct 29
 
   // Total period in days
   TOTAL_DAYS: 183, // July 1 to Dec 31
@@ -108,7 +120,7 @@ export const CHART_STYLE_CONFIG = {
     borderColor: '#dc2626',
     borderWidth: 2,
     label: {
-      content: 'Perihelion (Oct 30)',
+      content: 'Perihelion (Oct 29)',
       enabled: true,
       position: 'top'
     }

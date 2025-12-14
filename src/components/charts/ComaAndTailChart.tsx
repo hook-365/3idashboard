@@ -179,7 +179,7 @@ export default function ComaAndTailChart({
         borderWidth: 1,
         callbacks: {
           title: (context) => {
-            const date = new Date(context[0].parsed.x);
+            const date = new Date(context[0].parsed.x ?? Date.now());
             return date.toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'long',
@@ -196,13 +196,13 @@ export default function ComaAndTailChart({
 
             // Measurement value
             if (label.includes('Coma')) {
-              lines.push(`Coma: ${value.toFixed(2)} arcminutes`);
+              lines.push(`Coma: ${value?.toFixed(2) ?? 'N/A'} arcminutes`);
               // Show tail if available on same observation
               if (point?.tailLength) {
                 lines.push(`Tail: ${point.tailLength.toFixed(2)} degrees`);
               }
             } else {
-              lines.push(`Tail: ${value.toFixed(2)} degrees`);
+              lines.push(`Tail: ${value?.toFixed(2) ?? 'N/A'} degrees`);
               // Show coma if available on same observation
               if (point?.comaSize) {
                 lines.push(`Coma: ${point.comaSize.toFixed(2)} arcminutes`);

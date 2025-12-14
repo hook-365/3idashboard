@@ -198,7 +198,7 @@ export default function ComaScatterChart({
         borderWidth: 1,
         callbacks: {
           title: (context) => {
-            const date = new Date(context[0].parsed.x);
+            const date = new Date(context[0].parsed.x ?? Date.now());
             return date.toLocaleDateString('en-US', {
               month: 'short',
               day: 'numeric',
@@ -208,7 +208,7 @@ export default function ComaScatterChart({
           label: (context) => {
             const value = context.parsed.y;
             const datasetLabel = context.dataset.label;
-            return `${datasetLabel}: ${value.toFixed(2)} arcminutes`;
+            return `${datasetLabel}: ${value?.toFixed(2) ?? 'N/A'} arcminutes`;
           }
         }
       }

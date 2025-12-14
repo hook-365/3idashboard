@@ -257,7 +257,7 @@ const OrbitalVelocityChart = memo(function OrbitalVelocityChart({
         callbacks: {
           label: (context) => {
             const value = context.parsed.y;
-            return `${context.dataset.label}: ${value.toFixed(2)} km/s`;
+            return `${context.dataset.label}: ${value?.toFixed(2) ?? 'N/A'} km/s`;
           },
           afterBody: (tooltipItems) => {
             const dataPoint = data[tooltipItems[0].dataIndex];
@@ -374,7 +374,7 @@ const OrbitalVelocityChart = memo(function OrbitalVelocityChart({
 
         {/* Physical interpretation */}
         <div className="mt-2 text-xs text-[var(--color-text-tertiary)]">
-          <strong>Physical Context:</strong> Interstellar object 3I/ATLAS accelerates as it approaches perihelion (Oct 30, 2025).
+          <strong>Physical Context:</strong> Interstellar object 3I/ATLAS accelerates as it approaches perihelion (Oct 29, 2025).
           Heliocentric velocity increases due to Sun&apos;s gravitational acceleration following Kepler&apos;s laws.
         </div>
       </div>

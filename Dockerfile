@@ -2,8 +2,8 @@
 # Multi-stage build for optimized production image
 
 # Stage 1: Dependencies
-FROM node:18-alpine AS deps
-RUN apk add --no-cache libc6-compat
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
 # Copy package files
@@ -12,7 +12,8 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev --legacy-peer-deps
 
 # Stage 2: Builder
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
+RUN apk add --no-cache python3 make g++ autoconf automake libtool nasm pkgconfig
 WORKDIR /app
 
 # Copy package files and install all dependencies (including dev)
@@ -27,7 +28,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
 # Stage 3: Production Runner
-FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 # Set production environment

@@ -169,7 +169,7 @@ const LightCurve = memo(function LightCurve({
           borderWidth: 1,
           callbacks: {
             title: (context) => {
-              const date = new Date(context[0].parsed.x);
+              const date = new Date(context[0].parsed.x ?? Date.now());
               return date.toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'long',
@@ -179,7 +179,7 @@ const LightCurve = memo(function LightCurve({
             label: (context) => {
               const rawData = context.raw as { x: number; y: number; pointData?: LightCurveDataPoint };
               const point = rawData?.pointData;
-              const lines = [`Magnitude: ${context.parsed.y.toFixed(2)}`];
+              const lines = [`Magnitude: ${context.parsed.y?.toFixed(2) ?? 'N/A'}`];
               if (point?.observer) {
                 lines.push(`Observer: ${point.observer}`);
               }
@@ -366,7 +366,7 @@ const LightCurve = memo(function LightCurve({
               Real-time updates {isAnimating ? 'active' : 'enabled'}
             </p>
           )}
-          <p>• Red vertical line marks perihelion (October 30, 2025 - closest approach to Sun)</p>
+          <p>• Red vertical line marks perihelion (October 29, 2025 - closest approach to Sun)</p>
           <p className="text-[var(--color-status-success)]">• <span className="inline-block w-0.5 h-3 bg-[var(--color-status-success)] align-middle mr-1"></span>Green dashed line: Current date</p>
         </div>
         {enableZoom && (

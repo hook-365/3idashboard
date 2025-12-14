@@ -281,7 +281,10 @@ export function parseHorizonsResponse(response: string): JPLHorizonsData {
     perihelion_distance: 1.56, // AU (approximate for 3I/ATLAS)
     velocity_at_perihelion: 87.7, // km/s (interstellar velocity)
     semi_major_axis: -1.9, // AU (negative for hyperbolic)
-    orbital_period: -1 // Not applicable for hyperbolic orbit
+    orbital_period: -1, // Not applicable for hyperbolic orbit
+    longitude_of_ascending_node: 0, // Will be updated if found in response
+    argument_of_periapsis: 0, // Will be updated if found in response
+    perihelion_time_jd: 0 // Will be updated if found in response
   };
 
   const ephemeris = {
@@ -489,7 +492,10 @@ export function getMockJPLData(): JPLHorizonsData {
     perihelion_distance: 1.56, // AU
     velocity_at_perihelion: 87.7, // km/s (interstellar velocity)
     semi_major_axis: -1.9, // Negative for hyperbolic
-    orbital_period: -1 // Not applicable for hyperbolic orbit
+    orbital_period: -1, // Not applicable for hyperbolic orbit
+    longitude_of_ascending_node: 0, // Will be updated if found in response
+    argument_of_periapsis: 0, // Will be updated if found in response
+    perihelion_time_jd: 0 // Will be updated if found in response
   };
 
   // Current ephemeris approximation

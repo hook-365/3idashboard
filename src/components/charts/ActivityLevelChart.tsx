@@ -318,7 +318,7 @@ const ActivityLevelChart = memo(function ActivityLevelChart({
                 `Correlation: ${point.correlation.toFixed(3)}`
               ];
             }
-            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}`;
+            return `${context.dataset.label}: ${context.parsed.y?.toFixed(1) ?? 'N/A'}`;
           },
         },
       },

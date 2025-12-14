@@ -228,7 +228,7 @@ export default function MissionStatusWidget({ data, loading, simplified = false,
               {daysUntilPerihelion}
             </div>
             <div className="text-sm text-[var(--color-text-secondary)]">Days to Perihelion</div>
-            <div className="text-xs text-[var(--color-text-tertiary)] mt-2">Oct 30, 2025</div>
+            <div className="text-xs text-[var(--color-text-tertiary)] mt-2">Oct 29, 2025</div>
           </div>
         )}
 
@@ -400,7 +400,7 @@ export default function MissionStatusWidget({ data, loading, simplified = false,
           </div>
         </div>
         <div className="text-xs text-[var(--color-text-secondary)] mt-2">
-          Closest approach: October 30, 2025 00:00 UTC
+          Closest approach: October 29, 2025 11:44 UT
         </div>
         <div className="mt-3 text-sm text-[var(--color-text-secondary)] max-w-2xl mx-auto">
           At perihelion, intense solar heat triggers peak outgassing and brightness, revealing 3I/ATLAS&apos;s composition and allowing scientists to study material from another star system.
@@ -482,7 +482,7 @@ export default function MissionStatusWidget({ data, loading, simplified = false,
             <div
               className="absolute top-0 h-full w-2 z-10 bg-[var(--color-status-warning)]"
               style={{ left: `${timelinePos.perihelionProgress}%` }}
-              title="Perihelion - Oct 30"
+              title="Perihelion - Oct 29"
             ></div>
 
             {/* Juice Marker */}
@@ -544,7 +544,7 @@ export default function MissionStatusWidget({ data, loading, simplified = false,
                 <span className="text-xs bg-[var(--color-status-warning)] text-white px-1.5 py-0.5 rounded ml-auto font-bold">{timelinePos.daysToPerihelion}d</span>
               )}
             </div>
-            <div className="text-xs text-[var(--color-text-secondary)]">Oct 30, 2025</div>
+            <div className="text-xs text-[var(--color-text-secondary)]">Oct 29, 2025</div>
             <div className="text-xs font-semibold text-[var(--color-status-warning)] mt-1">Peak: ~10.5 mag (best viewing)</div>
           </div>
 

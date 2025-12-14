@@ -871,7 +871,7 @@ export default function AboutPage() {
               <span>→</span>
             </a>
             <p className="text-[var(--color-text-tertiary)] mt-6 text-sm">
-              Dashboard updated September 30, 2025
+              Dashboard updated December 14, 2025
             </p>
           </div>
 
